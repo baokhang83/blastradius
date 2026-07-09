@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.baokhang83.blastradius</groupId>
+        <artifactId>blastradius-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>blastradius-core</artifactId>
+    <packaging>jar</packaging>
+
+    <name>blastradius-core</name>
+    <description>Shared dependency-tracking and test-selection engine, proven by the
+        shadow-mode validator (T061) and reused unchanged by both the validator and the
+        CI-gating Maven plugin.</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit</artifactId>
+            <version>${jgit.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+        <!-- Compile scope: TestBoundaryListener instruments the TARGET project's own
+             JUnit 5 run, not just ours, so it ships as part of the shaded agent jar. -->
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${compiler.plugin.version}</version>
+                <configuration>
+                    <!-- Retains record/constructor parameter names in bytecode, so
+                         Jackson can deserialize records via their canonical
+                         constructor without @JsonCreator/@JsonProperty annotations. -->
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire.version}</version>
+            </plugin>
+            <plugin>
+                <!-- shade:shade repackages the EXISTING main-artifact jar; it does not
+                     produce one itself. jar-plugin's early execution below builds that
+                     base jar first, in the same phase, before shade runs. -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>${jar.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>build-base-jar-early</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                    <!-- The implicit "default-jar" execution (bound to the package phase
+                         for jar packaging) would otherwise run after maven-shade-plugin's
+                         "shade-at-package" execution has already replaced the project's
+                         main artifact, and fail with "You have to use a classifier to
+                         attach supplemental artifacts". Disable it; build-base-jar-early
+                         above already covers the plain-jar build. -->
+                    <execution>
+                        <id>default-jar</id>
+                        <phase>none</phase>
+                    </execution>
+                    <!-- FixtureProjectBuilder (test-support code, not engine code) is
+                         needed by blastradius-validator's and blastradius-maven-plugin's
+                         own tests too — publish it as a test-jar rather than duplicating
+                         it, the same "second+ real consumer" reasoning that justified
+                         extracting this module in the first place. -->
+                    <execution>
+                        <id>build-test-jar</id>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <!-- A -javaagent jar only puts ITSELF on the classpath, not its Maven
+                     dependencies (JGit, Jackson, junit-platform-launcher) — so the
+                     final artifact must be a self-contained shaded (fat) jar, not a
+                     plain jar, or DependencyTrackingAgent fails NoClassDefFoundError
+                     the moment it references TestBoundaryListener. blastradius-core
+                     needs its OWN shaded agent jar (independent of blastradius-validator
+                     or blastradius-maven-plugin) for its own integration tests, and for
+                     the plugin's track subprocess to attach directly. -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>${shade.plugin.version}</version>
+                <configuration>
+                    <filters>
+                        <!-- Strip signature files from shaded dependencies — a merged
+                             uber-jar no longer matches their original signatures,
+                             which otherwise fails with a SecurityException at load. -->
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <exclude>META-INF/*.SF</exclude>
+                                <exclude>META-INF/*.DSA</exclude>
+                                <exclude>META-INF/*.RSA</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
+                    <transformers>
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                            <manifestEntries>
+                                <!-- Enables this jar to be used as -javaagent:...jar=<outputPath> -->
+                                <Premain-Class>io.github.baokhang83.blastradius.core.tracking.DependencyTrackingAgent</Premain-Class>
+                                <Can-Redefine-Classes>true</Can-Redefine-Classes>
+                                <Can-Retransform-Classes>true</Can-Retransform-Classes>
+                            </manifestEntries>
+                        </transformer>
+                        <!-- Merges META-INF/services files instead of one overwriting
+                             another, so our TestExecutionListener registration survives
+                             shading alongside any dependency's own service files. -->
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                    </transformers>
+                </configuration>
+                <executions>
+                    <!-- Integration tests need a real, shaded agent jar to attach to a
+                         subprocess mvn run — but `package` runs after `test` in the
+                         default lifecycle. Build it early too, identically configured,
+                         so it exists in time. -->
+                    <execution>
+                        <id>build-agent-jar-early</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>shade-at-package</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

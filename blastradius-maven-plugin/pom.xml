@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.baokhang83.blastradius</groupId>
+        <artifactId>blastradius-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>blastradius-maven-plugin</artifactId>
+    <packaging>maven-plugin</packaging>
+
+    <name>blastradius-maven-plugin</name>
+    <description>Real Maven plugin gating CI by actually skipping tests, using the
+        dependency-tracking engine proven safe by the shadow-mode validator (T061).</description>
+
+    <properties>
+        <maven.plugin-api.version>3.9.6</maven.plugin-api.version>
+        <maven.plugin-tools.version>3.13.1</maven.plugin-tools.version>
+        <maven.core.version>3.9.6</maven.core.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.baokhang83.blastradius</groupId>
+            <artifactId>blastradius-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit</artifactId>
+            <version>${jgit.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+
+        <!-- Maven plugin SDK: provided scope, since the plugin is loaded into an
+             already-running Maven process that supplies these at runtime. -->
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-plugin-api</artifactId>
+            <version>${maven.plugin-api.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.maven.plugin-tools</groupId>
+            <artifactId>maven-plugin-annotations</artifactId>
+            <version>${maven.plugin-tools.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-core</artifactId>
+            <version>${maven.core.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- FixtureProjectBuilder, shared via blastradius-core's test-jar (T006). -->
+        <dependency>
+            <groupId>io.github.baokhang83.blastradius</groupId>
+            <artifactId>blastradius-core</artifactId>
+            <version>${project.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${compiler.plugin.version}</version>
+                <configuration>
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire.version}</version>
+            </plugin>
+            <plugin>
+                <!-- Generates the plugin.xml goal descriptor from @Mojo/@Parameter
+                     annotations — what makes `blastradius:select` resolvable as a goal. -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-plugin-plugin</artifactId>
+                <version>${maven.plugin-tools.version}</version>
+                <!-- TEMPORARY: this goal binds early enough to block even test-compile,
+                     and fails outright with zero @Mojo classes in the project. Skipped
+                     until SelectMojo exists (tasks.md T022) — remove this override then,
+                     not before, so the descriptor is actually verified once it can be. -->
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>generate-descriptor</id>
+                        <goals>
+                            <goal>descriptor</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
