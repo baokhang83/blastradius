@@ -11,15 +11,17 @@
 A real, installable Maven plugin (`blastradius-maven-plugin`) providing one adopter-facing
 goal, `blastradius:select`, that computes dependency-based test selection for the current
 build and hands it to Surefire/Failsafe as a standard test filter — actually skipping tests,
-not just shadow-reporting on what it would skip. It reuses, unmodified, the exact dependency-
-tracking and selection mechanism the shadow-mode validator already proved sound (T061: PASS,
-zero would-miss cases, 105 real commit pairs on two real projects) — extracted into a new
-shared `blastradius-core` module rather than reimplemented, since this is exactly the second
-real consumer that justifies that extraction under Constitution Principle II. The goal
-maintains a persisted, cacheable dependency index anchored to a base git reference, refreshed
-by an explicit, separate full-suite "track" run rather than by ever attempting to instrument
-the live, gated build — a design chosen specifically to avoid reintroducing the `argLine`
-fragility research.md #2 of the validator's own spec already found and fixed once.
+not just reporting on what it would skip. It reuses, unmodified, the exact dependency-tracking
+and selection mechanism the shadow-mode validator built and tested (`blastradius-core`) —
+extracted into a new shared module rather than reimplemented, since this is exactly the second
+real consumer that justifies that extraction under Constitution Principle II. Soundness rests
+on sensible defaults (dependency-tracking-driven selection, conservative fallback rules) and is
+complemented, not substituted, by recommending adopters run their full test suite portfolio on
+a regular cadence (recommended: daily) — see quickstart.md. The goal maintains a persisted,
+cacheable dependency index anchored to a base git reference, refreshed by an explicit, separate
+full-suite "track" run rather than by ever attempting to instrument the live, gated build — a
+design chosen specifically to avoid reintroducing the `argLine` fragility research.md #2 of the
+validator's own spec already found and fixed once.
 
 ## Technical Context
 
@@ -79,11 +81,10 @@ scope, same as the validator).
 |---|---|---|
 | I. TDD (NON-NEGOTIABLE) | PASS | `blastradius-core`'s extracted classes keep their existing tests (moved, not rewritten — no red-green-refactor gap). Every genuinely new class (the Mojo, index persistence, base-ref diffing, build report rendering) gets its own red-green-refactor cycle at task-breakdown/implementation time, same discipline as the validator. |
 | II. Clean Code & Simplicity | PASS | The `blastradius-core` extraction is not speculative — it is justified now by a second real, concrete consumer (this plugin) needing the exact same proven mechanism, which is precisely the condition Principle II requires before extracting a shared abstraction. |
-| III. Safety Over Speed (NON-NEGOTIABLE) | PASS | FR-005/FR-007/FR-008/FR-011 carry forward the validator's exact conservative rules unchanged: fallback on unsound-to-observe changes, always-select new/modified tests, fail-safe on missing/stale index, never suppress a real failure's effect on build outcome. |
+| III. Safety Over Speed | PASS | FR-005/FR-007/FR-008/FR-011 carry forward the validator's conservative rules unchanged: fallback on unsound-to-observe changes, always-select new/modified tests, fail-safe on missing/stale index, never suppress a real failure's effect on build outcome. Per the amended Principle III (no longer NON-NEGOTIABLE), this plan doesn't need to defend that soundness is maximized at any cost — it's a sound default, complemented by the recommended daily full-suite-portfolio practice (quickstart.md), not a substitute for one. |
 | IV. Deterministic Core Before ML | PASS | No ML anywhere in this feature (spec.md Assumptions, explicit). |
-| V. Shadow-Mode Before Gating (NON-NEGOTIABLE) | PASS | This is the feature Principle V exists to eventually permit — and it is permitted specifically because the deterministic core already earned it (T061: zero would-miss, 105 real commit pairs, two real projects). This plan does not re-earn that trust; it exercises it, and does not extend gating to any capability that hasn't separately passed shadow mode (e.g., no ML layer is being smuggled in under this same trust). |
-| VI. Explainability | PASS | FR-008/FR-009 and the Build Report entity carry the validator's `SelectionDecision.reason` concept forward unchanged into live use — every skip is traceable, never a bare decision. |
-| VII. Maintainable, Modern Foundations | PASS | Same JDK 21 LTS, JUnit 5 Platform, current `maven-plugin-api`/`maven-plugin-annotations` (actively maintained, the standard current mechanism for Maven plugin development) — no deprecated Maven plugin APIs (e.g. no legacy `AbstractMojo` patterns predating the annotation-based model). |
+| V. Explainability | PASS | FR-008/FR-009 and the Build Report entity carry the validator's `SelectionDecision.reason` concept forward unchanged into live use — every skip is traceable, never a bare decision. |
+| VI. Maintainable, Modern Foundations | PASS | Same JDK 21 LTS, JUnit 5 Platform, current `maven-plugin-api`/`maven-plugin-annotations` (actively maintained, the standard current mechanism for Maven plugin development) — no deprecated Maven plugin APIs (e.g. no legacy `AbstractMojo` patterns predating the annotation-based model). |
 
 No violations. Complexity Tracking is not needed for this plan. The multi-module restructuring
 (extracting `blastradius-core`) is a structural decision serving Principle II, not a violation
@@ -94,6 +95,15 @@ local-filesystem index, commit-anchored applicability) and data-model.md/contrac
 new dependency, no hosted component, and no change to the selection rules themselves — they
 only decide *when* and *how* the already-proven rules get applied live. The table above still
 holds unchanged after Phase 1 design.
+
+**Constitution v2.0.0 note (2026-07-09)**: this plan was originally written against
+constitution v1.0.0, whose Principle V (Shadow-Mode Before Gating, NON-NEGOTIABLE) framed this
+whole feature as something the shadow-mode validator's T061 evidence specifically unlocked.
+Principle V has since been removed (v2.0.0) — the table above reflects the current, renumbered
+principle set. The engineering reality this plan describes is unchanged (the plugin still
+reuses `blastradius-core`'s proven, tested mechanism unmodified); what changed is that doing so
+is no longer framed as satisfying a constitutional gate, or as this project's advertised trust
+story — see spec.md and quickstart.md for the reworded framing.
 
 ## Project Structure
 
@@ -183,9 +193,9 @@ blastradius-maven-plugin/            # NEW module — the real product this feat
 **Structure Decision**: Multi-module Maven reactor (parent `pom.xml` + three modules), replacing
 today's single-module `blastradius-validator` project. This is the smallest structural change
 that lets the plugin depend on the validator's exact proven `tracking`/`selection` code without
-duplicating it — duplication would mean the plugin's soundness claim rests on *unvalidated*
-copied code, which would quietly undermine the whole premise that this feature inherits T061's
-evidence rather than re-earning it. `blastradius-core` contains only what's genuinely shared;
+duplicating it — duplication would mean the plugin's selection logic rests on an *unvalidated*
+copy, quietly diverging from the tested mechanism `blastradius-core`'s own test suite actually
+covers. `blastradius-core` contains only what's genuinely shared;
 validator-specific mechanics (historical commit-pair replay, subprocess ground-truth resolution,
 would-miss verdict computation) stay in `blastradius-validator`, and plugin-specific mechanics
 (the live Mojo, index persistence, build-time diffing) stay in `blastradius-maven-plugin`.

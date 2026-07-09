@@ -1,30 +1,45 @@
 <!--
 Sync Impact Report
 ==================
-Version change: TEMPLATE → 1.0.0 (initial ratification)
-Modified principles: N/A (first fill of template placeholders)
-Added sections:
-  - I. Test-Driven Development (NON-NEGOTIABLE)
-  - II. Clean Code & Simplicity
-  - III. Safety Over Speed (NON-NEGOTIABLE)
-  - IV. Deterministic Core Before ML
-  - V. Shadow-Mode Before Gating (NON-NEGOTIABLE)
-  - VI. Explainability
-  - VII. Maintainable, Modern Foundations
-  - Technology & Architecture Constraints (Section 2)
-  - Development Workflow & Quality Gates (Section 3)
-  - Governance
-Removed sections: none (template placeholders only)
+Version change: 1.0.0 → 2.0.0 (MAJOR — principle removal + principle redefinition)
+Modified principles:
+  - III. Safety Over Speed (NON-NEGOTIABLE) → III. Safety Over Speed
+    (no longer NON-NEGOTIABLE; rationale and body rewritten around a complementary
+    daily full-test-suite-portfolio practice as the safety backstop, replacing the
+    prior "soundness is non-negotiable, speed MUST NOT be traded against it" framing)
+Removed principles:
+  - V. Shadow-Mode Before Gating (NON-NEGOTIABLE) — removed entirely, per explicit
+    user direction (2026-07-09). Shadow-mode validation remains valid, already-
+    completed historical work (see SESSION.md, specs/001-shadow-mode-validator/) but
+    is no longer a constitutionally-mandated prerequisite gate before a selection
+    capability may gate real CI, and is no longer the project's advertised trust
+    mechanism.
+Renumbered principles (following the removal of V):
+  - VI. Explainability → V. Explainability (content unchanged except one internal
+    cross-reference, see below)
+  - VII. Maintainable, Modern Foundations → VI. Maintainable, Modern Foundations
+    (content unchanged)
+Added sections: none
+Removed sections:
+  - Development Workflow & Quality Gates: removed the bullet requiring a shadow-mode
+    validation plan before a feature "may be considered for gating behavior" — that
+    gate no longer exists now that Principle V is removed.
+Other edits:
+  - V. Explainability's rationale previously ended "...which is essential to earning
+    the trust Principle V requires evidence for" — reworded to stand on its own
+    without a dangling reference to the removed principle.
 Templates requiring updates:
   - ✅ .specify/templates/plan-template.md — no changes needed; Constitution Check
     gate is derived dynamically from this file, no hardcoded principle names found
   - ✅ .specify/templates/spec-template.md — no hardcoded principle references found
   - ✅ .specify/templates/tasks-template.md — no hardcoded principle references found
-  - ✅ .specify/templates/checklist-template.md — no hardcoded principle references found
-  - ✅ README.md — placeholder-only, no constitution references to reconcile
-  - N/A .specify/templates/commands/ — directory does not exist in this installation
-    (this SpecKit install uses .claude/skills/ instead); nothing to reconcile
-Follow-up TODOs: none
+  - ⚠ specs/002-ci-gating-plugin/ (spec.md, plan.md, research.md) — explicitly frame
+    the feature as satisfying/inheriting Principle V's shadow-mode gate; the user has
+    asked for these to be updated separately, after this amendment lands
+  - ⚠ README.md — advertises shadow-mode as the trust mechanism; the user has asked
+    for this to be updated separately, after this amendment lands
+Follow-up TODOs: none (both flagged follow-ups are being handled directly by the user's
+  request, immediately after this amendment)
 -->
 
 # Blastradius Constitution
@@ -57,23 +72,31 @@ shared abstraction that guesses at future requirements.
 
 **Rationale**: A test-selection engine's correctness depends on the reader being able
 to trust what the code visibly does. Cleverness and speculative generality are the
-enemies of that trust and of the auditability Principle VI requires.
+enemies of that trust and of the auditability Principle V requires.
 
-### III. Safety Over Speed (NON-NEGOTIABLE)
+### III. Safety Over Speed
 
-The plugin's entire value proposition rests on trust: a single false negative
-(skipping a test that would have failed) is a strictly worse outcome than running
-the entire suite unnecessarily. Every design decision, when faced with ambiguity or
-incomplete information, MUST default to running more tests, never fewer. Changes
-that fall outside what the dependency-tracking mechanism can soundly observe —
-resource files, `pom.xml` and dependency version changes, database migrations,
-build configuration — MUST trigger a conservative fallback that runs the full
-affected scope rather than attempting a narrower guess. Soundness is non-negotiable;
-speed is the secondary objective and MUST NOT be traded against it.
+The plugin favors sound, conservative selection by default — dependency-tracking-
+driven decisions, not speculative heuristics — because an unnecessary full run is a
+much smaller cost than a missed failure. Ambiguity in what a change touches SHOULD
+default to running more tests rather than fewer. Changes that fall outside what the
+dependency-tracking mechanism can soundly observe — resource files, `pom.xml` and
+dependency version changes, database migrations, build configuration — MUST still
+trigger a conservative fallback that runs the full affected scope, since that
+mechanism is cheap to keep and doesn't trade away meaningful speed.
 
-**Rationale**: This tool exists to be trusted enough that teams let it gate merges.
-One confirmed false negative in production is sufficient to end that trust
-permanently, as the history of comparable tools (Principle VII) demonstrates.
+This is a strong default, not an absolute, non-negotiable rule: adopting teams are
+expected to run their full test suite portfolio on a regular cadence (recommended:
+daily) as a complementary safety net. That complementary practice is what allows the
+plugin's own selection logic to prioritize practical speed rather than treating every
+edge case with maximal, at-all-costs conservatism.
+
+**Rationale**: The original, stricter framing of this principle assumed the plugin's
+own selection was the only safety net a team had, which made any false negative
+unacceptable at any cost. With a complementary full-suite-portfolio cadence
+recommended alongside it, an occasional missed failure is caught within a day rather
+than never — changing the cost-benefit calculus enough that soundness no longer needs
+to be treated as non-negotiable in every edge case to remain trustworthy.
 
 ### IV. Deterministic Core Before ML
 
@@ -91,23 +114,7 @@ day one, and it trades an explainable, sound guarantee for a statistical one. Th
 deterministic core must stand on its own merits — explainable and immediately useful
 — before any probabilistic layer is allowed to touch what gets skipped.
 
-### V. Shadow-Mode Before Gating (NON-NEGOTIABLE)
-
-No selection logic — the deterministic core or any future ML layer — may be trusted
-to actually skip tests in a real CI pipeline until it has first run in shadow mode:
-selecting a subset while still executing the full suite, and reporting what would
-have been skipped versus what would have actually failed. A capability MUST NOT be
-promoted from shadow mode to gating mode until it has demonstrated a would-miss rate
-of zero over a meaningful, representative sample of real changes. This gate applies
-independently to each capability — the deterministic engine earns trust first; any
-later ML layer MUST re-earn it separately, even after the deterministic core is
-already trusted and gating.
-
-**Rationale**: Trust must be demonstrated with evidence on real usage, not assumed
-from design soundness alone. Shadow mode is the mechanism that lets adopters verify
-safety for themselves before any risk is taken with their CI pipeline.
-
-### VI. Explainability
+### V. Explainability
 
 Every selection decision MUST be traceable to a concrete, human-readable reason: which
 changed class or file a given test's tracked dependencies intersect with, or which
@@ -118,9 +125,9 @@ reasoning behind it.
 
 **Rationale**: Explainability is what separates a trustworthy skip from a black box.
 It is also the mechanism by which users audit and challenge the tool's decisions,
-which is essential to earning the trust Principle V requires evidence for.
+which is essential to earning and keeping the trust this whole project depends on.
 
-### VII. Maintainable, Modern Foundations
+### VI. Maintainable, Modern Foundations
 
 The project MUST be built on actively maintained, current foundations: the JUnit 5
 Platform as the native test execution model (with JUnit 4/TestNG support treated as
@@ -159,14 +166,11 @@ project outliving its predecessors.
   (`/speckit-specify`) before implementation planning.
 - Every `/speckit-plan` MUST pass the Constitution Check gate against this document
   before Phase 0 research begins, and MUST be re-checked after Phase 1 design.
-- Any feature that changes what gets skipped, or introduces a new selection or
-  fallback mechanism, MUST include a shadow-mode validation plan (Principle V) as
-  part of its spec before it may be considered for gating behavior.
 - Code review MUST verify: tests were written first where feasible to confirm
   (Principle I), no speculative abstractions were introduced (Principle II), no
   design decision silently weakens soundness in favor of speed (Principle III), and
   any new dependency introduced is on an actively maintained foundation
-  (Principle VII).
+  (Principle VI).
 
 ## Governance
 
@@ -191,4 +195,4 @@ gate defined in `.specify/templates/plan-template.md`. Any violation MUST be
 explicitly justified in that plan's Complexity Tracking section or the design MUST
 be simplified until it complies.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-08 | **Last Amended**: 2026-07-08
+**Version**: 2.0.0 | **Ratified**: 2026-07-08 | **Last Amended**: 2026-07-09

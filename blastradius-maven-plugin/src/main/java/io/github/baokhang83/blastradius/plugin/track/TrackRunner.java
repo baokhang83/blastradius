@@ -1,0 +1,73 @@
+package io.github.baokhang83.blastradius.plugin.track;
+
+import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
+import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDependencyEntry;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Forks the target project's own {@code mvn test} as an independent subprocess, agent
+ * attached via {@code JAVA_TOOL_OPTIONS}, to (re)build a {@link DependencyIndex} —
+ * reusing {@code blastradius-core}'s proven tracking mechanism unchanged (unique-file-
+ * per-JVM, merge-on-read, {@code TestIdentity.baselineKey()} normalization). Deliberately
+ * never instruments the live, currently-running build being gated (research.md #1).
+ */
+public final class TrackRunner {
+
+    private static final long TIMEOUT_MINUTES = 20;
+
+    private final DependencyRecordReader recordReader = new DependencyRecordReader();
+
+    public DependencyIndex track(Path projectDir, Path agentJar, String anchorCommit) {
+        Path outputFile;
+        try {
+            outputFile = Files.createTempFile("blastradius-track-", ".json");
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to create a temp file for the track run's output", e);
+        }
+
+        String agentOption = "-javaagent:" + agentJar.toAbsolutePath() + "=" + outputFile.toAbsolutePath();
+        ProcessBuilder processBuilder = new ProcessBuilder("mvn", "-B", "--no-transfer-progress", "clean", "test")
+                .directory(projectDir.toFile())
+                .redirectErrorStream(true);
+        processBuilder.environment().merge("JAVA_TOOL_OPTIONS", agentOption, (existing, added) -> existing + " " + added);
+
+        runToCompletion(processBuilder, projectDir);
+
+        Map<TestIdentity, Map<String, String>> recorded = recordReader.readAll(outputFile);
+        List<TestDependencyEntry> entries = recorded.entrySet().stream()
+                .map(entry -> new TestDependencyEntry(entry.getKey(), entry.getValue().keySet()))
+                .toList();
+        return new DependencyIndex(anchorCommit, Instant.now().toString(), entries);
+    }
+
+    private static void runToCompletion(ProcessBuilder processBuilder, Path projectDir) {
+        try {
+            Process process = processBuilder.start();
+            process.getInputStream().readAllBytes();
+            boolean finished = process.waitFor(TIMEOUT_MINUTES, TimeUnit.MINUTES);
+            if (!finished) {
+                process.destroyForcibly();
+                throw new IllegalStateException("track run timed out against " + projectDir);
+            }
+            // A nonzero exit here typically means some tests failed, not that the build
+            // itself is broken — the agent still wrote whatever it observed regardless of
+            // pass/fail, so that data remains valid to track. A genuine build failure
+            // (e.g. a compile error) instead surfaces naturally: no dependency record file
+            // is ever produced, and DependencyRecordReader.readAll fails loudly for it.
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to invoke mvn test against " + projectDir, e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted while waiting for track run against " + projectDir, e);
+        }
+    }
+}

@@ -26,9 +26,10 @@ build with the plugin enabled, and only the tests actually affected by my change
 — saving real wall-clock time — while the build's pass/fail outcome is exactly what
 the full, unmodified suite would have reported.
 
-**Why this priority**: This is the entire reason the plugin exists — the shadow-mode
-validator already proved the underlying selection is safe; this is where that safety
-finally translates into a faster real build, which is the whole business case.
+**Why this priority**: This is the entire reason the plugin exists — the underlying
+selection mechanism was already built and tested (see `blastradius-core`); this is
+where it finally translates into a faster real build, which is the whole business
+case.
 
 **Independent Test**: Can be fully tested by making a small, contained source change
 in a project with the plugin enabled, running the build, and confirming: (a) fewer
@@ -56,9 +57,12 @@ As a developer or reviewer relying on this build to gate a merge, I need certain
 that if the plugin skips a test, that test would not have failed for this change —
 the build's trustworthiness as a gate must not degrade compared to running everything.
 
-**Why this priority**: This is the trust the shadow-mode evidence exists to unlock.
-A plugin that saves time but occasionally lets a real failure through would be worse
-than no plugin at all — Safety Over Speed is non-negotiable for this whole project.
+**Why this priority**: A plugin that saves time but routinely lets a real failure
+through would be worse than no plugin at all. Soundness is a strong default here
+(Constitution Principle III) — teams are also expected to run their full test suite
+portfolio on a regular cadence (recommended: daily) as a complementary safety net,
+so this story's bar is "the plugin's own selection is trustworthy," not "the plugin
+is the only thing standing between a bug and production."
 
 **Independent Test**: Can be fully tested by making a change that breaks a class,
 confirming every test whose tracked dependencies include that class is selected and
@@ -160,9 +164,9 @@ suite while establishing the baseline data subsequent builds will use.
 - **FR-001**: The plugin MUST provide an opt-in build step that a project can enable
   to run only a computed subset of its test suite for a given build, without
   requiring a separate tool or pipeline outside the project's normal Maven build.
-- **FR-002**: The plugin MUST determine each test's dependencies using the same
-  proven, runtime-observed tracking approach (not static analysis alone) validated by
-  the shadow-mode validator.
+- **FR-002**: The plugin MUST determine each test's dependencies using runtime
+  observation of actually-executed code (not static analysis alone), the same
+  already-built and tested tracking approach this feature reuses unmodified.
 - **FR-003**: The plugin MUST compute which tests are selected for the current build
   by comparing the current changes (uncommitted working-tree changes and/or the
   difference between the current branch and a configured base reference) against
@@ -170,8 +174,8 @@ suite while establishing the baseline data subsequent builds will use.
 - **FR-004**: The plugin MUST persist its dependency tracking data between builds,
   anchored to a base reference, so that a build's selection computation does not
   require re-deriving dependencies for the entire project from scratch.
-- **FR-005**: The plugin MUST apply the same conservative fallback rule proven in
-  shadow mode: any change outside what dependency tracking can soundly observe
+- **FR-005**: The plugin MUST apply the same conservative fallback rule this feature
+  reuses unmodified: any change outside what dependency tracking can soundly observe
   (non-source files, build/dependency configuration changes, database migrations)
   MUST cause the full affected test scope to run, not a narrower guess.
 - **FR-006**: The plugin MUST always select any test that is newly added or whose own
@@ -223,7 +227,7 @@ suite while establishing the baseline data subsequent builds will use.
   take, without changing the build's pass/fail outcome for that change.
 - **SC-002**: Zero would-miss cases occur in live use — every test failure that would
   have occurred in a full, unmodified run also causes the same build failure when the
-  plugin is enabled, consistent with the shadow-mode evidence this plugin builds on.
+  plugin is enabled.
 - **SC-003**: A team can adopt the plugin on an existing project by enabling one
   opt-in build step, with no required changes to existing test code or CI
   configuration structure.
@@ -240,17 +244,18 @@ suite while establishing the baseline data subsequent builds will use.
 ## Assumptions
 
 - The target project builds with Maven and uses JUnit 5 (via Surefire/Failsafe) as
-  its test framework, consistent with the shadow-mode validator's own scope; other
-  build tools are out of scope for this feature.
+  its test framework; other build tools are out of scope for this feature.
 - "Current changes" means either uncommitted working-tree changes (local development
   use) or the diff between the current branch/PR and a configured base reference (CI
   use) — both are supported, selected by how the plugin is invoked.
 - The plugin is adopted per-project by the team that owns it; it is not a hosted or
   SaaS service, and it does not share tracked data across projects.
-- This feature builds directly on the shadow-mode validator's already-proven
+- This feature builds directly on `blastradius-core`'s already-built and tested
   dependency-tracking mechanism and selection rules (dependency match, fallback,
-  new/modified-test) — it inherits that evidence (T061: 105 real commit pairs, zero
-  would-miss cases) rather than re-establishing soundness from scratch.
+  new/modified-test) — it reuses that mechanism unmodified rather than reimplementing
+  it. Soundness is treated as a strong default (Constitution Principle III), not an
+  absolute one: adopting teams are expected to complement the plugin with a regular
+  (recommended: daily) full test suite portfolio run.
 - No machine-learning component is involved in this feature's selection logic, per
   the constitution's Deterministic Core Before ML principle.
 - The persisted dependency index's exact format, storage location, and invalidation

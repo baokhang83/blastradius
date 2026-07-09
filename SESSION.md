@@ -4,6 +4,20 @@
 context is cleared. Explains what Blastradius is, why it exists, everything built so
 far, and what comes next. Read this first in a fresh session.
 
+**Constitution amendment note (2026-07-09, read this before trusting principle
+references below)**: everything in this file was written against constitution
+v1.0.0, which included a Principle V ("Shadow-Mode Before Gating", NON-NEGOTIABLE)
+requiring proven shadow-mode evidence before any real gating. **Principle V has
+since been removed entirely** (constitution v2.0.0, same day, per explicit user
+direction) — daily full-test-suite-portfolio runs are now the recommended
+complementary safety practice instead, and shadow-mode is no longer the project's
+advertised trust mechanism. Principle III (Safety Over Speed) was also downgraded
+from NON-NEGOTIABLE in the same amendment. The T061 evidence and everything below
+describing it remain accurate as historical record of what was actually built and
+validated — only the *constitutional status* of that evidence has changed. See
+`.specify/memory/constitution.md`'s Sync Impact Report and
+`specs/002-ci-gating-plugin/` (updated in the same pass) for the current framing.
+
 ---
 
 ## What Blastradius is

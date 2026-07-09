@@ -164,11 +164,11 @@ covered "obtaining confirmed ground truth" before any story-specific selection/v
 
 ### diff/
 
-- [ ] T015 [P] Write failing tests for `CurrentChanges` computation — resolve `baseRef` to a
+- [X] T015 [P] Write failing tests for `CurrentChanges` computation — resolve `baseRef` to a
       commit, determine `currentCommit` and `isBaseRefBuild`, and diff `resolvedBaseCommit`
       against the working tree/branch via `blastradius-core`'s `ChangedFileClassifier` — in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/diff/CurrentChangesResolverTest.java`
-- [ ] T016 Implement `CurrentChangesResolver` (JGit-based; reuses
+- [X] T016 Implement `CurrentChangesResolver` (JGit-based; reuses
       `blastradius-core`'s `ChangedFileClassifier`/`ChangedFile`/`FileKind` directly per
       plan.md's Structure Decision) (make T015 pass) in
       `blastradius-maven-plugin/src/main/java/io/github/baokhang83/blastradius/plugin/diff/CurrentChangesResolver.java`
@@ -176,7 +176,7 @@ covered "obtaining confirmed ground truth" before any story-specific selection/v
 
 ### track/
 
-- [ ] T017 Write failing tests for `TrackRunner` — forks a `mvn test` subprocess against a
+- [X] T017 Write failing tests for `TrackRunner` — forks a `mvn test` subprocess against a
       `FixtureProjectBuilder`-style project (extended per T009's test skeleton) with the
       tracking agent attached via `JAVA_TOOL_OPTIONS` (reusing `blastradius-core`'s proven
       mechanism — unique-file-per-JVM, merge-on-read via `DependencyRecordReader.readAll`,
@@ -185,29 +185,29 @@ covered "obtaining confirmed ground truth" before any story-specific selection/v
       of the index) anchored to the subprocess's target commit — in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/track/TrackRunnerTest.java`
       (depends on T003, T006, T012)
-- [ ] T018 Implement `TrackRunner` (make T017 pass) in
+- [X] T018 Implement `TrackRunner` (make T017 pass) in
       `blastradius-maven-plugin/src/main/java/io/github/baokhang83/blastradius/plugin/track/TrackRunner.java`
       (depends on T017)
 
 ### report/ (skeleton only — content population is story-specific)
 
-- [ ] T019 [P] Write failing tests for the `BuildReport` model + JSON write (round-trips
+- [X] T019 [P] Write failing tests for the `BuildReport` model + JSON write (round-trips
       `mode`, `indexApplicability`, `decisions`, `selectedCount`, `totalCount`, `updatedIndex`
       per data-model.md/contracts) in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/report/BuildReportIoTest.java`
-- [ ] T020 Implement `BuildReport` + `BuildReportWriter` (make T019 pass) in
+- [X] T020 Implement `BuildReport` + `BuildReportWriter` (make T019 pass) in
       `blastradius-maven-plugin/src/main/java/io/github/baokhang83/blastradius/plugin/report/BuildReport.java`
       and `BuildReportWriter.java` (depends on T019)
 
 ### mojo/ (routing skeleton — each branch's real behavior is a user story)
 
-- [ ] T021 Write failing tests for `SelectMojo`'s mode-routing decision (given
+- [X] T021 Write failing tests for `SelectMojo`'s mode-routing decision (given
       `CurrentChanges.isBaseRefBuild`, `-Dblastradius.mode`, and `IndexApplicability`, assert
       it resolves to exactly one of `TRACK` / `SELECT` / `FALLBACK` per research.md #1 and
       contracts' three-state table) in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/SelectMojoModeRoutingTest.java`
       (depends on T014, T016)
-- [ ] T022 Implement `SelectMojo`'s `@Mojo(name = "select")` skeleton — parameter binding
+- [X] T022 Implement `SelectMojo`'s `@Mojo(name = "select")` skeleton — parameter binding
       (`baseRef` required, `indexPath` defaulting to `.blastradius/index.json`,
       `-Dblastradius.mode` optional) and the mode-routing decision only, with each branch's
       body left as a not-yet-implemented call to be filled in by US1/US4 (make T021 pass) in
@@ -235,18 +235,18 @@ against a 2-module reactor fixture and confirm cross-module attribution holds li
 
 ### Tests for User Story 1
 
-- [ ] T023 [P] [US1] Write failing tests asserting `SelectMojo`'s `SELECT` branch calls
+- [X] T023 [P] [US1] Write failing tests asserting `SelectMojo`'s `SELECT` branch calls
       `blastradius-core`'s `SelectionEngine` with the current build's `allTests`,
       `index.testDependencies`, and `CurrentChanges.changedFiles`, and produces one
       `SelectionDecision` per test (reusing the engine exactly as proven — no plugin-specific
       selection logic is written here) in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/SelectModeSelectionTest.java`
       (depends on T022)
-- [ ] T024 [P] [US1] Write failing tests for `SurefireFilterApplier` — given a set of selected
+- [X] T024 [P] [US1] Write failing tests for `SurefireFilterApplier` — given a set of selected
       `TestIdentity`s, asserts it correctly sets the project's effective Surefire/Failsafe
       `test` filter (equivalent to `-Dtest=`) before the `test` phase executes — in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/SurefireFilterApplierTest.java`
-- [ ] T025 [P] [US1] Write a failing end-to-end integration test: a single-module
+- [X] T025 [P] [US1] Write a failing end-to-end integration test: a single-module
       `FixtureProjectBuilder` project with an established index (via `TrackRunner`) and a small
       follow-up change, running the full Maven lifecycle through `test` with the goal bound at
       `process-test-classes`; assert Surefire's own execution report shows fewer tests run
@@ -254,7 +254,7 @@ against a 2-module reactor fixture and confirm cross-module attribution holds li
       new/modified) tests ran — in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/SelectModeEndToEndTest.java`
       (depends on T017, T018)
-- [ ] T026 [P] [US1] Write a failing end-to-end integration test against a 2-module reactor
+- [X] T026 [P] [US1] Write a failing end-to-end integration test against a 2-module reactor
       fixture (`FixtureProjectBuilder.twoModuleReactor`, already proven by T006's moved
       integration test): establish an index across both modules via `TrackRunner`, then a
       change in one module's production class; assert the goal correctly computes a distinct,
@@ -266,14 +266,14 @@ against a 2-module reactor fixture and confirm cross-module attribution holds li
 
 ### Implementation for User Story 1
 
-- [ ] T027 [US1] Implement `SurefireFilterApplier` (make T024 pass) in
+- [X] T027 [US1] Implement `SurefireFilterApplier` (make T024 pass) in
       `blastradius-maven-plugin/src/main/java/io/github/baokhang83/blastradius/plugin/mojo/SurefireFilterApplier.java`
       (depends on T024)
-- [ ] T028 [US1] Implement `SelectMojo`'s `SELECT` branch for a single module — invoke
+- [X] T028 [US1] Implement `SelectMojo`'s `SELECT` branch for a single module — invoke
       `SelectionEngine`, collect selected `TestIdentity`s, apply them via
       `SurefireFilterApplier` (make T023, T025 pass) in `SelectMojo.java` (depends on T022,
       T023, T027)
-- [ ] T029 [US1] Extend `SelectMojo`/`SurefireFilterApplier` so the goal — which Maven
+- [X] T029 [US1] Extend `SelectMojo`/`SurefireFilterApplier` so the goal — which Maven
       executes once per reactor module — computes and applies the correct, independent filter
       for *each* module it runs in, rather than assuming a single-module invocation (make T026
       pass) in `SelectMojo.java`/`SurefireFilterApplier.java` (depends on T026, T028)
@@ -297,19 +297,19 @@ file — confirm the full suite runs; (c) add a brand-new test — confirm it's 
 
 ### Tests for User Story 2
 
-- [ ] T030 [P] [US2] Write a failing integration test: a fixture project change that breaks a
+- [X] T030 [P] [US2] Write a failing integration test: a fixture project change that breaks a
       class a tracked test depends on; run the full lifecycle through `test`; assert the
       dependent test executes, fails, and the overall Maven build reports failure (FR-011) —
       in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/SelectedTestFailurePropagatesTest.java`
       (depends on T028)
-- [ ] T031 [P] [US2] Write a failing integration test: a fixture project change touching only
+- [X] T031 [P] [US2] Write a failing integration test: a fixture project change touching only
       a non-source file (e.g. a resource); assert `SelectMojo` produces a `FALLBACK_NON_SOURCE_CHANGE`-driven
       full selection and every test runs, matching `blastradius-core`'s already-proven
       `FallbackSelector` behavior applied live (FR-005) — in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/NonSourceChangeFallbackTest.java`
       (depends on T028)
-- [ ] T032 [P] [US2] Write a failing integration test: a fixture project change adding a
+- [X] T032 [P] [US2] Write a failing integration test: a fixture project change adding a
       brand-new test class with no tracked baseline; assert it is always selected regardless
       of the index's contents (FR-006) — in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/NewTestAlwaysSelectedTest.java`
@@ -317,7 +317,7 @@ file — confirm the full suite runs; (c) add a brand-new test — confirm it's 
 
 ### Implementation for User Story 2
 
-- [ ] T033 [US2] Fix any gap T030-T032 reveal in how `SelectMojo`/`SurefireFilterApplier`
+- [X] T033 [US2] Fix any gap T030-T032 reveal in how `SelectMojo`/`SurefireFilterApplier`
       propagate a narrowed Surefire execution's failure into the reactor build's own outcome
       (e.g. exit-code/`MojoFailureException` propagation across the `process-test-classes` →
       `test` phase boundary) in `SelectMojo.java`/`SurefireFilterApplier.java` (make T030-T032
@@ -437,7 +437,9 @@ robustness that spans multiple stories.
 
 - [ ] T048 [P] Write `blastradius-maven-plugin/README.md` mirroring quickstart.md — adoption
       snippet, first-build vs. later-build behavior, auditing a decision, why it's safe to
-      trust (references T061 evidence)
+      trust (reused, tested mechanism + the recommended daily full-suite-portfolio
+      complement — see quickstart.md's "Why this is safe to trust", updated per the
+      constitution v2.0.0 amendment removing Principle V)
 - [ ] T049 [P] Write failing tests, then implement, graceful error handling for malformed
       plugin configuration (missing `baseRef`, an `indexPath` outside the project directory, a
       target project that isn't a git repository at all) — the goal MUST fail with a clear

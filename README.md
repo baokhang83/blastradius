@@ -1,113 +1,71 @@
 # Blastradius
 
-A Maven test-impact-selection validator for Java/JUnit 5 projects.
+A Maven test-impact-selection toolkit for Java/JUnit 5 projects: dynamic, class-level
+dependency tracking that lets CI actually skip tests that are safe to skip for a given
+change, instead of always running the full suite.
 
-Blastradius investigates whether dynamic, class-level dependency tracking can safely
-predict which tests a code change could break — so that CI eventually only needs to run
-the tests actually affected by a change, not the entire suite. This repository is the
-**shadow-mode validator**: it never skips real test execution. It always runs everything,
-and only *afterward* checks whether its selection logic would have chosen the right
-tests, comparing chosen tests against skipped ones.
+## Modules
 
-## Why "shadow mode"?
-
-Per this project's constitution, no selection mechanism is trusted to actually skip
-tests until it has proven — on real commit history — that it never misses a real test
-failure. This tool exists to produce that proof (or disproof) before any real
-test-skipping plugin is ever built.
+- **`blastradius-core`** — the shared engine: the `java.lang.instrument`-based
+  dependency-tracking agent and the selection rules (dependency match, conservative
+  fallback, always-select-new/modified). Built and tested first, reused unmodified by
+  both modules below.
+- **`blastradius-maven-plugin`** — the real, installable Maven plugin
+  (`blastradius:select`) that gates CI by actually skipping tests during a live build.
+  This is the product; see `specs/002-ci-gating-plugin/` for the full spec, plan, and
+  task breakdown. **Under active development** — see Status below.
+- **`blastradius-validator`** — the original shadow-mode harness used during
+  development to validate the dependency-tracking mechanism against real open-source
+  projects' commit history before the real plugin was built. Still present and tested,
+  useful if you want to re-validate the mechanism against a project of your own; see
+  `specs/001-shadow-mode-validator/`.
 
 ## How it works
 
-Given a target Java/Maven project and a window of its N most recent commits, for each
-consecutive commit pair the validator:
+Given a target Java/Maven project, `blastradius-maven-plugin`:
 
-1. **Checks out the base commit non-destructively** (via a disposable scratch clone —
-   the target repository's HEAD, branch, and working tree are never touched).
-2. **Builds the base commit with a tracking agent attached** — a `-javaagent` using
-   `java.lang.instrument` to observe every class loaded during each test, via bytecode
-   checksums — recording each test's dependencies.
-3. **Builds the head commit to get ground truth** — real pass/fail per test, with a
-   single confirmation re-run for any failure to rule out flakiness before it's treated
-   as a real regression.
-4. **Classifies the changed files** between base and head (Java source vs. everything
-   else — config, resources, `pom.xml`, migrations).
-5. **Runs selection**: a test is selected if (a) one of its tracked dependencies
-   changed, (b) it's new or was itself modified, or (c) a non-source-code change
-   triggered a conservative "select everything" fallback.
-6. **Compares selection against ground truth.** Any confirmed-failed test that wasn't
-   selected is a "would-miss" case.
-7. **Computes a verdict** — `PASS` only if there are zero would-miss cases across the
-   whole analyzed window — plus a savings summary (how many test executions would have
-   been skipped).
-
-A commit pair whose base or head commit fails to build is excluded from the run (with a
-recorded reason) rather than aborting the whole analysis. Tests that fail once but pass
-on confirmation are reported separately as flaky — never affecting the verdict.
-
-The result is written as a JSON report plus a rendered human-readable text summary.
+1. **Tracks each test's real dependencies** — a `-javaagent` observes every class
+   loaded while a test runs, via bytecode checksums, on a full-suite run against your
+   base reference (e.g. `main`).
+2. **Diffs the current change** against that base reference (Java source vs.
+   everything else — config, resources, `pom.xml`, migrations).
+3. **Selects tests**: a test runs if (a) one of its tracked dependencies changed, (b)
+   it's new or was itself modified, or (c) a non-source-code change triggered a
+   conservative "run everything" fallback.
+4. **Hands the selection to Surefire/Failsafe** as a standard test filter — the tests
+   that aren't selected simply don't run for this build.
 
 Multi-module Maven reactors are supported: because tracking is based on actual class
 loads rather than a static per-module dependency graph, cross-module dependencies are
 attributed correctly without any extra bookkeeping.
 
-## Usage
+## Why this is safe to use
 
-```bash
-blastradius-validator run \
-  --project-path /path/to/target/project \
-  --commits 50 \
-  --report-out report.json \
-  [--summary-out summary.txt]
-```
+The selection mechanism (dependency tracking + conservative fallback rules) is sound
+by default, not by absolute guarantee. **We recommend every adopting team also run
+their full test suite portfolio on a regular cadence — recommended: daily** — as a
+complementary safety net. That combination is the intended trust model: a fast, sound-
+by-default selection on every build, backstopped by a full run that catches anything
+occasionally missed within a day rather than never. See
+`specs/002-ci-gating-plugin/quickstart.md` for the full adoption guide.
 
-If `--summary-out` is omitted, the rendered text summary is printed to stdout.
-
-Exit codes:
-- `0` — verdict `PASS`
-- `1` — verdict `FAIL` (see `report.json` for the specific would-miss cases)
-- `2` — the run itself could not complete (bad arguments, build infrastructure failure, etc.)
-
-## Report shape
-
-```json
-{
-  "verdict": "PASS | FAIL",
-  "analyzedCommitPairs": [ ... ],
-  "excludedCommitPairs": [ { "baseCommit": "...", "headCommit": "...", "exclusionReason": "..." } ],
-  "wouldMissCases": [ { "commitPair": {...}, "test": {...}, "changedClasses": [...], "selectionReason": "..." } ],
-  "flakyFailures": [ { "commitPair": {...}, "test": {...} } ],
-  "savingsSummary": {
-    "totalTestExecutions": 0, "totalSelected": 0, "proportionSkipped": 0.0,
-    "dependencyMatchedSelections": 0, "fallbackDrivenSelections": 0, "newOrModifiedTestSelections": 0
-  }
-}
-```
-
-## Project layout
-
-```
-src/main/java/io/github/baokhang83/blastradius/validator/
-├── cli/         Main entry point, argument parsing, run orchestration
-├── git/         Commit window resolution, non-destructive checkout, change classification
-├── tracking/    The java.lang.instrument agent + per-test dependency attribution
-├── build/       Driving the target project's own Maven build, ground-truth resolution,
-│                build-failure detection
-├── selection/   The selection engine and its three rules
-├── verdict/     Would-miss comparison, flaky-failure records, and PASS/FAIL calculation
-└── report/      JSON report model, writer, savings aggregation, text rendering
-```
-
-## Design principles (from the project constitution)
+## Design principles (from the project constitution, v2.0.0)
 
 - **Test-Driven Development is non-negotiable.** Every piece of engine code was built
   red → green → refactor.
-- **Safety over speed.** When in doubt, the tool selects more tests, not fewer.
+- **Clean code & simplicity.** No speculative abstraction — `blastradius-core` was
+  extracted only once a second real consumer needed it.
+- **Safety over speed.** Sound, conservative selection is the strong default, but not
+  an absolute at any cost — complemented by the recommended daily full-suite run
+  above, not a substitute for one.
 - **Deterministic before ML.** Selection is pure, explainable dependency tracking —
   no machine learning, no probabilistic shortcuts.
-- **Shadow-mode before gating.** This tool never skips a real test. It only reports
-  what it *would* have skipped, and whether that would have been safe.
 - **Explainability.** Every selection decision carries a concrete reason — dependency
   match, fallback, or new/modified test — never an opaque score.
+- **Maintainable, modern foundations.** JUnit 5 Platform, current JDK, no deprecated
+  APIs or abandoned tooling.
+
+See `.specify/memory/constitution.md` for the full text and rationale.
 
 ## Known limitations
 
@@ -116,17 +74,23 @@ src/main/java/io/github/baokhang83/blastradius/validator/
   attributes loads to tests that are actually executing. If such a class later changes
   and breaks a test that depended on it only via `@BeforeAll` setup, that dependency is
   invisible to selection — a narrow, deterministic, and honestly-documented edge case
-  (not a bug we're hiding). If this matters for a target project, treat `@BeforeAll`-only
-  dependencies with extra caution.
-- Each commit pair currently builds the target project up to three times (base, head,
-  and a possible single-test confirmation re-run) — correct, but not optimized for large
-  analysis windows against slow-building projects.
+  (not a bug we're hiding). If this matters for your project, treat `@BeforeAll`-only
+  dependencies with extra caution, and lean on the recommended daily full-suite run.
+- Refreshing the dependency index (a "track" build) runs the full suite once — correct,
+  but not optimized for projects with very slow suites; it only happens on base-
+  reference builds, not on every PR build.
 
 ## Status
 
-The core pipeline — commit traversal, non-destructive checkout, dependency tracking,
-ground truth resolution (with flaky confirmation), selection, would-miss comparison,
-verdict computation, savings evidence, broken-commit resilience, and both JSON and
-text reporting — is implemented and covered by an extensive test suite (90+ tests)
-built through strict TDD. See `specs/001-shadow-mode-validator/` for the full spec,
-plan, design decisions (ADR-style research notes), and task breakdown.
+- **`blastradius-core`**: complete, covered by an extensive test suite built through
+  strict TDD.
+- **`blastradius-validator`**: complete, covered by an extensive test suite (100+
+  tests). Its own real-project validation runs (commons-io, jsoup) are documented in
+  `SESSION.md`.
+- **`blastradius-maven-plugin`**: under active implementation — see
+  `specs/002-ci-gating-plugin/tasks.md` for current progress. Not yet ready for real
+  adoption; the usage sketch above describes the target design.
+
+See `specs/002-ci-gating-plugin/` for the plugin's full spec, plan, design decisions
+(ADR-style research notes), and task breakdown, and `specs/001-shadow-mode-validator/`
+for the validator's.
