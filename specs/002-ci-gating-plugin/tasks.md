@@ -339,33 +339,33 @@ is never reported as passed.
 
 ### Tests for User Story 3
 
-- [ ] T034 [P] [US3] Write failing tests for `SelectMojo` populating `BuildReport.decisions`
+- [X] T034 [P] [US3] Write failing tests for `SelectMojo` populating `BuildReport.decisions`
       from the `SELECT` branch's `SelectionDecision` list (from US1's T028), and writing it
       via T020's `BuildReportWriter` to `.blastradius/last-build-report.json` (FR-008, FR-009)
       — in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/report/BuildReportPopulationTest.java`
       (depends on T020, T028)
-- [ ] T035 [P] [US3] Write failing tests for the console summary renderer — given a
+- [X] T035 [P] [US3] Write failing tests for the console summary renderer — given a
       `BuildReport`, produces the `[blastradius] ...` lines per contracts/mojo-and-index-contract.md
       (mode, index anchor + timestamp, selected/total counts, per-reason breakdown) — in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/report/ConsoleSummaryRendererTest.java`
-- [ ] T036 [P] [US3] Write failing tests for the `-Dblastradius.explain=true` expanded
+- [X] T036 [P] [US3] Write failing tests for the `-Dblastradius.explain=true` expanded
       per-test listing (every test's `selected`/`reason`/`matchedChangedClass`, not just the
       aggregate summary) (SC-004) in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/report/ExplainListingRendererTest.java`
 
 ### Implementation for User Story 3
 
-- [ ] T037 [US3] Wire `BuildReport` population into `SelectMojo`'s `SELECT` branch (make T034
+- [X] T037 [US3] Wire `BuildReport` population into `SelectMojo`'s `SELECT` branch (make T034
       pass) in `SelectMojo.java` (depends on T034)
-- [ ] T038 [P] [US3] Implement `ConsoleSummaryRenderer` (make T035 pass) in
+- [X] T038 [P] [US3] Implement `ConsoleSummaryRenderer` (make T035 pass) in
       `blastradius-maven-plugin/src/main/java/io/github/baokhang83/blastradius/plugin/report/ConsoleSummaryRenderer.java`
       (depends on T035)
-- [ ] T039 [P] [US3] Implement the `-Dblastradius.explain=true` expanded listing (make T036
+- [X] T039 [P] [US3] Implement the `-Dblastradius.explain=true` expanded listing (make T036
       pass) in
       `blastradius-maven-plugin/src/main/java/io/github/baokhang83/blastradius/plugin/report/ExplainListingRenderer.java`
       (depends on T036)
-- [ ] T040 [US3] Wire both renderers into `SelectMojo`'s output step (depends on T037, T038,
+- [X] T040 [US3] Wire both renderers into `SelectMojo`'s output step (depends on T037, T038,
       T039)
 
 **Checkpoint**: Every build's decisions are fully auditable from its own output.

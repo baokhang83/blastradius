@@ -12,6 +12,9 @@ import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
 import io.github.baokhang83.blastradius.plugin.index.IndexApplicability;
 import io.github.baokhang83.blastradius.plugin.index.IndexApplicabilityResolver;
 import io.github.baokhang83.blastradius.plugin.report.BuildReport;
+import io.github.baokhang83.blastradius.plugin.report.BuildReportWriter;
+import io.github.baokhang83.blastradius.plugin.report.ConsoleSummaryRenderer;
+import io.github.baokhang83.blastradius.plugin.report.ExplainListingRenderer;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -33,9 +36,9 @@ import org.apache.maven.project.MavenProject;
  * index, depending on which of three modes applies (research.md #1; contracts/
  * mojo-and-index-contract.md).
  *
- * <p>This class currently only wires the mode-routing decision (Foundational,
- * tasks.md T021/T022) — each branch's actual behavior is filled in by later user stories
- * (US1's {@code SELECT}, US4's {@code TRACK}/{@code FALLBACK}).
+ * <p>{@code SELECT} (US1/US2/US3) computes and applies a narrowed Surefire filter, and
+ * writes/renders a {@link BuildReport} of its decisions. {@code TRACK}/{@code FALLBACK}
+ * (US4) are filled in later.
  */
 @Mojo(name = "select", defaultPhase = LifecyclePhase.PROCESS_TEST_CLASSES,
         requiresDependencyResolution = ResolutionScope.TEST)
@@ -50,6 +53,9 @@ public final class SelectMojo extends AbstractMojo {
     @Parameter(property = "blastradius.mode")
     private String mode;
 
+    @Parameter(property = "blastradius.explain", defaultValue = "false")
+    private boolean explain;
+
     @Parameter(defaultValue = "${project}", readonly = true, required = true)
     private MavenProject project;
 
@@ -63,6 +69,9 @@ public final class SelectMojo extends AbstractMojo {
     private final IndexApplicabilityResolver indexApplicabilityResolver = new IndexApplicabilityResolver();
     private final SurefireFilterApplier surefireFilterApplier = new SurefireFilterApplier();
     private final TestDiscoverer testDiscoverer = new TestDiscoverer();
+    private final BuildReportWriter buildReportWriter = new BuildReportWriter();
+    private final ConsoleSummaryRenderer consoleSummaryRenderer = new ConsoleSummaryRenderer();
+    private final ExplainListingRenderer explainListingRenderer = new ExplainListingRenderer();
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
@@ -125,6 +134,21 @@ public final class SelectMojo extends AbstractMojo {
                 .collect(Collectors.toSet());
 
         surefireFilterApplier.apply(project, selectedTests);
+
+        BuildReport report = BuildReport.forSelect(applicability, decisions);
+        buildReportWriter.write(reportPath(), report);
+        renderReport(report, applicability.index());
+    }
+
+    private void renderReport(BuildReport report, DependencyIndex usedIndex) {
+        consoleSummaryRenderer.render(report, usedIndex).forEach(getLog()::info);
+        if (explain) {
+            explainListingRenderer.render(report).forEach(getLog()::info);
+        }
+    }
+
+    private Path reportPath() {
+        return project.getBasedir().toPath().resolve(".blastradius/last-build-report.json");
     }
 
     private void runFallback() {
