@@ -97,13 +97,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-plugin-plugin</artifactId>
                 <version>${maven.plugin-tools.version}</version>
-                <!-- TEMPORARY: this goal binds early enough to block even test-compile,
-                     and fails outright with zero @Mojo classes in the project. Skipped
-                     until SelectMojo exists (tasks.md T022) — remove this override then,
-                     not before, so the descriptor is actually verified once it can be. -->
-                <configuration>
-                    <skip>true</skip>
-                </configuration>
                 <executions>
                     <execution>
                         <id>generate-descriptor</id>

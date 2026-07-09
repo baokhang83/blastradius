@@ -47,6 +47,21 @@ public final class FixtureProjectBuilder {
         return builder;
     }
 
+    /**
+     * Adds {@code target/} and {@code .blastradius/} to {@code .gitignore} (default =
+     * none — {@code commit()} does a blanket {@code git add .}). Only needed by tests
+     * that run a real {@code mvn test} and/or write a dependency index against this
+     * fixture *and then* make a further commit — without this, that build's own output
+     * (surefire-reports, .class files, a persisted index, ...) gets committed as
+     * spurious "changed files," incorrectly triggering the conservative non-source-
+     * change fallback. Real adopting projects are expected to exclude both the same way
+     * (quickstart.md).
+     */
+    public FixtureProjectBuilder ignoreTargetDirectory() {
+        write(root.resolve(".gitignore"), "target/\n.blastradius/\n");
+        return this;
+    }
+
     private static FixtureProjectBuilder init(Path root) {
         try {
             Files.createDirectories(root);
@@ -115,6 +130,25 @@ public final class FixtureProjectBuilder {
                         </dependency>
                     """.formatted(jarPath.toAbsolutePath());
             pom = pom.replace("</dependencies>", dependency + "    </dependencies>");
+            Files.writeString(pomPath, pom, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return this;
+    }
+
+    /**
+     * Injects a raw {@code <plugin>...</plugin>} XML block into {@code module}'s pom.xml
+     * (null = single-module root) — used by tests that need a real build plugin bound
+     * (e.g. {@code blastradius-maven-plugin} itself), which must already be resolvable
+     * from the local Maven repository (Maven plugins, unlike dependencies, have no
+     * {@code system}-scope equivalent — install it first).
+     */
+    public FixtureProjectBuilder addBuildPlugin(String module, String pluginXml) {
+        Path pomPath = module == null ? root.resolve("pom.xml") : root.resolve(module).resolve("pom.xml");
+        try {
+            String pom = Files.readString(pomPath, StandardCharsets.UTF_8);
+            pom = pom.replace("</plugins>", pluginXml + "\n        </plugins>");
             Files.writeString(pomPath, pom, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

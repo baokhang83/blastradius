@@ -2,14 +2,15 @@
 
 ## Purpose
 
-Let a real Java/Maven project actually skip tests that are safe to skip for a given change —
-not just report on what it would skip (that's what the shadow-mode validator already proved
-sound; see `specs/001-shadow-mode-validator/`). This is the payoff: faster builds, without
-weakening the build's trustworthiness as a gate.
+Let a real Java/Maven project actually skip tests that are safe to skip for a given change,
+using dependency-tracking-driven selection and conservative fallback rules — faster builds,
+without weakening the build's trustworthiness as a gate. Complement this with a regular
+(recommended: daily) run of your full test suite portfolio — see "Why this is safe to trust"
+below.
 
 ## Prerequisites
 
-- A Maven/JUnit 5 project (same scope as the validator — see spec.md Assumptions).
+- A Maven/JUnit 5 project (see spec.md Assumptions).
 - `blastradius-maven-plugin` installed into a repository your build can resolve it from.
 - A configured base git reference (typically your default branch, e.g. `main`).
 
@@ -88,9 +89,11 @@ for an expanded console listing) rather than needing to re-run anything.
 
 ## Why this is safe to trust
 
-This plugin does not re-derive its own safety — it applies the exact same dependency-tracking
-mechanism and selection rules (dependency match, fallback-on-unsound-changes, always-select-
-new/modified) that the shadow-mode validator already proved has zero would-miss cases across
-105 real commit pairs on two real open-source projects (T061). If that evidence ever needs
-revisiting — a new selection rule, a change to the tracking mechanism itself — Constitution
-Principle V requires it to earn shadow-mode trust again before this plugin can rely on it.
+This plugin reuses `blastradius-core`'s already-built and tested dependency-tracking mechanism
+and selection rules unmodified (dependency match, fallback-on-unsound-changes, always-select-
+new/modified) — not a new, unvalidated reimplementation. Soundness is a strong default here
+(Constitution Principle III), not an absolute guarantee: **we recommend every adopting team
+also run their full test suite portfolio on a regular cadence (recommended: daily)**, so that
+even an occasional gap in what the plugin selects is caught within a day rather than never.
+Treat the plugin as a fast, sound-by-default first pass, and the daily full run as the
+backstop that actually closes the loop — not the other way around.
