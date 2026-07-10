@@ -1,28 +1,65 @@
 # blastradius-maven-plugin
 
-A Maven plugin that gates CI by actually skipping tests that are safe to skip for a given
-change — dependency-tracking-driven test selection with conservative fallback rules, faster
-builds without weakening the build's trustworthiness as a gate.
+**Stop running your whole test suite for a one-line change.**
 
-See `specs/002-ci-gating-plugin/` (spec, plan, research, contracts) for the full design.
+`blastradius-maven-plugin` narrows `mvn test` to just the tests that could possibly be
+affected by the current change — using real, observed class-level dependency data, not a
+guess. When it isn't sure, it runs everything. It never changes what causes your build to
+fail, only how many tests get the chance to.
 
-## Prerequisites
+```
+[blastradius] SELECT — index built from 4e02156 (2026-07-10T03:03:04Z)
+[blastradius] 1 / 2 tests selected (50.0% skipped)
+[blastradius]   dependency-matched: 1, new-or-modified: 0, fallback: 0
+```
 
-- A Maven/JUnit 5 project.
-- `blastradius-maven-plugin` installed into a repository your build can resolve it from.
-- A configured base git reference (typically your default branch, e.g. `main`).
+## Contents
 
-## Adopting the plugin
+- [How it works](#how-it-works)
+- [Install](#install)
+- [Configuration reference](#configuration-reference)
+- [What you'll see in the Maven output](#what-youll-see-in-the-maven-output)
+- [The files it writes](#the-files-it-writes)
+- [Multi-module reactors](#multi-module-reactors)
+- [Reading a build's result](#reading-a-builds-result)
+- [Why this is safe to trust](#why-this-is-safe-to-trust)
+- [Known limitations](#known-limitations)
 
-Add the goal to the project's `pom.xml` (see
-`specs/002-ci-gating-plugin/contracts/mojo-and-index-contract.md` for the full configuration
-reference):
+## How it works
+
+1. **Track.** On a build of your base branch (e.g. a post-merge/trunk build), a
+   `-javaagent` observes every class actually loaded while each test runs and records a
+   fresh dependency map — which test touched which production classes. This runs as an
+   independent `mvn test` subprocess; your own build's Surefire execution is completely
+   untouched by it.
+2. **Diff.** On every other build, the goal diffs the current commit against `baseRef` —
+   Java source changes vs. everything else (config, resources, `pom.xml`, migrations).
+3. **Select.** A test runs if **(a)** one of its tracked dependencies changed, **(b)** it's
+   new or was itself modified, or **(c)** a non-source-code change triggered the
+   conservative "just run everything" fallback.
+4. **Filter.** The selection is handed to Surefire/Failsafe as a standard `-Dtest=` filter
+   — nothing exotic, nothing that fights JaCoCo or a custom `argLine`.
+
+Three modes fall out of this, decided fresh on every invocation — never configured by hand:
+
+| Mode | When | What happens |
+|---|---|---|
+| **`TRACK`** | Current commit *is* `baseRef` (or `-Dblastradius.mode=track`) | Full suite runs, untouched. A subprocess rebuilds the index in the background for next time. |
+| **`SELECT`** | Not `baseRef`, and a usable index exists | Surefire is narrowed to the affected tests. This is the fast path. |
+| **`FALLBACK`** | Not `baseRef`, and no usable index (missing, unreadable, or its anchor is unreachable) | Full suite runs, untouched. Nothing gained by tracking from a throwaway branch commit, so nothing is forked. |
+
+`TRACK` and `FALLBACK` are never treated as errors — they're the plugin being honest about
+not having enough information yet, and defaulting to safe.
+
+## Install
+
+Requires a Maven/JUnit 5 project and a resolvable repository for the plugin artifact.
 
 ```xml
 <plugin>
   <groupId>io.github.baokhang83.blastradius</groupId>
   <artifactId>blastradius-maven-plugin</artifactId>
-  <version>...</version>
+  <version>0.1.0-SNAPSHOT</version>
   <executions>
     <execution>
       <phase>process-test-classes</phase>
@@ -35,71 +72,131 @@ reference):
 </plugin>
 ```
 
-No other change is required — Surefire/Failsafe stay configured exactly as before.
+That's the whole change. Surefire/Failsafe stay configured exactly as they already are —
+the goal only ever narrows *which* tests they run, bound early enough
+(`process-test-classes`) to take effect before Surefire's own `test` phase.
 
-## What happens on the first build
+Your first build (whichever branch it happens to run on) will be `TRACK` or `FALLBACK`,
+not `SELECT` — there's no index yet. It becomes fast once a `baseRef` build has produced
+one. See [Reading a build's result](#reading-a-builds-result) if it seems stuck there.
 
-There's no persisted dependency index yet. What happens depends on *whose* build this is:
+## Configuration reference
 
-- **A build of `baseRef` itself** (the common case — your first build with the plugin enabled
-  is usually a trunk/post-merge build): the goal runs in `TRACK` mode. The full suite runs,
-  exactly as it always has, and a fresh index is built alongside it (via an independent `mvn
-  test` subprocess, agent-attached) for next time.
-- **A PR/feature-branch build** (no trunk track run has happened yet): the goal runs in
-  `FALLBACK` mode. The full suite still runs, safely — but no index is produced from this
-  build, since a branch commit is a poor anchor for the shared index. The next trunk build is
-  what establishes the real one.
+| Parameter | CLI property | Default | Required | Meaning |
+|---|---|---|---|---|
+| `baseRef` | `-DbaseRef` | — | **yes** | The git reference every build diffs against (`main`, `origin/main`, a tag — anything JGit can resolve). |
+| `indexPath` | `-DindexPath` | `.blastradius/index.json` | no | Where the persisted dependency index lives, relative to the reactor root. Rejected if it resolves outside the project directory. |
+| — | `-Dblastradius.mode=track` | — | no | Force `TRACK` regardless of what commit you're on — for explicitly pre-warming the index outside an ordinary trunk build. |
+| — | `-Dblastradius.explain=true` | `false` | no | Print the full per-test decision listing to the console, not just the aggregate summary. |
 
-Either way, this first build is not faster — that's expected and safe. It only becomes fast
-once a trunk build has produced an index for PR builds to use.
+`indexPath` is one shared file for the whole reactor (see
+[Multi-module reactors](#multi-module-reactors)) — configure it once at the root; every
+module's own goal execution resolves the same path.
 
-## What happens on later builds
+### CI setup
 
-With an applicable index available (produced by a prior `TRACK` build on `baseRef`), a PR build
-runs in `SELECT` mode: it diffs the current changes against `baseRef`, computes which tests are
-affected, and narrows Surefire to that set. The console summary shows what happened:
+- **Trunk/post-merge job**: run as normal — no extra flags needed, `TRACK` is automatic.
+- **PR job**: run as normal too. Just make sure `.blastradius/index.json` is cached and
+  restored between CI runs the same way you already cache `~/.m2` — it has to survive
+  between the trunk job that wrote it and the PR job that reads it, or every PR build stays
+  in `FALLBACK` forever (see below).
+
+## What you'll see in the Maven output
+
+**`TRACK`** — a base-branch build, building/refreshing the index:
 
 ```
-[blastradius] SELECT — index built from a1b2c3d (2026-07-09T10:03:00Z)
-[blastradius] 41 / 96 tests selected (57.3% skipped)
+[INFO] --- blastradius:0.1.0-SNAPSHOT:select (default) @ your-project ---
+[INFO] [blastradius] TRACK — building a fresh index
+[INFO] [blastradius] 2 / 2 tests selected (0.0% skipped)
 ```
 
-A build of `baseRef` itself always stays in `TRACK` mode, every time — it's the source of truth
-the index is anchored to, not a consumer of it. If the persisted index ever goes stale (missing,
-unreadable, or its anchor commit is no longer reachable, e.g. after a history rewrite), a PR
-build safely falls back to `FALLBACK` rather than crashing or misapplying a stale selection.
+`selectedCount == totalCount` here isn't the plugin "selecting everything" — `TRACK` never
+computes a selection at all, it just reports how big the suite it ran full was.
 
-Multi-module Maven reactors are supported: the goal runs once per module, computing and
-applying an independent, correct filter for each — cross-module dependencies are attributed
-correctly because tracking is based on actual class loads, not a static per-module graph.
+**`SELECT`** — a PR build, narrowed by a real index:
 
-## Reading the result
+```
+[INFO] --- blastradius:0.1.0-SNAPSHOT:select (default) @ your-project ---
+[INFO] [blastradius] SELECT — index built from 4e02156 (2026-07-10T03:03:04Z)
+[INFO] [blastradius] 1 / 2 tests selected (50.0% skipped)
+[INFO] [blastradius]   dependency-matched: 1, new-or-modified: 0, fallback: 0
+[INFO] [blastradius] Skipped test detail: run with -Dblastradius.explain=true for the full per-test reasoning
+```
 
-- **Build passes, fewer tests ran than the full suite**: expected, common case — the skipped
-  tests were determined safe to skip for this change.
-- **Build fails**: a selected test failed, exactly as it would have in an unmodified full run —
-  the plugin never changes what causes a build to fail, only which tests get the chance to.
-- **PR builds never speed up (always `FALLBACK`)**: no trunk `TRACK` build has produced an index
-  yet, or the persisted index isn't surviving between builds — on CI, this usually means the
-  index file isn't being cached/restored between runs; check that your trunk CI job actually
-  runs the plugin (a build of `baseRef`), and that `.blastradius/index.json` is cached the same
-  way you'd already cache `~/.m2` or a Gradle build cache.
+Add `-Dblastradius.explain=true` for the per-test breakdown that line is pointing you at:
 
-## Auditing a specific test's decision
+```
+[INFO] [blastradius]   com.example.CalculatorTest#addsTwoNumbers — selected reason=DEPENDENCY_MATCH matchedChangedClass=com.example.Calculator
+[INFO] [blastradius]   com.example.GreeterTest#greetsByName — skipped reason=NO_MATCH
+```
 
-Every decision traces to a concrete reason — see a specific test's outcome in the per-build
-JSON report (`.blastradius/last-build-report.json`), or run with `-Dblastradius.explain=true`
-for an expanded console listing, rather than needing to re-run anything.
+**`FALLBACK`** — no usable index, running safe:
+
+```
+[INFO] --- blastradius:0.1.0-SNAPSHOT:select (default) @ your-project ---
+[INFO] [blastradius] FALLBACK — no persisted index found (MISSING)
+[INFO] [blastradius] 2 / 2 tests selected (0.0% skipped)
+```
+
+The reason in parentheses always tells you *why*: `MISSING` (no trunk `TRACK` build has
+happened yet), `UNREADABLE` (the index file is corrupt), `ANCHOR_UNREACHABLE` (its
+`baseRef` commit no longer exists, e.g. after a history rewrite), or `INTERNAL_ERROR` (the
+goal hit an unexpected fault mid-computation and safely bailed out to a full run rather
+than crash the build or guess).
+
+## The files it writes
+
+Both live under `.blastradius/` at the reactor root — add it to `.gitignore`.
+
+- **`index.json`** — the persisted dependency map a `TRACK` build produces and every
+  `SELECT` build reads. `{ anchorCommit, builtAt, testDependencies: [{ test, dependsOnClasses }] }`.
+- **`last-build-report.json`** — this build's own decisions, machine-readable.
+  `{ mode, indexApplicability, decisions: [{ test, selected, reason, matchedChangedClass }], selectedCount, totalCount }`.
+  This is the source of truth every console line above is a rendering of — audit a specific
+  test's outcome here without re-running anything.
+
+## Multi-module reactors
+
+Fully supported. The goal runs once per module and computes an independent, correct
+Surefire filter for each — a change in one module correctly selects a *dependent* test in
+another module, because tracking is based on actual class loads observed at runtime, not a
+static per-module dependency graph that would need separate bookkeeping to get right.
+
+## Reading a build's result
+
+- **Fewer tests ran than the full suite, build passed** — the expected, common case. The
+  skipped tests were determined safe to skip for this specific change.
+- **Build failed** — a selected test failed, exactly as it would have in an unmodified full
+  run. The plugin never changes *what* fails a build, only which tests get the chance to.
+- **PR builds are always `FALLBACK`, never speeding up** — no trunk `TRACK` build has
+  produced an index yet, or the index isn't surviving between CI runs. Check that your
+  trunk job is actually a `baseRef` build with the plugin enabled, and that
+  `.blastradius/index.json` is cached/restored the same way `~/.m2` already is.
 
 ## Why this is safe to trust
 
-This plugin reuses `blastradius-core`'s already-built and tested dependency-tracking mechanism
-and selection rules unmodified (dependency match, fallback-on-unsound-changes, always-select-
-new/modified) — not a new, unvalidated reimplementation. Soundness is a strong default here,
-not an absolute guarantee: **we recommend every adopting team also run their full test suite
-portfolio on a regular cadence (recommended: daily)**, so that even an occasional gap in what
-the plugin selects is caught within a day rather than never. Treat the plugin as a fast,
-sound-by-default first pass, and the daily full run as the backstop that actually closes the
-loop — not the other way around.
+The tracking mechanism and selection rules (dependency match, always-select-new/modified,
+fallback-on-unsound-change) are `blastradius-core`'s already-built and tested engine, reused
+unmodified here — not a new, unvalidated reimplementation. Soundness is a strong default,
+not an absolute guarantee: **we recommend every adopting team also run their full test
+suite portfolio on a regular cadence (recommended: daily)** as a backstop, so an occasional
+gap in what the plugin selects is caught within a day rather than never. Treat this plugin
+as a fast, sound-by-default first pass — the daily full run is what actually closes the
+loop, not the other way around.
 
-See `specs/002-ci-gating-plugin/quickstart.md` for the full adoption walkthrough.
+## Known limitations
+
+- A class loaded only inside a JUnit 5 `@BeforeAll` is never attributed to any specific
+  test — dependency tracking only attributes loads to tests that are actually executing. If
+  such a class later changes and breaks a test that depended on it only via `@BeforeAll`
+  setup, that dependency is invisible to selection. Narrow and deterministic, not a bug
+  being hidden — lean on the daily full-suite run if this matters for your project.
+- Refreshing the index (`TRACK`) runs the full suite once via a subprocess; correct, but not
+  optimized for very slow suites. It only happens on `baseRef` builds, never on PR builds.
+
+---
+
+See `specs/002-ci-gating-plugin/` for the full spec, design decisions (ADR-style research
+notes), and contract tests, and `specs/002-ci-gating-plugin/quickstart.md` for a narrative
+walkthrough of the same adoption path.
