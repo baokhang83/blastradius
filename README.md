@@ -6,8 +6,7 @@ Most "test impact analysis" tools guess from a static, per-module dependency gra
 train something probabilistic on historical flakiness. Blastradius does neither: a
 `-javaagent` observes every class *actually loaded* while each test runs, records it, and
 uses that real, per-test dependency map to decide what to run next time. No training data,
-no heuristics, no opaque score — every skip traces to a concrete class that did or didn't
-change.
+no heuristics, no opaque score.
 
 ## Proven on real projects, not just fixtures
 
