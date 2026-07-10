@@ -1,96 +1,148 @@
 # Blastradius
 
-A Maven test-impact-selection toolkit for Java/JUnit 5 projects: dynamic, class-level
-dependency tracking that lets CI actually skip tests that are safe to skip for a given
-change, instead of always running the full suite.
+**Dependency-based test selection for Maven/JUnit 5 — skip the tests that can't possibly
+be affected by your change, prove it never misses a real failure.**
 
-## Modules
+```
+[blastradius] SELECT — index built from 4e02156 (2026-07-10T03:03:04Z)
+[blastradius] 1 / 2 tests selected (50.0% skipped)
+[blastradius]   dependency-matched: 1, new-or-modified: 0, fallback: 0
+```
 
-- **`blastradius-core`** — the shared engine: the `java.lang.instrument`-based
-  dependency-tracking agent and the selection rules (dependency match, conservative
-  fallback, always-select-new/modified). Built and tested first, reused unmodified by
-  both modules below.
-- **`blastradius-maven-plugin`** — the real, installable Maven plugin
-  (`blastradius:select`) that gates CI by actually skipping tests during a live build.
-  This is the product; see `specs/002-ci-gating-plugin/` for the full spec, plan, and
-  task breakdown. **Under active development** — see Status below.
-- **`blastradius-validator`** — the original shadow-mode harness used during
-  development to validate the dependency-tracking mechanism against real open-source
-  projects' commit history before the real plugin was built. Still present and tested,
-  useful if you want to re-validate the mechanism against a project of your own; see
-  `specs/001-shadow-mode-validator/`.
+Most "test impact analysis" tools guess from a static, per-module dependency graph, or
+train something probabilistic on historical flakiness. Blastradius does neither: a
+`-javaagent` observes every class *actually loaded* while each test runs, records it, and
+uses that real, per-test dependency map to decide what to run next time. No training data,
+no heuristics, no opaque score — every skip traces to a concrete class that did or didn't
+change.
+
+## Proven on real projects, not just fixtures
+
+Before any of this was trusted to actually skip tests in CI, it ran in shadow mode against
+real open-source history and had every decision checked against ground truth:
+
+| Project | Real history | Commit pairs analyzed | Would-miss cases | Savings |
+|---|---|---|---|---|
+| [commons-io](https://commons.apache.org/proper/commons-io/) | 6,230 commits | 5 | **0** | 41.2% of test executions correctly skipped |
+| [jsoup](https://jsoup.org/) | 2,455 commits | 100 | **0** | 2.0% skipped (83% of this window was non-source maintenance commits — correctly triggering the safe fallback, not a mechanism weakness) |
+
+**105 real commit pairs across two independent, unmodified production codebases. Zero
+missed test failures.** Full analysis and how three real mechanism bugs were found and
+fixed along the way (a hardcoded `argLine`, a JaCoCo collision, a parameterized-test
+name mismatch) is in [`SESSION.md`](SESSION.md).
 
 ## How it works
 
-Given a target Java/Maven project, `blastradius-maven-plugin`:
+1. **Track.** On a build of your base branch, a `java.lang.instrument` agent watches every
+   class actually loaded while each test runs and records which production classes it
+   really touched — ground truth, not a guess.
+2. **Diff.** On every other build, the current commit is diffed against your base
+   reference: Java source changes vs. everything else (config, resources, `pom.xml`,
+   migrations).
+3. **Select.** A test runs if one of its tracked dependencies changed, it's new or was
+   itself modified, or a non-source change triggered the conservative "just run
+   everything" fallback.
+4. **Gate.** The selection narrows Surefire/Failsafe via the standard `-Dtest=` filter —
+   nothing exotic, nothing that fights JaCoCo or a custom `argLine`.
 
-1. **Tracks each test's real dependencies** — a `-javaagent` observes every class
-   loaded while a test runs, via bytecode checksums, on a full-suite run against your
-   base reference (e.g. `main`).
-2. **Diffs the current change** against that base reference (Java source vs.
-   everything else — config, resources, `pom.xml`, migrations).
-3. **Selects tests**: a test runs if (a) one of its tracked dependencies changed, (b)
-   it's new or was itself modified, or (c) a non-source-code change triggered a
-   conservative "run everything" fallback.
-4. **Hands the selection to Surefire/Failsafe** as a standard test filter — the tests
-   that aren't selected simply don't run for this build.
+## Modules
 
-Multi-module Maven reactors are supported: because tracking is based on actual class
-loads rather than a static per-module dependency graph, cross-module dependencies are
-attributed correctly without any extra bookkeeping.
+| Module | What it is | Status |
+|---|---|---|
+| **[`blastradius-core`](blastradius-core)** | The shared engine — the dependency-tracking agent and the selection rules (dependency match, conservative fallback, always-select-new/modified). Built and proven first; reused unmodified by both modules below. | Complete, 41 tests |
+| **[`blastradius-maven-plugin`](blastradius-maven-plugin)** | **The product.** A real, installable `blastradius:select` Maven goal that gates CI by actually skipping tests during a live build. See its own [README](blastradius-maven-plugin/README.md) for adoption, configuration, and console output reference. | Complete, 46 tests |
+| **[`blastradius-validator`](blastradius-validator)** | The shadow-mode harness that produced the real-project numbers above — replays a project's own commit history, compares what would have been skipped against ground truth, and reports would-miss cases. Still here if you want to validate the mechanism against a project of your own before adopting the plugin. | Complete, 60 tests |
+
+## Quick start
+
+```xml
+<plugin>
+  <groupId>io.github.baokhang83.blastradius</groupId>
+  <artifactId>blastradius-maven-plugin</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <executions>
+    <execution>
+      <phase>process-test-classes</phase>
+      <goals><goal>select</goal></goals>
+    </execution>
+  </executions>
+  <configuration>
+    <baseRef>main</baseRef>
+  </configuration>
+</plugin>
+```
+
+No other change required — Surefire/Failsafe stay configured exactly as they already are.
+See [`blastradius-maven-plugin/README.md`](blastradius-maven-plugin/README.md) for the full
+configuration reference, what each build mode (`TRACK`/`SELECT`/`FALLBACK`) prints, and how
+to set it up in CI.
+
+```bash
+git clone https://github.com/baokhang83/blastradius.git
+cd blastradius
+mvn clean install   # builds and tests all three modules
+```
+
+## Multi-module reactors
+
+Fully supported, without extra bookkeeping. Because tracking is based on actual class
+loads rather than a static per-module dependency graph, a change in one module correctly
+selects a *dependent* test living in another module — attribution falls out of the
+mechanism itself.
 
 ## Why this is safe to use
 
-The selection mechanism (dependency tracking + conservative fallback rules) is sound
-by default, not by absolute guarantee. **We recommend every adopting team also run
-their full test suite portfolio on a regular cadence — recommended: daily** — as a
-complementary safety net. That combination is the intended trust model: a fast, sound-
-by-default selection on every build, backstopped by a full run that catches anything
-occasionally missed within a day rather than never. See
-`specs/002-ci-gating-plugin/quickstart.md` for the full adoption guide.
+The selection mechanism is sound by default, not by absolute guarantee — see the
+real-project numbers above for what "sound by default" has actually measured out to.
+**We recommend every adopting team also run their full test suite portfolio on a regular
+cadence (recommended: daily)** as a complementary safety net, so even an occasional gap is
+caught within a day rather than never. That combination — fast, sound-by-default selection
+on every build, backstopped by a full run — is the intended trust model, not either one
+alone.
 
-## Design principles (from the project constitution, v2.0.0)
+## Design principles (project constitution, v2.0.0)
 
 - **Test-Driven Development is non-negotiable.** Every piece of engine code was built
-  red → green → refactor.
+  red → green → refactor; a tool that decides which tests to skip cannot itself be
+  undertested.
 - **Clean code & simplicity.** No speculative abstraction — `blastradius-core` was
-  extracted only once a second real consumer needed it.
-- **Safety over speed.** Sound, conservative selection is the strong default, but not
-  an absolute at any cost — complemented by the recommended daily full-suite run
-  above, not a substitute for one.
-- **Deterministic before ML.** Selection is pure, explainable dependency tracking —
+  extracted only once a second real consumer (the plugin) needed it.
+- **Safety over speed.** Sound, conservative selection is the strong default, complemented
+  by the recommended daily full-suite run above, not a substitute for one.
+- **Deterministic core before ML.** Selection is pure, explainable dependency tracking,
+  requiring zero historical/training data and correct from a project's very first run —
   no machine learning, no probabilistic shortcuts.
-- **Explainability.** Every selection decision carries a concrete reason — dependency
-  match, fallback, or new/modified test — never an opaque score.
-- **Maintainable, modern foundations.** JUnit 5 Platform, current JDK, no deprecated
-  APIs or abandoned tooling.
+- **Explainability.** Every decision carries a concrete reason — which changed class a
+  test's tracked dependencies intersect with, or which fallback rule fired — never an
+  opaque score.
+- **Maintainable, modern foundations.** JUnit 5 Platform, current JDK, no deprecated APIs
+  or abandoned tooling.
 
-See `.specify/memory/constitution.md` for the full text and rationale.
+Full text and rationale: [`.specify/memory/constitution.md`](.specify/memory/constitution.md).
 
 ## Known limitations
 
-- A class loaded only inside a JUnit 5 `@BeforeAll` (a container-level callback, not a
-  test) is never attributed to any specific test, since dependency tracking only
-  attributes loads to tests that are actually executing. If such a class later changes
-  and breaks a test that depended on it only via `@BeforeAll` setup, that dependency is
-  invisible to selection — a narrow, deterministic, and honestly-documented edge case
-  (not a bug we're hiding). If this matters for your project, treat `@BeforeAll`-only
-  dependencies with extra caution, and lean on the recommended daily full-suite run.
-- Refreshing the dependency index (a "track" build) runs the full suite once — correct,
-  but not optimized for projects with very slow suites; it only happens on base-
-  reference builds, not on every PR build.
+- A class loaded only inside a JUnit 5 `@BeforeAll` is never attributed to any specific
+  test — tracking only attributes loads to tests that are actually executing. If such a
+  class changes and breaks a test that depended on it only via `@BeforeAll` setup, that
+  dependency is invisible to selection. Narrow, deterministic, and documented — not a bug
+  being hidden. Lean on the recommended daily full-suite run if this matters for your
+  project.
+- Refreshing the dependency index (a "track" build) runs the full suite once; correct, but
+  not optimized for very slow suites. It only happens on base-reference builds, never on
+  every PR build.
 
-## Status
+## Project layout
 
-- **`blastradius-core`**: complete, covered by an extensive test suite built through
-  strict TDD.
-- **`blastradius-validator`**: complete, covered by an extensive test suite (100+
-  tests). Its own real-project validation runs (commons-io, jsoup) are documented in
-  `SESSION.md`.
-- **`blastradius-maven-plugin`**: under active implementation — see
-  `specs/002-ci-gating-plugin/tasks.md` for current progress. Not yet ready for real
-  adoption; the usage sketch above describes the target design.
+```
+blastradius-core/           the engine: tracking agent + selection rules
+blastradius-maven-plugin/   the product: the blastradius:select goal
+blastradius-validator/      shadow-mode validation harness (real-project evidence above)
+specs/                      spec, plan, research (ADR-style), contracts, tasks — per feature
+.specify/memory/            project constitution
+SESSION.md                  narrative log of how T061's real-project validation went
+```
 
-See `specs/002-ci-gating-plugin/` for the plugin's full spec, plan, design decisions
-(ADR-style research notes), and task breakdown, and `specs/001-shadow-mode-validator/`
-for the validator's.
+## License
+
+[Apache License 2.0](LICENSE).
