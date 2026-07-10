@@ -44,4 +44,25 @@ public record BuildReport(
         int selectedCount = (int) decisions.stream().filter(SelectionDecision::selected).count();
         return new BuildReport(Mode.SELECT, applicability.status(), decisions, selectedCount, decisions.size(), null);
     }
+
+    /**
+     * Builds the {@code TRACK}-mode report (tasks.md T045) — the full suite ran
+     * unconditionally (no per-test decisions computed), and {@code updatedIndex} is the
+     * freshly (re)built index this run produced.
+     */
+    public static BuildReport forTrack(IndexApplicability.Status indexApplicability, int totalCount,
+            DependencyIndex updatedIndex) {
+        Objects.requireNonNull(indexApplicability, "indexApplicability");
+        Objects.requireNonNull(updatedIndex, "updatedIndex");
+        return new BuildReport(Mode.TRACK, indexApplicability, List.of(), totalCount, totalCount, updatedIndex);
+    }
+
+    /**
+     * Builds the {@code FALLBACK}-mode report (tasks.md T046) — the full suite ran
+     * unconditionally, and deliberately no index is produced or refreshed (research.md #1).
+     */
+    public static BuildReport forFallback(IndexApplicability.Status indexApplicability, int totalCount) {
+        Objects.requireNonNull(indexApplicability, "indexApplicability");
+        return new BuildReport(Mode.FALLBACK, indexApplicability, List.of(), totalCount, totalCount, null);
+    }
 }

@@ -35,7 +35,12 @@ public final class TrackRunner {
         }
 
         String agentOption = "-javaagent:" + agentJar.toAbsolutePath() + "=" + outputFile.toAbsolutePath();
-        ProcessBuilder processBuilder = new ProcessBuilder("mvn", "-B", "--no-transfer-progress", "clean", "test")
+        // -Dblastradius.trackChild=true: this subprocess runs against the same pom that
+        // binds this very goal, so without the flag its own SelectMojo execution would
+        // resolve TRACK again (same commit, same baseRef) and recurse without bound — see
+        // SelectMojo.trackChild's javadoc.
+        ProcessBuilder processBuilder = new ProcessBuilder(
+                "mvn", "-B", "--no-transfer-progress", "-Dblastradius.trackChild=true", "clean", "test")
                 .directory(projectDir.toFile())
                 .redirectErrorStream(true);
         processBuilder.environment().merge("JAVA_TOOL_OPTIONS", agentOption, (existing, added) -> existing + " " + added);
@@ -49,14 +54,34 @@ public final class TrackRunner {
         return new DependencyIndex(anchorCommit, Instant.now().toString(), entries);
     }
 
+    /**
+     * Redirects the subprocess's output to a file rather than piping it, and waits for
+     * the process with {@code waitFor(timeout, ...)} before ever touching that file —
+     * piping + reading eagerly (the pattern {@code MavenBuildRunner}/{@code
+     * DependencyTrackingIntegrationTest} use elsewhere in this codebase) blocks on {@code
+     * readAllBytes()} until the child closes its stdout, which makes the timeout below
+     * unreachable if a grandchild process (this method's own subprocess forks a nested
+     * {@code mvn} run when it hits {@code SelectMojo}'s TRACK branch) keeps that pipe's
+     * write end open. On timeout, the whole descendant tree is destroyed, not just the
+     * immediate child, so no orphaned nested {@code mvn}/JVM process is left running.
+     */
     private static void runToCompletion(ProcessBuilder processBuilder, Path projectDir) {
+        Path outputFile;
+        try {
+            outputFile = Files.createTempFile("blastradius-track-run-", ".log");
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to create a temp file for the track run's output", e);
+        }
+        processBuilder.redirectErrorStream(true);
+        processBuilder.redirectOutput(ProcessBuilder.Redirect.to(outputFile.toFile()));
         try {
             Process process = processBuilder.start();
-            process.getInputStream().readAllBytes();
             boolean finished = process.waitFor(TIMEOUT_MINUTES, TimeUnit.MINUTES);
             if (!finished) {
+                process.descendants().forEach(ProcessHandle::destroyForcibly);
                 process.destroyForcibly();
-                throw new IllegalStateException("track run timed out against " + projectDir);
+                throw new IllegalStateException(
+                        "track run timed out against " + projectDir + " after " + TIMEOUT_MINUTES + "m");
             }
             // A nonzero exit here typically means some tests failed, not that the build
             // itself is broken — the agent still wrote whatever it observed regardless of
@@ -68,6 +93,12 @@ public final class TrackRunner {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("interrupted while waiting for track run against " + projectDir, e);
+        } finally {
+            try {
+                Files.deleteIfExists(outputFile);
+            } catch (IOException ignored) {
+                // Best-effort cleanup; a stray temp log is not worth failing the build over.
+            }
         }
     }
 }

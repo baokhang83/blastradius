@@ -82,6 +82,58 @@ final class EndToEndTestSupport {
                 """.formatted(anchorCommit);
     }
 
+    /** Plugin binding deliberately missing the required {@code baseRef} configuration (T049). */
+    static String pluginXmlMissingBaseRef() {
+        return """
+                        <plugin>
+                            <groupId>io.github.baokhang83.blastradius</groupId>
+                            <artifactId>blastradius-maven-plugin</artifactId>
+                            <version>0.1.0-SNAPSHOT</version>
+                            <executions>
+                                <execution>
+                                    <phase>process-test-classes</phase>
+                                    <goals><goal>select</goal></goals>
+                                </execution>
+                            </executions>
+                        </plugin>
+                """;
+    }
+
+    /** Plugin binding with an explicit, possibly-invalid {@code indexPath} (T049). */
+    static String pluginXml(String anchorCommit, String indexPath) {
+        return """
+                        <plugin>
+                            <groupId>io.github.baokhang83.blastradius</groupId>
+                            <artifactId>blastradius-maven-plugin</artifactId>
+                            <version>0.1.0-SNAPSHOT</version>
+                            <executions>
+                                <execution>
+                                    <phase>process-test-classes</phase>
+                                    <goals><goal>select</goal></goals>
+                                </execution>
+                            </executions>
+                            <configuration>
+                                <baseRef>%s</baseRef>
+                                <indexPath>%s</indexPath>
+                            </configuration>
+                        </plugin>
+                """.formatted(anchorCommit, indexPath);
+    }
+
+    /** Recursively deletes {@code projectDir}'s {@code .git} directory (T049: non-git target). */
+    static void removeGitRepository(Path projectDir) throws IOException {
+        Path gitDir = projectDir.resolve(".git");
+        try (var stream = Files.walk(gitDir)) {
+            stream.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.delete(p);
+                } catch (IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            });
+        }
+    }
+
     static DependencyIndex trackDependencies(Path projectDir, String anchorCommit)
             throws IOException, InterruptedException {
         Path agentJar = findCoreAgentJar();
@@ -101,29 +153,56 @@ final class EndToEndTestSupport {
 
     static String runMvnTest(Path projectDir) throws IOException, InterruptedException {
         ProcessBuilder pb = new ProcessBuilder("mvn", "-B", "--no-transfer-progress", "clean", "test")
-                .directory(projectDir.toFile())
-                .redirectErrorStream(true);
-        Process process = pb.start();
-        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        boolean finished = process.waitFor(3, TimeUnit.MINUTES);
-        if (!finished) {
-            process.destroyForcibly();
-            fail("mvn test timed out against fixture project at " + projectDir);
-        }
-        return output;
+                .directory(projectDir.toFile());
+        // 10m, not 3m: a TRACK-mode build forks its own nested `mvn clean test` in this
+        // same directory (compile, then nested clean+compile+instrumented-test, then this
+        // outer build's own test phase) — legitimately close to 3m by itself under load,
+        // confirmed by observation, not a hang (see runAndCapture's javadoc for the
+        // separate fix that makes this timeout actually enforceable).
+        return runAndCapture(pb, 10).output();
     }
 
     static void runToCompletion(ProcessBuilder pb) throws IOException, InterruptedException {
-        pb.redirectErrorStream(true);
-        Process process = pb.start();
-        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        boolean finished = process.waitFor(5, TimeUnit.MINUTES);
-        if (!finished) {
-            process.destroyForcibly();
-            fail("subprocess timed out: " + String.join(" ", pb.command()));
+        SubprocessResult result = runAndCapture(pb, 5);
+        if (result.exitValue() != 0) {
+            fail("subprocess failed (exit " + result.exitValue() + "): " + String.join(" ", pb.command()) + "\n" + result.output());
         }
-        if (process.exitValue() != 0) {
-            fail("subprocess failed (exit " + process.exitValue() + "): " + String.join(" ", pb.command()) + "\n" + output);
+    }
+
+    private record SubprocessResult(String output, int exitValue) {
+    }
+
+    /**
+     * Redirects the subprocess's output to a file and waits for it with {@code
+     * waitFor(timeoutMinutes, ...)} before ever touching that file. Piping + reading
+     * eagerly via {@code readAllBytes()} (as this class used to, and as {@code
+     * MavenBuildRunner}/{@code DependencyTrackingIntegrationTest} still do elsewhere)
+     * blocks until the child closes its stdout, which makes the timeout below unreachable
+     * if a grandchild process — every one of these fixture builds runs {@code SelectMojo},
+     * whose TRACK branch forks its own nested {@code mvn} subprocess — keeps that pipe's
+     * write end open. On timeout, the whole descendant tree is destroyed, not just the
+     * immediate child, so a hung nested {@code mvn}/JVM isn't left running (this is what
+     * exhausted memory in a prior session: an orphaned grandchild survived the parent's
+     * {@code destroyForcibly()} and kept running indefinitely).
+     */
+    private static SubprocessResult runAndCapture(ProcessBuilder pb, long timeoutMinutes)
+            throws IOException, InterruptedException {
+        pb.redirectErrorStream(true);
+        Path outputFile = Files.createTempFile("blastradius-e2e-subprocess-", ".log");
+        pb.redirectOutput(ProcessBuilder.Redirect.to(outputFile.toFile()));
+        try {
+            Process process = pb.start();
+            boolean finished = process.waitFor(timeoutMinutes, TimeUnit.MINUTES);
+            String output = Files.readString(outputFile, StandardCharsets.UTF_8);
+            if (!finished) {
+                process.descendants().forEach(ProcessHandle::destroyForcibly);
+                process.destroyForcibly();
+                return fail("subprocess timed out after " + timeoutMinutes + "m: "
+                        + String.join(" ", pb.command()) + "\n" + output);
+            }
+            return new SubprocessResult(output, process.exitValue());
+        } finally {
+            Files.deleteIfExists(outputFile);
         }
     }
 

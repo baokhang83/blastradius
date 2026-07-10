@@ -387,25 +387,25 @@ index — confirm it uses `SELECT` mode (from US1) rather than falling back agai
 
 ### Tests for User Story 4
 
-- [ ] T041 [P] [US4] Write a failing integration test: a fixture project with no persisted
+- [X] T041 [P] [US4] Write a failing integration test: a fixture project with no persisted
       index, built as a simulated base-ref build (`isBaseRefBuild = true`); assert the full
       suite runs (`selectedCount = totalCount`) and `TrackRunner` (T018) is invoked, producing
       a fresh `.blastradius/index.json` anchored to the current commit (FR-007) — in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/TrackModeFirstBuildTest.java`
       (depends on T018, T022)
-- [ ] T042 [P] [US4] Write a failing integration test: the same fixture project with no
+- [X] T042 [P] [US4] Write a failing integration test: the same fixture project with no
       persisted index, built as a simulated PR/branch build (`isBaseRefBuild = false`); assert
       the full suite runs but no index file is written and `TrackRunner` is never invoked
       (`FALLBACK` mode) — in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/FallbackModeNoIndexTest.java`
       (depends on T018, T022)
-- [ ] T043 [P] [US4] Write a failing integration test: after T041 establishes an index, a
+- [X] T043 [P] [US4] Write a failing integration test: after T041 establishes an index, a
       follow-up PR build with a small, contained change; assert it resolves to `SELECT` mode
       (not `FALLBACK`) and produces a genuine narrowed selection (US1 behavior), proving the
       index survives and gets used across builds (SC-005) — in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/IndexReuseAcrossBuildsTest.java`
       (depends on T028, T041)
-- [ ] T044 [P] [US4] Write a failing test: a persisted index whose `anchorCommit` is
+- [X] T044 [P] [US4] Write a failing test: a persisted index whose `anchorCommit` is
       unreachable (e.g. history rewritten under it); assert `IndexApplicabilityResolver`
       reports `ANCHOR_UNREACHABLE` and `SelectMojo` correctly falls back rather than crashing
       or misapplying a stale selection — in
@@ -414,16 +414,32 @@ index — confirm it uses `SELECT` mode (from US1) rather than falling back agai
 
 ### Implementation for User Story 4
 
-- [ ] T045 [US4] Implement `SelectMojo`'s `TRACK` branch — invoke `TrackRunner`, persist the
+- [X] T045 [US4] Implement `SelectMojo`'s `TRACK` branch — invoke `TrackRunner`, persist the
       resulting index via `DependencyIndexWriter`, leave this build's own Surefire execution
       completely unfiltered (make T041 pass) in `SelectMojo.java` (depends on T018, T022)
-- [ ] T046 [US4] Implement `SelectMojo`'s `FALLBACK` branch — leave Surefire unfiltered,
+- [X] T046 [US4] Implement `SelectMojo`'s `FALLBACK` branch — leave Surefire unfiltered,
       deliberately do not invoke `TrackRunner` (make T042 pass) in `SelectMojo.java` (depends
       on T022)
-- [ ] T047 [US4] Fix any gap T043/T044 reveal in `IndexApplicabilityResolver`/`SelectMojo`'s
+- [X] T047 [US4] Fix any gap T043/T044 reveal in `IndexApplicabilityResolver`/`SelectMojo`'s
       routing so a valid fresh index is correctly picked up by a later `SELECT` build, and an
       unreachable-anchor index is correctly treated as inapplicable (make T043, T044 pass)
       (depends on T043, T044, T045, T046)
+
+      **Remediation note (2026-07-10)**: T041's own live-build integration test revealed that
+      `TrackRunner`'s forked subprocess (running the adopting project's own `mvn test`, agent
+      attached) executes against the *same* pom the goal is bound in — without a guard, that
+      subprocess's own `SelectMojo` execution also resolves `TRACK` (same commit, same
+      `baseRef`) and forks *its own* nested subprocess, recursing without bound. This is what
+      exhausted host memory in a prior session (a fixture-test-only timeout/kill mitigation had
+      already been added defensively, but did not address the recursion itself). Fixed by a new
+      `blastradius.trackChild` guard parameter, set only by `TrackRunner`'s own subprocess
+      invocation, that makes a nested `SelectMojo.execute()` no-op immediately — safe because
+      the tracking data comes entirely from the `-javaagent`, not from the goal's own logic.
+      T043's own test also had an unrelated ordering bug (an uncommitted plugin-binding pom.xml
+      edit got swept into a later fixture commit by `git add .`, misclassified as a NON_SOURCE
+      change, spuriously triggering the fallback rule) — fixed in the test itself. All four
+      tests plus the full `blastradius-maven-plugin` suite (42 tests) pass green with no
+      leftover subprocesses.
 
 **Checkpoint**: All four user stories are independently functional. Adoption is safe on day
 one, and stays safe if the index ever goes stale.
@@ -435,18 +451,26 @@ one, and stays safe if the index ever goes stale.
 **Purpose**: Documentation, end-to-end validation against a real project, and error-handling
 robustness that spans multiple stories.
 
-- [ ] T048 [P] Write `blastradius-maven-plugin/README.md` mirroring quickstart.md — adoption
+- [X] T048 [P] Write `blastradius-maven-plugin/README.md` mirroring quickstart.md — adoption
       snippet, first-build vs. later-build behavior, auditing a decision, why it's safe to
       trust (reused, tested mechanism + the recommended daily full-suite-portfolio
       complement — see quickstart.md's "Why this is safe to trust", updated per the
       constitution v2.0.0 amendment removing Principle V)
-- [ ] T049 [P] Write failing tests, then implement, graceful error handling for malformed
+- [X] T049 [P] Write failing tests, then implement, graceful error handling for malformed
       plugin configuration (missing `baseRef`, an `indexPath` outside the project directory, a
       target project that isn't a git repository at all) — the goal MUST fail with a clear
       message, distinct from a normal `FALLBACK`/`TRACK` condition, in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/InvalidConfigurationTest.java`
       and corresponding fixes in `SelectMojo.java`
-- [ ] T050 [P] Write a failing test that injects an unexpected internal fault into
+
+      **Note**: missing `baseRef` and a non-git target already failed with a sufficiently clear
+      message pre-existing (Maven's own `required = true` parameter validation, and
+      `CurrentChangesResolver`'s `IllegalStateException` message respectively) — the latter is
+      now also explicitly caught and re-wrapped as a `MojoExecutionException` for a clean Mojo
+      failure instead of a raw stack trace. Only the `indexPath`-outside-project-directory case
+      needed a genuinely new check: `SelectMojo.execute()` now normalizes the resolved index
+      path and rejects it before use if it escapes the reactor root.
+- [X] T050 [P] Write a failing test that injects an unexpected internal fault into
       `SelectMojo`'s `SELECT`-branch computation (e.g. a corrupted intermediate state or a
       simulated JGit exception during diffing, distinct from T049's predictable configuration
       errors), then implement a catch-all fail-safe so the build falls back to running the
@@ -454,14 +478,39 @@ robustness that spans multiple stories.
       Edge Case "the plugin's own selection computation encounters an internal error" — in
       `blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/SelectMojoInternalErrorFallbackTest.java`
       and corresponding fixes in `SelectMojo.java` (depends on T028)
-- [ ] T051 Run `mvn clean install` from the repository root and confirm the full 3-module
+
+      **Note**: fault injected via a persisted index with a duplicate `TestIdentity` key —
+      valid JSON, reachable anchor (so `IndexApplicabilityResolver` reports `APPLICABLE` and
+      routes to `SELECT`), but `DependencyIndex.testDependenciesByTest()`'s
+      `Collectors.toUnmodifiableMap` throws on the duplicate once `computeDecisions` actually
+      consumes it — a fault genuinely internal to the SELECT branch, not a config problem T049
+      already covers. Added `IndexApplicability.Status.INTERNAL_ERROR` (not a property of the
+      index — set only by this catch-all) so the existing `BuildReport.forFallback`/
+      `ConsoleSummaryRenderer` machinery could report it without a parallel code path.
+      `runSelect`'s try/catch wraps everything through `SurefireFilterApplier.apply`, which
+      runs last, so a fault is always caught before any filter is ever applied.
+- [X] T051 Run `mvn clean install` from the repository root and confirm the full 3-module
       reactor builds, installs, and every test across all three modules passes
-- [ ] T052 Run quickstart.md validation end-to-end: install `blastradius-maven-plugin` into a
+      (147 tests, 0 failures, 0 errors, 0 skipped; no leftover subprocesses)
+- [X] T052 Run quickstart.md validation end-to-end: install `blastradius-maven-plugin` into a
       real (or realistic fixture) Maven/JUnit-5 project, run a simulated base-ref build to
       establish an index, then a PR-style build with a real, contained code change, and
       confirm the observed behavior matches quickstart.md exactly — this is this feature's own
       analog of the validator's T061, proving the *live* mechanism works end-to-end, not just
       in isolated unit/integration tests
+
+      **Validated (2026-07-10)**: a from-scratch standalone Maven/JUnit-5 project (2 classes, 2
+      independent tests, `<baseRef>main</baseRef>` — not reusing `FixtureProjectBuilder`).
+      Base-ref build on `main`: `TRACK`, full suite ran (2/2), `.blastradius/index.json`
+      written with real per-test dependency data. Feature-branch build after a small, contained
+      change to one production class: `SELECT`, console read exactly
+      `[blastradius] SELECT — index built from 4e02156 (...)` /
+      `1 / 2 tests selected (50.0% skipped)` /
+      `dependency-matched: 1, new-or-modified: 0, fallback: 0` — matching quickstart.md's
+      documented format verbatim. Only the dependency-matched test ran (confirmed absent from
+      Surefire's own test list, not merely "skipped"); `-Dblastradius.explain=true` and
+      `.blastradius/last-build-report.json` both showed the correct per-test reasoning
+      (FR-008/FR-009). `BUILD SUCCESS` both builds; no leftover subprocesses.
 
 ---
 

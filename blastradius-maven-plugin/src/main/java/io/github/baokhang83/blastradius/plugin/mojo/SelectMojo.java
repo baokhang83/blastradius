@@ -9,17 +9,23 @@ import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.plugin.diff.CurrentChanges;
 import io.github.baokhang83.blastradius.plugin.diff.CurrentChangesResolver;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
+import io.github.baokhang83.blastradius.plugin.index.DependencyIndexWriter;
 import io.github.baokhang83.blastradius.plugin.index.IndexApplicability;
 import io.github.baokhang83.blastradius.plugin.index.IndexApplicabilityResolver;
 import io.github.baokhang83.blastradius.plugin.report.BuildReport;
 import io.github.baokhang83.blastradius.plugin.report.BuildReportWriter;
 import io.github.baokhang83.blastradius.plugin.report.ConsoleSummaryRenderer;
 import io.github.baokhang83.blastradius.plugin.report.ExplainListingRenderer;
+import io.github.baokhang83.blastradius.plugin.track.TrackRunner;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -36,9 +42,10 @@ import org.apache.maven.project.MavenProject;
  * index, depending on which of three modes applies (research.md #1; contracts/
  * mojo-and-index-contract.md).
  *
- * <p>{@code SELECT} (US1/US2/US3) computes and applies a narrowed Surefire filter, and
- * writes/renders a {@link BuildReport} of its decisions. {@code TRACK}/{@code FALLBACK}
- * (US4) are filled in later.
+ * <p>{@code SELECT} (US1/US2/US3) computes and applies a narrowed Surefire filter.
+ * {@code TRACK} (US4) forks a subprocess to refresh the index while running this build's
+ * own suite unfiltered; {@code FALLBACK} (US4) also runs unfiltered but forks nothing.
+ * Every mode writes/renders a {@link BuildReport} of its outcome.
  */
 @Mojo(name = "select", defaultPhase = LifecyclePhase.PROCESS_TEST_CLASSES,
         requiresDependencyResolution = ResolutionScope.TEST)
@@ -56,6 +63,18 @@ public final class SelectMojo extends AbstractMojo {
     @Parameter(property = "blastradius.explain", defaultValue = "false")
     private boolean explain;
 
+    /**
+     * Set only by {@link TrackRunner}, on the {@code mvn} subprocess it forks against this
+     * same project directory to gather instrumented dependency data. That subprocess's pom
+     * is the adopting project's own pom — the same one this goal is bound in — so without
+     * this guard the subprocess's own {@code execute()} would resolve {@code TRACK} again
+     * (same commit, same {@code baseRef}) and fork another subprocess, recursing without
+     * bound. The tracking data comes entirely from the {@code -javaagent} attached via
+     * {@code JAVA_TOOL_OPTIONS}, not from this goal, so skipping is safe and correct.
+     */
+    @Parameter(property = "blastradius.trackChild", defaultValue = "false")
+    private boolean trackChild;
+
     @Parameter(defaultValue = "${project}", readonly = true, required = true)
     private MavenProject project;
 
@@ -72,9 +91,17 @@ public final class SelectMojo extends AbstractMojo {
     private final BuildReportWriter buildReportWriter = new BuildReportWriter();
     private final ConsoleSummaryRenderer consoleSummaryRenderer = new ConsoleSummaryRenderer();
     private final ExplainListingRenderer explainListingRenderer = new ExplainListingRenderer();
+    private final TrackRunner trackRunner = new TrackRunner();
+    private final DependencyIndexWriter dependencyIndexWriter = new DependencyIndexWriter();
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
+        if (trackChild) {
+            getLog().info("[blastradius] skipping select goal (this build is a TRACK-mode subprocess "
+                    + "collecting dependency data; the ambient gated build's own Surefire execution is untouched)");
+            return;
+        }
+
         // Anchored at the reactor root (not project.getBasedir()), which for a
         // multi-module reactor differs per module: the git repository only exists at the
         // root (JGit's Git.open does not search upward for it), and the persisted index
@@ -83,17 +110,27 @@ public final class SelectMojo extends AbstractMojo {
         // goal execution must resolve that same file, not one relative to its own
         // basedir (tasks.md T026/T029, FR-010).
         Path reactorRoot = Path.of(session.getExecutionRootDirectory());
-        Path resolvedIndexPath = reactorRoot.resolve(indexPath);
+        Path normalizedReactorRoot = reactorRoot.normalize();
+        Path resolvedIndexPath = reactorRoot.resolve(indexPath).normalize();
+        if (!resolvedIndexPath.startsWith(normalizedReactorRoot)) {
+            throw new MojoExecutionException("invalid configuration: indexPath \"" + indexPath
+                    + "\" resolves outside the project directory (" + resolvedIndexPath + ")");
+        }
 
-        CurrentChanges changes = currentChangesResolver.resolve(reactorRoot, baseRef);
+        CurrentChanges changes;
+        try {
+            changes = currentChangesResolver.resolve(reactorRoot, baseRef);
+        } catch (IllegalStateException e) {
+            throw new MojoExecutionException("invalid configuration: " + e.getMessage(), e);
+        }
         IndexApplicability applicability = indexApplicabilityResolver.resolve(resolvedIndexPath, reactorRoot);
 
         BuildReport.Mode resolvedMode = determineMode(changes, applicability, mode);
 
         switch (resolvedMode) {
-            case TRACK -> runTrack();
+            case TRACK -> runTrack(changes, applicability, reactorRoot, resolvedIndexPath);
             case SELECT -> runSelect(changes, applicability);
-            case FALLBACK -> runFallback();
+            case FALLBACK -> runFallback(applicability);
         }
     }
 
@@ -113,31 +150,103 @@ public final class SelectMojo extends AbstractMojo {
         return BuildReport.Mode.FALLBACK;
     }
 
-    private void runTrack() {
-        // Filled in by User Story 4 (tasks.md T045).
+    /**
+     * The current build IS the base reference — its own Surefire execution runs
+     * completely full and unfiltered, and separately, a subprocess {@code mvn test} (agent
+     * attached, via {@link TrackRunner}) (re)builds the index for future {@code SELECT}
+     * builds to use (research.md #1, tasks.md T045).
+     */
+    private void runTrack(CurrentChanges changes, IndexApplicability applicability, Path reactorRoot,
+            Path resolvedIndexPath) throws MojoExecutionException {
+        Path agentJar = locateCoreAgentJar();
+        DependencyIndex freshIndex = trackRunner.track(reactorRoot, agentJar, changes.currentCommit());
+        dependencyIndexWriter.write(resolvedIndexPath, freshIndex);
+
+        int totalCount = discoverProjectTests().size();
+        BuildReport report = BuildReport.forTrack(applicability.status(), totalCount, freshIndex);
+        buildReportWriter.write(reportPath(), report);
+        renderReport(report, null);
     }
 
-    private void runSelect(CurrentChanges changes, IndexApplicability applicability) throws MojoExecutionException {
+    /**
+     * No valid index and this build is not of the base reference — the full suite runs,
+     * safely, but deliberately no track subprocess is forked for this commit (a poor
+     * anchor for the shared index) (research.md #1, tasks.md T046).
+     */
+    private void runFallback(IndexApplicability applicability) throws MojoExecutionException {
+        int totalCount = discoverProjectTests().size();
+        BuildReport report = BuildReport.forFallback(applicability.status(), totalCount);
+        buildReportWriter.write(reportPath(), report);
+        renderReport(report, null);
+    }
+
+    /**
+     * Locates {@code blastradius-core}'s runnable agent jar (the same artifact {@link
+     * TrackRunner} attaches via {@code -javaagent}) on the plugin's own resolved
+     * classpath — a Maven plugin's {@code ClassRealm} is a {@link URLClassLoader} whose
+     * URLs already include every dependency (including {@code blastradius-core}) resolved
+     * from the local repository, so no separate artifact-resolution mechanism is needed.
+     */
+    private static Path locateCoreAgentJar() throws MojoExecutionException {
+        ClassLoader loader = SelectMojo.class.getClassLoader();
+        if (loader instanceof URLClassLoader urlClassLoader) {
+            for (URL url : urlClassLoader.getURLs()) {
+                try {
+                    Path candidate = Path.of(url.toURI());
+                    String name = candidate.getFileName().toString();
+                    if (name.matches("blastradius-core-.*\\.jar") && !name.contains("sources") && !name.contains("tests")) {
+                        return candidate;
+                    }
+                } catch (URISyntaxException e) {
+                    // Not expected for local jar file URLs; skip and keep looking.
+                }
+            }
+        }
+        throw new MojoExecutionException("could not locate the blastradius-core agent jar on the plugin's own classpath");
+    }
+
+    private Set<TestIdentity> discoverProjectTests() throws MojoExecutionException {
         Path testClassesDir = Path.of(project.getBuild().getTestOutputDirectory());
         List<String> testClasspathElements;
         try {
             testClasspathElements = project.getTestClasspathElements();
-        } catch (org.apache.maven.artifact.DependencyResolutionRequiredException e) {
+        } catch (DependencyResolutionRequiredException e) {
             throw new MojoExecutionException("failed to resolve the test classpath for " + project.getArtifactId(), e);
         }
+        return testDiscoverer.discoverAllTests(testClassesDir, testClasspathElements);
+    }
 
-        Set<TestIdentity> allTests = testDiscoverer.discoverAllTests(testClassesDir, testClasspathElements);
-        List<SelectionDecision> decisions = computeDecisions(allTests, applicability.index(), changes.changedFiles());
-        Set<TestIdentity> selectedTests = decisions.stream()
-                .filter(SelectionDecision::selected)
-                .map(SelectionDecision::test)
-                .collect(Collectors.toSet());
+    /**
+     * A {@code RuntimeException} anywhere in this method's own computation — a corrupted
+     * index that passed {@link IndexApplicabilityResolver} but not actual use, or any other
+     * unexpected internal fault (tasks.md T050) — must not crash the build or, worse,
+     * silently apply a bogus/partial selection. {@link SurefireFilterApplier#apply} runs
+     * last, only after decisions are fully computed, so a fault anywhere above it is always
+     * caught before any filter is applied — the safe fallback below is exactly what Surefire
+     * would have done anyway (run everything) had the goal never run at all.
+     */
+    private void runSelect(CurrentChanges changes, IndexApplicability applicability) throws MojoExecutionException {
+        try {
+            Set<TestIdentity> allTests = discoverProjectTests();
+            List<SelectionDecision> decisions = computeDecisions(allTests, applicability.index(), changes.changedFiles());
+            Set<TestIdentity> selectedTests = decisions.stream()
+                    .filter(SelectionDecision::selected)
+                    .map(SelectionDecision::test)
+                    .collect(Collectors.toSet());
 
-        surefireFilterApplier.apply(project, selectedTests);
+            surefireFilterApplier.apply(project, selectedTests);
 
-        BuildReport report = BuildReport.forSelect(applicability, decisions);
-        buildReportWriter.write(reportPath(), report);
-        renderReport(report, applicability.index());
+            BuildReport report = BuildReport.forSelect(applicability, decisions);
+            buildReportWriter.write(reportPath(), report);
+            renderReport(report, applicability.index());
+        } catch (RuntimeException e) {
+            getLog().warn("[blastradius] internal error during selection computation — falling back to running "
+                    + "the full suite unfiltered rather than risk a crashed build or an unsound selection", e);
+            int totalCount = discoverProjectTests().size();
+            BuildReport report = BuildReport.forFallback(IndexApplicability.Status.INTERNAL_ERROR, totalCount);
+            buildReportWriter.write(reportPath(), report);
+            renderReport(report, null);
+        }
     }
 
     private void renderReport(BuildReport report, DependencyIndex usedIndex) {
@@ -149,10 +258,6 @@ public final class SelectMojo extends AbstractMojo {
 
     private Path reportPath() {
         return project.getBasedir().toPath().resolve(".blastradius/last-build-report.json");
-    }
-
-    private void runFallback() {
-        // Filled in by User Story 4 (tasks.md T046).
     }
 
     /**

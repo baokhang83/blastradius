@@ -12,7 +12,15 @@ public record IndexApplicability(Status status, DependencyIndex index) {
         APPLICABLE,
         MISSING,
         UNREADABLE,
-        ANCHOR_UNREACHABLE
+        ANCHOR_UNREACHABLE,
+        /**
+         * Not a property of the index itself — set only when an otherwise-{@code
+         * APPLICABLE} index's {@code SELECT} computation hits an unexpected internal
+         * fault (tasks.md T050, spec.md's "the plugin's own selection computation
+         * encounters an internal error" Edge Case), so the build still falls back to a
+         * full, unfiltered run instead of crashing or silently skipping tests.
+         */
+        INTERNAL_ERROR
     }
 
     public static IndexApplicability applicable(DependencyIndex index) {
@@ -29,5 +37,9 @@ public record IndexApplicability(Status status, DependencyIndex index) {
 
     public static IndexApplicability anchorUnreachable() {
         return new IndexApplicability(Status.ANCHOR_UNREACHABLE, null);
+    }
+
+    public static IndexApplicability internalError() {
+        return new IndexApplicability(Status.INTERNAL_ERROR, null);
     }
 }
