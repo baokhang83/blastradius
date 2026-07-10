@@ -1,13 +1,6 @@
+<img width="1983" height="793" alt="image" src="https://github.com/user-attachments/assets/b8564f09-680a-4fd5-9983-611789e42975" />
+
 # Blastradius
-
-**Dependency-based test selection for Maven/JUnit 5 — skip the tests that can't possibly
-be affected by your change, prove it never misses a real failure.**
-
-```
-[blastradius] SELECT — index built from 4e02156 (2026-07-10T03:03:04Z)
-[blastradius] 1 / 2 tests selected (50.0% skipped)
-[blastradius]   dependency-matched: 1, new-or-modified: 0, fallback: 0
-```
 
 Most "test impact analysis" tools guess from a static, per-module dependency graph, or
 train something probabilistic on historical flakiness. Blastradius does neither: a
