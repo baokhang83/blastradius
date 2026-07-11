@@ -60,6 +60,42 @@ class CommitCheckoutTest {
         }
     }
 
+    /**
+     * Real bug found running the validator against jackson-databind: a commit whose
+     * {@code pom.xml} fails to resolve (e.g. an unpublished SNAPSHOT parent) fails
+     * during Maven's project-model-building phase, before the {@code clean} goal ever
+     * runs — so a STALE {@code target/surefire-reports/TEST-*.xml} left over from the
+     * *previous* commit's successful build survives into this checkout. {@link
+     * io.github.baokhang83.blastradius.validator.build.BuildFailureDetector} only checks
+     * whether any {@code TEST-*.xml} exists anywhere under the project — it can't tell a
+     * fresh report from a stale one — so it wrongly concluded the (actually failed)
+     * build must have run at least one test, and {@code RunCommand} went on to read
+     * dependency-tracking output that was never produced, crashing the whole run instead
+     * of gracefully excluding the one bad commit.
+     */
+    @Test
+    void checkoutClearsStaleTargetDirectoryFromThePreviousCommit(
+            @TempDir Path targetDir, @TempDir Path scratchParent) throws Exception {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(targetDir);
+        String c1 = fixture.commit("initial");
+        fixture.writeClass("com.example.Foo", "package com.example; class Foo {}");
+        String c2 = fixture.commit("add Foo");
+
+        try (CommitCheckout checkout = CommitCheckout.forTargetProject(targetDir, scratchParent)) {
+            Path atC1 = checkout.checkoutCommit(c1);
+            Path staleReport = atC1.resolve("target/surefire-reports/TEST-com.example.OldTest.xml");
+            Files.createDirectories(staleReport.getParent());
+            Files.writeString(staleReport, "<testsuite/>", StandardCharsets.UTF_8);
+            assertTrue(Files.exists(staleReport), "sanity check: stale report was actually created");
+
+            Path atC2 = checkout.checkoutCommit(c2);
+
+            assertTrue(Files.notExists(atC2.resolve("target/surefire-reports/TEST-com.example.OldTest.xml")),
+                    "a stale test report from the previous commit's build must not survive a checkout "
+                            + "of a different commit");
+        }
+    }
+
     @Test
     void checkingOutMultipleCommitsSequentiallyReusesTheSameScratchClone(
             @TempDir Path targetDir, @TempDir Path scratchParent) throws Exception {

@@ -82,6 +82,58 @@ class ChangedFileClassifierTest {
         assertEquals(2, changed.size());
     }
 
+    @Test
+    void readmeChangeIsClassifiedAsInert(@TempDir Path tempDir) {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(tempDir);
+        String base = fixture.commit("initial");
+        fixture.writeResource("README.md", "# docs edit");
+        String head = fixture.commit("edit readme");
+
+        List<ChangedFile> changed = classifier.classify(tempDir, base, head);
+
+        ChangedFile readme = single(changed, "README.md");
+        assertEquals(FileKind.INERT, readme.kind());
+        assertNull(readme.changedClassName());
+    }
+
+    @Test
+    void ciWorkflowChangeIsClassifiedAsInert(@TempDir Path tempDir) {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(tempDir);
+        String base = fixture.commit("initial");
+        fixture.writeResource(".github/workflows/ci.yml", "name: ci");
+        String head = fixture.commit("edit ci");
+
+        List<ChangedFile> changed = classifier.classify(tempDir, base, head);
+
+        assertEquals(FileKind.INERT, single(changed, ".github/workflows/ci.yml").kind());
+    }
+
+    @Test
+    void docImageChangeIsClassifiedAsInert(@TempDir Path tempDir) {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(tempDir);
+        String base = fixture.commit("initial");
+        fixture.writeResource("docs/logo.png", "fake-png-bytes");
+        String head = fixture.commit("add logo");
+
+        List<ChangedFile> changed = classifier.classify(tempDir, base, head);
+
+        assertEquals(FileKind.INERT, single(changed, "docs/logo.png").kind());
+    }
+
+    @Test
+    void markdownUnderResourcesIsNonSourceNotInert(@TempDir Path tempDir) {
+        // Soundness (§III): a Markdown file under resources/ can be test data a test loads,
+        // and class-load tracking can't see it — so it MUST fall back, never select nothing.
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(tempDir);
+        String base = fixture.commit("initial");
+        fixture.writeResource("src/test/resources/fixture.md", "expected: 42");
+        String head = fixture.commit("edit fixture");
+
+        List<ChangedFile> changed = classifier.classify(tempDir, base, head);
+
+        assertEquals(FileKind.NON_SOURCE, single(changed, "src/test/resources/fixture.md").kind());
+    }
+
     private static ChangedFile single(List<ChangedFile> files, String path) {
         return files.stream()
                 .filter(f -> f.path().equals(path))

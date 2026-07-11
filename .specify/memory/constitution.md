@@ -1,45 +1,28 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.0.0 → 2.0.0 (MAJOR — principle removal + principle redefinition)
+Version change: 2.0.0 → 2.1.0 (MINOR — Principle III materially refined)
 Modified principles:
-  - III. Safety Over Speed (NON-NEGOTIABLE) → III. Safety Over Speed
-    (no longer NON-NEGOTIABLE; rationale and body rewritten around a complementary
-    daily full-test-suite-portfolio practice as the safety backstop, replacing the
-    prior "soundness is non-negotiable, speed MUST NOT be traded against it" framing)
-Removed principles:
-  - V. Shadow-Mode Before Gating (NON-NEGOTIABLE) — removed entirely, per explicit
-    user direction (2026-07-09). Shadow-mode validation remains valid, already-
-    completed historical work (see SESSION.md, specs/001-shadow-mode-validator/) but
-    is no longer a constitutionally-mandated prerequisite gate before a selection
-    capability may gate real CI, and is no longer the project's advertised trust
-    mechanism.
-Renumbered principles (following the removal of V):
-  - VI. Explainability → V. Explainability (content unchanged except one internal
-    cross-reference, see below)
-  - VII. Maintainable, Modern Foundations → VI. Maintainable, Modern Foundations
-    (content unchanged)
-Added sections: none
-Removed sections:
-  - Development Workflow & Quality Gates: removed the bullet requiring a shadow-mode
-    validation plan before a feature "may be considered for gating behavior" — that
-    gate no longer exists now that Principle V is removed.
-Other edits:
-  - V. Explainability's rationale previously ended "...which is essential to earning
-    the trust Principle V requires evidence for" — reworded to stand on its own
-    without a dangling reference to the removed principle.
+  - III. Safety Over Speed — added the inert-change carve-out: a change that provably
+    cannot affect any test outcome (documentation, license text, images, and other
+    non-executable files never loaded as classes) MUST NOT trigger the conservative
+    full-scope fallback; the sound selection for it is zero tests. The carve-out stays
+    deterministic and explainable (Principles IV, V) — inert files are recognized by a
+    fixed path classification, not a probabilistic guess — so soundness is not weakened:
+    an inert change has no test that could catch it.
+    Rationale: the current binary classifier (ChangedFileClassifier: JAVA_SOURCE vs
+    NON_SOURCE) routes provably-inert changes such as a README edit to a full-suite run,
+    which is wasteful, not safer.
+Added principles: none
+Removed principles: none
+Added/removed sections: none
 Templates requiring updates:
-  - ✅ .specify/templates/plan-template.md — no changes needed; Constitution Check
-    gate is derived dynamically from this file, no hardcoded principle names found
-  - ✅ .specify/templates/spec-template.md — no hardcoded principle references found
-  - ✅ .specify/templates/tasks-template.md — no hardcoded principle references found
-  - ⚠ specs/002-ci-gating-plugin/ (spec.md, plan.md, research.md) — explicitly frame
-    the feature as satisfying/inheriting Principle V's shadow-mode gate; the user has
-    asked for these to be updated separately, after this amendment lands
-  - ⚠ README.md — advertises shadow-mode as the trust mechanism; the user has asked
-    for this to be updated separately, after this amendment lands
-Follow-up TODOs: none (both flagged follow-ups are being handled directly by the user's
-  request, immediately after this amendment)
+  - ✅ .specify/templates/plan-template.md — Constitution Check derived dynamically from
+    this file, no changes needed
+Follow-up TODOs:
+  - ⚠ Implementation: ChangedFileClassifier needs a third INERT classification (a
+    deterministic inert-path allowlist that selects zero tests) to honor this principle.
+    Tracked as a follow-up feature, not part of this amendment.
 -->
 
 # Blastradius Constitution
@@ -83,7 +66,14 @@ default to running more tests rather than fewer. Changes that fall outside what 
 dependency-tracking mechanism can soundly observe — resource files, `pom.xml` and
 dependency version changes, database migrations, build configuration — MUST still
 trigger a conservative fallback that runs the full affected scope, since that
-mechanism is cheap to keep and doesn't trade away meaningful speed.
+mechanism is cheap to keep and doesn't trade away meaningful speed. This fallback
+applies to unobservable changes that *could* affect a test outcome; a change that
+provably *cannot* affect any test outcome — documentation, license text, images, and
+other non-executable files that are never loaded as classes — MUST NOT trigger a full
+run, since the sound selection for it is zero tests. This carve-out stays deterministic
+and explainable (Principles IV and V): inert files are recognized by a fixed path
+classification, not a probabilistic guess, and the surfaced reason is simply that the
+change matched no executable scope.
 
 This is a strong default, not an absolute, non-negotiable rule: adopting teams are
 expected to run their full test suite portfolio on a regular cadence (recommended:
@@ -195,4 +185,4 @@ gate defined in `.specify/templates/plan-template.md`. Any violation MUST be
 explicitly justified in that plan's Complexity Tracking section or the design MUST
 be simplified until it complies.
 
-**Version**: 2.0.0 | **Ratified**: 2026-07-08 | **Last Amended**: 2026-07-09
+**Version**: 2.1.0 | **Ratified**: 2026-07-08 | **Last Amended**: 2026-07-11
