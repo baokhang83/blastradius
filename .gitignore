@@ -32,3 +32,8 @@ target/
 .idea/
 .DS_Store
 dependency-reduced-pom.xml
+
+# FluencyLoop: calibration is per-developer and never committed
+.fluencyloop/**/calibration.md
+.fluencyloop/scripts/
+.fluencyloop/templates/
