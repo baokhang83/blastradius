@@ -75,4 +75,21 @@ class SelectionEngineTest {
 
         assertEquals(3, decisions.size());
     }
+
+    @Test
+    void inertOnlyChangeSelectsNoTestsAndDoesNotFallback() {
+        // A README-only change: INERT is neither fallback-triggering (NON_SOURCE) nor
+        // match-contributing (JAVA_SOURCE), so every test is unselected — zero tests run.
+        List<ChangedFile> changed = List.of(new ChangedFile("README.md", FileKind.INERT, null));
+
+        List<SelectionDecision> decisions = engine.selectAll(
+                Set.of(MATCHED_TEST, UNRELATED_TEST),
+                Map.of(MATCHED_TEST, Set.of("com.example.Foo")),
+                Set.of(),
+                changed);
+
+        assertTrue(decisions.stream().noneMatch(SelectionDecision::selected));
+        assertTrue(decisions.stream()
+                .noneMatch(d -> d.reason() == SelectionReason.FALLBACK_NON_SOURCE_CHANGE));
+    }
 }

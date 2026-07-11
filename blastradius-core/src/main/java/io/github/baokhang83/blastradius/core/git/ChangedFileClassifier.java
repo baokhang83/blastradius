@@ -3,6 +3,8 @@ package io.github.baokhang83.blastradius.core.git;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.lib.ObjectId;
@@ -61,7 +63,53 @@ public final class ChangedFileClassifier {
         if (className != null) {
             return new ChangedFile(path, FileKind.JAVA_SOURCE, className);
         }
+        if (isInert(path)) {
+            return new ChangedFile(path, FileKind.INERT, null);
+        }
         return new ChangedFile(path, FileKind.NON_SOURCE, null);
+    }
+
+    // Documentation and media extensions that cannot affect a test outcome.
+    private static final Set<String> INERT_EXTENSIONS = Set.of(
+            ".md", ".markdown", ".adoc", ".rst",
+            ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp");
+
+    // Root-style documentation files, matched with or without an extension (README, README.md, …).
+    private static final Set<String> INERT_DOC_STEMS = Set.of(
+            "README", "LICENSE", "NOTICE", "AUTHORS", "CHANGELOG", "CONTRIBUTING",
+            "CODE_OF_CONDUCT", "SECURITY");
+
+    // Exact VCS/editor metadata filenames.
+    private static final Set<String> INERT_METADATA_FILES = Set.of(
+            ".gitignore", ".gitattributes", ".mailmap", ".editorconfig");
+
+    /**
+     * True when a changed path provably cannot affect any test outcome (Constitution §III),
+     * so it selects no tests instead of triggering the conservative fallback.
+     *
+     * <p>This is an allowlist, never a blocklist — anything not matched stays {@code NON_SOURCE}.
+     * Nothing under a {@code resources/} directory is ever inert: it may be test data a test
+     * loads, which class-load tracking cannot observe, so it must fall back.
+     */
+    private static boolean isInert(String path) {
+        if (path.startsWith("resources/") || path.contains("/resources/")) {
+            return false;
+        }
+        if (path.startsWith(".github/") || path.startsWith(".idea/") || path.startsWith(".vscode/")
+                || path.startsWith("docs/") || path.contains("/docs/")) {
+            return true;
+        }
+        String fileName = path.substring(path.lastIndexOf('/') + 1);
+        if (INERT_METADATA_FILES.contains(fileName) || fileName.endsWith(".iml")) {
+            return true;
+        }
+        for (String stem : INERT_DOC_STEMS) {
+            if (fileName.equals(stem) || fileName.startsWith(stem + ".")) {
+                return true;
+            }
+        }
+        String lower = fileName.toLowerCase(Locale.ROOT);
+        return INERT_EXTENSIONS.stream().anyMatch(lower::endsWith);
     }
 
     private static String classNameFromPath(String path) {
