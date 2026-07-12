@@ -2,11 +2,11 @@
 
 started: 2026-07-12
 
-> ✓ **Backfilled, then reviewed.** `blastradius-validator` shipped from
-> `specs/001-shadow-mode-validator/` without going through the loop. This design was
-> reconstructed from that spec/plan/`research.md`/contracts and the code — not authored live —
-> then confirmed by the maintainer on 2026-07-12. See the session journal for the decisions and
-> their (now ✓) trust markers.
+> ✓ **Backfilled from a real-time record, then reviewed.** `blastradius-validator` was built via
+> the full SpecKit workflow with a contemporaneous development log (`SESSION.md`) — it didn't skip
+> real-time teaching, only FluencyLoop's journal format. This design is reconstructed from
+> `specs/001-shadow-mode-validator/` + `SESSION.md` + the code, then confirmed by the maintainer on
+> 2026-07-12. See the session journal for the decisions and their (now ✓) trust markers.
 
 ## What it is
 
