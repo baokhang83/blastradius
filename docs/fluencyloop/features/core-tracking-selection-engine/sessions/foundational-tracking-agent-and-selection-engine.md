@@ -11,6 +11,29 @@
 
 ---
 
+## Knowledge transfer
+
+_The ground this backfill makes understandable — the components, roles, and conditions of the
+engine. About the work, not any person._
+
+- **DependencyTrackingAgent (`ClassFileTransformer`)** — observes every class load in the JVM
+  it's attached to and records a SHA-256 of the raw bytecode; never modifies bytecode. Runs as a
+  `-javaagent` for the life of a test JVM. · status: documented
+- **TestBoundaryListener (JUnit 5 `TestExecutionListener` + `ThreadLocal`)** — marks the
+  currently-executing test so each class load is attributed to it; assumes sequential,
+  one-thread-per-test execution (no parallelism). · status: documented
+- **SelectionEngine + `FallbackSelector` / `NewOrModifiedTestSelector` / `DependencyMatchSelector`
+  + `SelectionReason`** — compose one explained `SelectionDecision` per test; precedence: fallback
+  short-circuits all, else new/modified beats dependency match; every outcome carries a named
+  reason. · status: documented
+- **ChangedFileClassifier + `FileKind` fallback rule** — classify each changed file; a
+  `NON_SOURCE` change (unobservable to class-load tracking) selects every test, while
+  `JAVA_SOURCE` is matched by dependency. Shipped binary; `INERT` added later. · status: documented
+- **`blastradius-core` module boundary** — the shared engine consumed by both the validator and
+  the Maven plugin; extracted only once the second consumer existed. · status: documented
+
+---
+
 ## Decision: dynamic per-test class-load tracking via a java.lang.instrument agent
 
 - **where:** `blastradius-core/.../tracking/DependencyTrackingAgent.java`, `tracking/TestBoundaryListener.java`
