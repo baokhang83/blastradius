@@ -7,7 +7,7 @@
     <parent>
         <groupId>io.github.baokhang83.blastradius</groupId>
         <artifactId>blastradius-parent</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.1.0</version>
     </parent>
 
     <artifactId>blastradius-maven-plugin</artifactId>
@@ -16,11 +16,21 @@
     <name>blastradius-maven-plugin</name>
     <description>Real Maven plugin gating CI by actually skipping tests, using the
         dependency-tracking engine proven safe by the shadow-mode validator (T061).</description>
+    <url>https://github.com/baokhang83/blastradius</url>
+
+    <scm>
+        <connection>scm:git:https://github.com/baokhang83/blastradius.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/baokhang83/blastradius.git</developerConnection>
+        <url>https://github.com/baokhang83/blastradius</url>
+        <tag>v0.1.0</tag>
+    </scm>
 
     <properties>
         <maven.plugin-api.version>3.9.6</maven.plugin-api.version>
         <maven.plugin-tools.version>3.13.1</maven.plugin-tools.version>
         <maven.core.version>3.9.6</maven.core.version>
+        <maven.deploy.skip>false</maven.deploy.skip>
+        <central.skip.publishing>false</central.skip.publishing>
     </properties>
 
     <dependencies>
@@ -99,13 +109,139 @@
                 <version>${maven.plugin-tools.version}</version>
                 <executions>
                     <execution>
-                        <id>generate-descriptor</id>
+                        <id>generate-plugin-descriptor-and-help</id>
                         <goals>
                             <goal>descriptor</goal>
+                            <goal>helpmojo</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>${shade.plugin.version}</version>
+                <configuration>
+                    <createDependencyReducedPom>true</createDependencyReducedPom>
+                    <useDependencyReducedPomInJar>true</useDependencyReducedPomInJar>
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <exclude>META-INF/*.SF</exclude>
+                                <exclude>META-INF/*.DSA</exclude>
+                                <exclude>META-INF/*.RSA</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
+                    <relocations>
+                        <relocation>
+                            <pattern>org.eclipse.jgit</pattern>
+                            <shadedPattern>io.github.baokhang83.blastradius.plugin.internal.jgit</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>com.fasterxml.jackson</pattern>
+                            <shadedPattern>io.github.baokhang83.blastradius.plugin.internal.jackson</shadedPattern>
+                        </relocation>
+                    </relocations>
+                    <transformers>
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                            <manifestEntries>
+                                <Premain-Class>io.github.baokhang83.blastradius.core.tracking.DependencyTrackingAgent</Premain-Class>
+                                <Can-Redefine-Classes>true</Can-Redefine-Classes>
+                                <Can-Retransform-Classes>true</Can-Retransform-Classes>
+                            </manifestEntries>
+                        </transformer>
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                    </transformers>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>shade-plugin-at-package</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>${flatten.plugin.version}</version>
+                <configuration>
+                    <flattenMode>oss</flattenMode>
+                    <updatePomFile>true</updatePomFile>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten-consumer-pom</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>clean-flattened-pom</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-invoker-plugin</artifactId>
+                <version>${invoker.plugin.version}</version>
+                <configuration>
+                    <cloneProjectsTo>${project.build.directory}/it</cloneProjectsTo>
+                    <cloneClean>true</cloneClean>
+                    <localRepositoryPath>${project.build.directory}/it-repo</localRepositoryPath>
+                    <preBuildHookScript>prebuild</preBuildHookScript>
+                    <postBuildHookScript>verify</postBuildHookScript>
+                    <goals>
+                        <goal>clean</goal>
+                        <goal>test</goal>
+                    </goals>
+                    <filterProperties>
+                        <blastradius.version>${project.version}</blastradius.version>
+                    </filterProperties>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>stage-plugin-and-run-invoker-tests</id>
+                        <goals>
+                            <goal>install</goal>
+                            <goal>run</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>verify-invoker-tests</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>verify</goal>
                         </goals>
                     </execution>
                 </executions>
             </plugin>
         </plugins>
     </build>
+
+    <reporting>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-plugin-plugin</artifactId>
+                <version>${maven.plugin-tools.version}</version>
+                <reportSets>
+                    <reportSet>
+                        <reports>
+                            <report>report</report>
+                        </reports>
+                    </reportSet>
+                </reportSets>
+            </plugin>
+        </plugins>
+    </reporting>
 </project>

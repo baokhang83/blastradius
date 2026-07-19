@@ -18,8 +18,6 @@ import io.github.baokhang83.blastradius.plugin.report.ConsoleSummaryRenderer;
 import io.github.baokhang83.blastradius.plugin.report.ExplainListingRenderer;
 import io.github.baokhang83.blastradius.plugin.track.TrackRunner;
 import java.net.URISyntaxException;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -181,28 +179,21 @@ public final class SelectMojo extends AbstractMojo {
     }
 
     /**
-     * Locates {@code blastradius-core}'s runnable agent jar (the same artifact {@link
-     * TrackRunner} attaches via {@code -javaagent}) on the plugin's own resolved
-     * classpath — a Maven plugin's {@code ClassRealm} is a {@link URLClassLoader} whose
-     * URLs already include every dependency (including {@code blastradius-core}) resolved
-     * from the local repository, so no separate artifact-resolution mechanism is needed.
+     * Uses this plugin's own shaded artifact as the tracking agent. The published POM has
+     * no {@code blastradius-core} dependency: the engine and its agent entry point are
+     * intentionally embedded in this artifact so consumer builds need not resolve an
+     * internal companion jar.
      */
     private static Path locateCoreAgentJar() throws MojoExecutionException {
-        ClassLoader loader = SelectMojo.class.getClassLoader();
-        if (loader instanceof URLClassLoader urlClassLoader) {
-            for (URL url : urlClassLoader.getURLs()) {
-                try {
-                    Path candidate = Path.of(url.toURI());
-                    String name = candidate.getFileName().toString();
-                    if (name.matches("blastradius-core-.*\\.jar") && !name.contains("sources") && !name.contains("tests")) {
-                        return candidate;
-                    }
-                } catch (URISyntaxException e) {
-                    // Not expected for local jar file URLs; skip and keep looking.
-                }
+        try {
+            Path pluginJar = Path.of(SelectMojo.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            if (java.nio.file.Files.isRegularFile(pluginJar)) {
+                return pluginJar;
             }
+        } catch (URISyntaxException | NullPointerException e) {
+            throw new MojoExecutionException("could not resolve the shaded plugin jar for tracking", e);
         }
-        throw new MojoExecutionException("could not locate the blastradius-core agent jar on the plugin's own classpath");
+        throw new MojoExecutionException("the tracking agent requires the packaged blastradius plugin jar");
     }
 
     private Set<TestIdentity> discoverProjectTests() throws MojoExecutionException {

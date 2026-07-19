@@ -30,8 +30,9 @@ final class EndToEndTestSupport {
     }
 
     static void installThisPluginOnce() throws IOException, InterruptedException {
-        runToCompletion(new ProcessBuilder("mvn", "-q", "install", "-DskipTests")
-                .directory(Path.of(".").toAbsolutePath().toFile()));
+        runToCompletion(new ProcessBuilder(
+                "mvn", "-q", "-pl", "blastradius-maven-plugin", "-am", "install", "-DskipTests", "-Dinvoker.skip=true")
+                .directory(Path.of("..").toAbsolutePath().normalize().toFile()));
     }
 
     /** A single-module fixture with an independent Foo/FooTest and Bar/BarTest pair. */
@@ -68,7 +69,7 @@ final class EndToEndTestSupport {
                         <plugin>
                             <groupId>io.github.baokhang83.blastradius</groupId>
                             <artifactId>blastradius-maven-plugin</artifactId>
-                            <version>0.1.0-SNAPSHOT</version>
+                            <version>0.1.0</version>
                             <executions>
                                 <execution>
                                     <phase>process-test-classes</phase>
@@ -88,7 +89,7 @@ final class EndToEndTestSupport {
                         <plugin>
                             <groupId>io.github.baokhang83.blastradius</groupId>
                             <artifactId>blastradius-maven-plugin</artifactId>
-                            <version>0.1.0-SNAPSHOT</version>
+                            <version>0.1.0</version>
                             <executions>
                                 <execution>
                                     <phase>process-test-classes</phase>
@@ -105,7 +106,7 @@ final class EndToEndTestSupport {
                         <plugin>
                             <groupId>io.github.baokhang83.blastradius</groupId>
                             <artifactId>blastradius-maven-plugin</artifactId>
-                            <version>0.1.0-SNAPSHOT</version>
+                            <version>0.1.0</version>
                             <executions>
                                 <execution>
                                     <phase>process-test-classes</phase>
@@ -159,17 +160,11 @@ final class EndToEndTestSupport {
         // outer build's own test phase) — legitimately close to 3m by itself under load,
         // confirmed by observation, not a hang (see runAndCapture's javadoc for the
         // separate fix that makes this timeout actually enforceable).
-        return runAndCapture(pb, 10).output();
+        return runAndCapture(pb, 10, false);
     }
 
     static void runToCompletion(ProcessBuilder pb) throws IOException, InterruptedException {
-        SubprocessResult result = runAndCapture(pb, 5);
-        if (result.exitValue() != 0) {
-            fail("subprocess failed (exit " + result.exitValue() + "): " + String.join(" ", pb.command()) + "\n" + result.output());
-        }
-    }
-
-    private record SubprocessResult(String output, int exitValue) {
+        runAndCapture(pb, 5, true);
     }
 
     /**
@@ -185,7 +180,7 @@ final class EndToEndTestSupport {
      * exhausted memory in a prior session: an orphaned grandchild survived the parent's
      * {@code destroyForcibly()} and kept running indefinitely).
      */
-    private static SubprocessResult runAndCapture(ProcessBuilder pb, long timeoutMinutes)
+    private static String runAndCapture(ProcessBuilder pb, long timeoutMinutes, boolean failOnNonZero)
             throws IOException, InterruptedException {
         pb.redirectErrorStream(true);
         Path outputFile = Files.createTempFile("blastradius-e2e-subprocess-", ".log");
@@ -200,7 +195,11 @@ final class EndToEndTestSupport {
                 return fail("subprocess timed out after " + timeoutMinutes + "m: "
                         + String.join(" ", pb.command()) + "\n" + output);
             }
-            return new SubprocessResult(output, process.exitValue());
+            if (failOnNonZero && process.exitValue() != 0) {
+                return fail("subprocess failed (exit " + process.exitValue() + "): "
+                        + String.join(" ", pb.command()) + "\n" + output);
+            }
+            return output;
         } finally {
             Files.deleteIfExists(outputFile);
         }
@@ -211,7 +210,9 @@ final class EndToEndTestSupport {
         try (var stream = Files.list(targetDir)) {
             return stream
                     .filter(p -> p.getFileName().toString().matches("blastradius-core-.*\\.jar"))
+                    .filter(p -> p.getFileName().toString().contains("-agent"))
                     .filter(p -> !p.getFileName().toString().contains("sources"))
+                    .filter(p -> !p.getFileName().toString().contains("tests"))
                     .findFirst()
                     .orElseThrow(() -> new IllegalStateException(
                             "blastradius-core agent jar not found in ../blastradius-core/target"));

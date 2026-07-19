@@ -7,7 +7,7 @@
     <parent>
         <groupId>io.github.baokhang83.blastradius</groupId>
         <artifactId>blastradius-parent</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.1.0</version>
     </parent>
 
     <artifactId>blastradius-core</artifactId>
@@ -76,12 +76,8 @@
                             <goal>jar</goal>
                         </goals>
                     </execution>
-                    <!-- The implicit "default-jar" execution (bound to the package phase
-                         for jar packaging) would otherwise run after maven-shade-plugin's
-                         "shade-at-package" execution has already replaced the project's
-                         main artifact, and fail with "You have to use a classifier to
-                         attach supplemental artifacts". Disable it; build-base-jar-early
-                         above already covers the plain-jar build. -->
+                    <!-- The early execution above produces the main artifact before the
+                         integration tests. Disable the later duplicate default execution. -->
                     <execution>
                         <id>default-jar</id>
                         <phase>none</phase>
@@ -100,18 +96,17 @@
                 </executions>
             </plugin>
             <plugin>
-                <!-- A -javaagent jar only puts ITSELF on the classpath, not its Maven
-                     dependencies (JGit, Jackson, junit-platform-launcher) — so the
-                     final artifact must be a self-contained shaded (fat) jar, not a
-                     plain jar, or DependencyTrackingAgent fails NoClassDefFoundError
-                     the moment it references TestBoundaryListener. blastradius-core
-                     needs its OWN shaded agent jar (independent of blastradius-validator
-                     or blastradius-maven-plugin) for its own integration tests, and for
-                     the plugin's track subprocess to attach directly. -->
+                <!-- A -javaagent jar only puts itself on the classpath, not its Maven
+                     dependencies. Build a self-contained `agent` classifier for the
+                     core integration tests. The plugin consumes the plain core artifact
+                     and produces the sole published, relocated shaded distribution. -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>${shade.plugin.version}</version>
                 <configuration>
+                    <shadedArtifactAttached>true</shadedArtifactAttached>
+                    <shadedClassifierName>agent</shadedClassifierName>
+                    <createDependencyReducedPom>false</createDependencyReducedPom>
                     <filters>
                         <!-- Strip signature files from shaded dependencies — a merged
                              uber-jar no longer matches their original signatures,
@@ -148,13 +143,6 @@
                     <execution>
                         <id>build-agent-jar-early</id>
                         <phase>process-test-classes</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>shade-at-package</id>
-                        <phase>package</phase>
                         <goals>
                             <goal>shade</goal>
                         </goals>

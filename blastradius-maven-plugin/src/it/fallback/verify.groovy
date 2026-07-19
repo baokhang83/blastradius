@@ -1,0 +1,11 @@
+def root = new File(basedir.toString())
+def report = new File(root, ".blastradius/last-build-report.json").getText("UTF-8")
+def log = new File(root, "build.log").getText("UTF-8")
+
+assert report.contains('"mode":"FALLBACK"')
+assert report.contains('"indexApplicability":"MISSING"')
+assert report.contains('"selectedCount":1')
+assert report.contains('"totalCount":1')
+assert !new File(root, ".blastradius/index.json").exists()
+assert log.contains("[blastradius] FALLBACK — no persisted index found (MISSING)")
+assert log.contains("[blastradius] 1 / 1 tests selected")

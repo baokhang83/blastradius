@@ -51,7 +51,7 @@ name mismatch) is in [`SESSION.md`](SESSION.md).
 <plugin>
   <groupId>io.github.baokhang83.blastradius</groupId>
   <artifactId>blastradius-maven-plugin</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.1.0</version>
   <executions>
     <execution>
       <phase>process-test-classes</phase>
