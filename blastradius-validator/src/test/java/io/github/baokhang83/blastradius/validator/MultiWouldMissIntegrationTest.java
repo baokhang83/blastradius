@@ -36,12 +36,13 @@ class MultiWouldMissIntegrationTest {
         fixture.addSystemDependency(null, agentJar);
         fixture.writeClass("com.example.Shared",
                 "package com.example; public class Shared { public static int value() { return 1; } }");
-        // MarkerB gives GapBTest a non-empty tracked baseline (so it isn't treated as
-        // "new/no baseline" and safety-net-selected for that reason instead). It is
-        // loaded with Class.forName inside the test body: a direct bytecode reference
-        // can be eagerly resolved while the test class is discovered, before the agent
-        // has a current test identity. Shared remains untracked for both because each
-        // class's @BeforeAll loads it before any test starts.
+        // The markers give both tests non-empty tracked baselines (so neither is
+        // safety-net-selected as "new/no baseline"). They are loaded with Class.forName
+        // inside the test bodies: a direct bytecode reference can be eagerly resolved
+        // while the test class is discovered, before the agent has a current test
+        // identity. Shared remains untracked because each class's @BeforeAll loads it
+        // before any test starts.
+        fixture.writeClass("com.example.MarkerA", "package com.example; public class MarkerA {}");
         fixture.writeClass("com.example.MarkerB", "package com.example; public class MarkerB {}");
         fixture.writeTest("com.example.GapATest", """
                 package com.example;
@@ -52,7 +53,10 @@ class MultiWouldMissIntegrationTest {
                     @BeforeAll
                     static void warmUp() { Shared.value(); }
                     @Test
-                    void checksSharedA() { assertEquals(1, Shared.value()); }
+                    void checksSharedA() throws ClassNotFoundException {
+                        Class.forName("com.example.MarkerA");
+                        assertEquals(1, Shared.value());
+                    }
                 }
                 """);
         fixture.writeTest("com.example.GapBTest", """

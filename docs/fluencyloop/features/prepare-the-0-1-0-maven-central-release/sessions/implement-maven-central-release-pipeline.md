@@ -30,10 +30,10 @@
 - **constitution:** §I, §III, §IV
 - **trust:** ✓ verified
 
-## Decision: Make the multi-miss fixture independent of eager class resolution
+## Decision: Give each multi-miss test an explicit tracked baseline
 
 - **where:** `blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/MultiWouldMissIntegrationTest.java`
-- **why:** Load the marker class reflectively inside the test body so the tracking baseline cannot depend on JVM-specific eager bytecode resolution before JUnit exposes the current test identity.
+- **why:** Load a separate marker class reflectively inside each test body so neither test is safety-selected as having no baseline, and attribution cannot depend on JVM-specific eager bytecode resolution before JUnit exposes the current test identity.
 - **alternative:** Instantiate the marker with a direct bytecode reference — rejected: JVM class verification may resolve it during discovery, before dependency attribution begins.
 - **constitution:** §I, §III, §IV
 - **trust:** ✓ verified
