@@ -36,11 +36,13 @@ class MultiWouldMissIntegrationTest {
         fixture.addSystemDependency(null, agentJar);
         fixture.writeClass("com.example.Shared",
                 "package com.example; public class Shared { public static int value() { return 1; } }");
-        // MarkerB gives GapBTest a non-empty tracked baseline (so it isn't treated as
-        // "new/no baseline" and safety-net-selected for that reason instead) while
-        // Shared remains untracked for both — already loaded via GapATest's @BeforeAll
-        // by the time GapBTest runs in the same JVM fork, so no fresh transform() event
-        // fires for it there either. Both tests should genuinely miss when Shared breaks.
+        // The markers give both tests non-empty tracked baselines (so neither is
+        // safety-net-selected as "new/no baseline"). They are loaded with Class.forName
+        // inside the test bodies: a direct bytecode reference can be eagerly resolved
+        // while the test class is discovered, before the agent has a current test
+        // identity. Shared remains untracked because each class's @BeforeAll loads it
+        // before any test starts.
+        fixture.writeClass("com.example.MarkerA", "package com.example; public class MarkerA {}");
         fixture.writeClass("com.example.MarkerB", "package com.example; public class MarkerB {}");
         fixture.writeTest("com.example.GapATest", """
                 package com.example;
@@ -51,7 +53,10 @@ class MultiWouldMissIntegrationTest {
                     @BeforeAll
                     static void warmUp() { Shared.value(); }
                     @Test
-                    void checksSharedA() { assertEquals(1, Shared.value()); }
+                    void checksSharedA() throws ClassNotFoundException {
+                        Class.forName("com.example.MarkerA");
+                        assertEquals(1, Shared.value());
+                    }
                 }
                 """);
         fixture.writeTest("com.example.GapBTest", """
@@ -63,8 +68,8 @@ class MultiWouldMissIntegrationTest {
                     @BeforeAll
                     static void warmUp() { Shared.value(); }
                     @Test
-                    void checksSharedB() {
-                        new MarkerB();
+                    void checksSharedB() throws ClassNotFoundException {
+                        Class.forName("com.example.MarkerB");
                         assertEquals(1, Shared.value());
                     }
                 }

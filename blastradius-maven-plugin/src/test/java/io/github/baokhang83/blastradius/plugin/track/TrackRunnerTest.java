@@ -53,7 +53,9 @@ class TrackRunnerTest {
         try (var stream = Files.list(targetDir)) {
             return stream
                     .filter(p -> p.getFileName().toString().matches("blastradius-core-.*\\.jar"))
+                    .filter(p -> p.getFileName().toString().contains("-agent"))
                     .filter(p -> !p.getFileName().toString().contains("sources"))
+                    .filter(p -> !p.getFileName().toString().contains("tests"))
                     .findFirst()
                     .orElseThrow(() -> new IllegalStateException(
                             "blastradius-core agent jar not found in ../blastradius-core/target — "
