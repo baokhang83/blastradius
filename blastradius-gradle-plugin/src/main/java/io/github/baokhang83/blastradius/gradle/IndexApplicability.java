@@ -6,7 +6,8 @@ record IndexApplicability(Status status, DependencyIndex index) {
         APPLICABLE,
         MISSING,
         UNREADABLE,
-        ANCHOR_UNREACHABLE
+        ANCHOR_UNREACHABLE,
+        ANCHOR_MISMATCH
     }
 
     static IndexApplicability applicable(DependencyIndex index) {
@@ -23,5 +24,9 @@ record IndexApplicability(Status status, DependencyIndex index) {
 
     static IndexApplicability anchorUnreachable() {
         return new IndexApplicability(Status.ANCHOR_UNREACHABLE, null);
+    }
+
+    static IndexApplicability anchorMismatch() {
+        return new IndexApplicability(Status.ANCHOR_MISMATCH, null);
     }
 }

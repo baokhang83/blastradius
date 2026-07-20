@@ -3,6 +3,7 @@ package io.github.baokhang83.blastradius.gradle;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,7 +25,7 @@ class BlastradiusPluginFunctionalTest {
 
         BuildResult trackResult = runGradle("clean", "test");
 
-        Path indexPath = projectDir.resolve(".blastradius/index.json");
+        Path indexPath = projectDir.resolve(CommitIndexKey.forCommit(".blastradius/index.json", baselineCommit));
         assertTrue(trackResult.getOutput().contains("[blastradius] TRACK — 2 / 2 tests selected"), trackResult.getOutput());
         assertTrue(Files.exists(indexPath), "TRACK must create the shared dependency index");
         assertTrue(Files.readString(indexPath).contains(baselineCommit), "TRACK must anchor the index at the base commit");
@@ -155,7 +156,7 @@ class BlastradiusPluginFunctionalTest {
     }
 
     private void writeIndex(String baselineCommit) throws IOException {
-        write(".blastradius/index.json", """
+        write(CommitIndexKey.forCommit(".blastradius/index.json", baselineCommit), """
                 {
                   "anchorCommit": "%s",
                   "builtAt": "2026-07-20T00:00:00Z",

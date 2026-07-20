@@ -51,6 +51,7 @@ public final class ConsoleSummaryRenderer {
             case MISSING -> "no persisted index found (MISSING)";
             case UNREADABLE -> "persisted index could not be read (UNREADABLE)";
             case ANCHOR_UNREACHABLE -> "persisted index's anchor commit is no longer reachable (ANCHOR_UNREACHABLE)";
+            case ANCHOR_MISMATCH -> "persisted index does not match the resolved baseline commit (ANCHOR_MISMATCH)";
             case INTERNAL_ERROR -> "an internal error occurred during selection computation (INTERNAL_ERROR)";
             case APPLICABLE -> throw new IllegalStateException("FALLBACK mode never has an APPLICABLE index");
         };

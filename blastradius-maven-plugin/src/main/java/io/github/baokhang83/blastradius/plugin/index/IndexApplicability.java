@@ -13,6 +13,7 @@ public record IndexApplicability(Status status, DependencyIndex index) {
         MISSING,
         UNREADABLE,
         ANCHOR_UNREACHABLE,
+        ANCHOR_MISMATCH,
         /**
          * Not a property of the index itself — set only when an otherwise-{@code
          * APPLICABLE} index's {@code SELECT} computation hits an unexpected internal
@@ -37,6 +38,10 @@ public record IndexApplicability(Status status, DependencyIndex index) {
 
     public static IndexApplicability anchorUnreachable() {
         return new IndexApplicability(Status.ANCHOR_UNREACHABLE, null);
+    }
+
+    public static IndexApplicability anchorMismatch() {
+        return new IndexApplicability(Status.ANCHOR_MISMATCH, null);
     }
 
     public static IndexApplicability internalError() {
