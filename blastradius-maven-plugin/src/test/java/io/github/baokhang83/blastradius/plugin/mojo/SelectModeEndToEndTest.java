@@ -63,6 +63,62 @@ class SelectModeEndToEndTest {
                 "expected BarTest to be skipped (no dependency match):\n" + output);
     }
 
+    @Test
+    void kotlinFileFacadeChangeSelectsOnlyItsTrackedKotlinTest(@TempDir Path projectDir) throws Exception {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        fixture.enableKotlin();
+        fixture.ignoreTargetDirectory();
+        fixture.writeKotlinClass("com.example.Greeting", """
+                package com.example
+                fun greeting(): String = "hello"
+                """);
+        fixture.writeKotlinTest("com.example.GreetingTest", """
+                package com.example
+                import org.junit.jupiter.api.Assertions.assertEquals
+                import org.junit.jupiter.api.Test
+                class GreetingTest {
+                    @Test fun checksGreeting() {
+                        assertEquals("hello", greeting())
+                    }
+                }
+                """);
+        fixture.writeKotlinClass("com.example.Unrelated", """
+                package com.example
+                class Unrelated {
+                    fun value(): Int = 7
+                }
+                """);
+        fixture.writeKotlinTest("com.example.UnrelatedTest", """
+                package com.example
+                import org.junit.jupiter.api.Assertions.assertEquals
+                import org.junit.jupiter.api.Test
+                class UnrelatedTest {
+                    @Test fun checksUnrelated() {
+                        assertEquals(7, Unrelated().value())
+                    }
+                }
+                """);
+        String anchorCommit = fixture.commit("initial Kotlin fixture");
+
+        DependencyIndex index = EndToEndTestSupport.trackDependencies(projectDir, anchorCommit);
+        new DependencyIndexWriter().write(projectDir.resolve(".blastradius/index.json"), index);
+
+        fixture.writeKotlinClass("com.example.Greeting", """
+                package com.example
+                fun greeting(): String = listOf("hello").single()
+                """);
+        fixture.commit("change Kotlin greeting");
+        fixture.addBuildPlugin(null, EndToEndTestSupport.pluginXml(anchorCommit));
+
+        String output = EndToEndTestSupport.runMvnTest(projectDir);
+
+        assertTrue(output.contains("BUILD SUCCESS"), "expected the build to succeed:\n" + output);
+        assertTrue(output.contains("Running com.example.GreetingTest"),
+                "expected the affected Kotlin test to run:\n" + output);
+        assertFalse(output.contains("Running com.example.UnrelatedTest"),
+                "expected the independent Kotlin test to be skipped:\n" + output);
+    }
+
     /**
      * US3 (tasks.md T034/T037/T040): the console summary and the persisted {@code
      * BuildReport} JSON must both reflect the actual decisions, live — not just in

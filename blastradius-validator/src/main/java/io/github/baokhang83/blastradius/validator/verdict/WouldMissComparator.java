@@ -9,7 +9,6 @@ import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -27,8 +26,7 @@ public final class WouldMissComparator {
                 decisions.stream().collect(Collectors.toMap(SelectionDecision::test, Function.identity()));
 
         List<String> changedClasses = pair.changedFiles().stream()
-                .map(ChangedFile::changedClassName)
-                .filter(Objects::nonNull)
+                .flatMap(file -> file.candidateClassNames().stream())
                 .toList();
 
         List<WouldMissCase> misses = new ArrayList<>();

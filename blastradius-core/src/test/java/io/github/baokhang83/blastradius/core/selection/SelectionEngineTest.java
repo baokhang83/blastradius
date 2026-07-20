@@ -69,6 +69,18 @@ class SelectionEngineTest {
     }
 
     @Test
+    void kotlinFileFacadeCandidateContributesToDependencyMatching() {
+        List<ChangedFile> changed = List.of(new ChangedFile(
+                "src/main/kotlin/com/example/Greeting.kt", FileKind.JAVA_SOURCE, "com.example.Greeting"));
+
+        List<SelectionDecision> decisions = engine.selectAll(
+                Set.of(MATCHED_TEST), Map.of(MATCHED_TEST, Set.of("com.example.GreetingKt")), Set.of(), changed);
+
+        assertTrue(decisions.getFirst().selected());
+        assertEquals("com.example.GreetingKt", decisions.getFirst().matchedChangedClass());
+    }
+
+    @Test
     void producesExactlyOneDecisionPerTest() {
         List<SelectionDecision> decisions = engine.selectAll(
                 Set.of(MATCHED_TEST, UNRELATED_TEST, NEW_TEST), Map.of(), Set.of(), List.of());

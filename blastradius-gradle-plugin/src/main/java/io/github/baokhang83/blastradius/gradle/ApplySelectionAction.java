@@ -2,7 +2,6 @@ package io.github.baokhang83.blastradius.gradle;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
-import io.github.baokhang83.blastradius.core.git.FileKind;
 import io.github.baokhang83.blastradius.core.selection.NewOrModifiedTestSelector;
 import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
 import io.github.baokhang83.blastradius.core.selection.SelectionEngine;
@@ -70,8 +69,7 @@ final class ApplySelectionAction implements Action<Task> {
                             return merged;
                         }));
         Set<String> changedClassNames = changedFiles.stream()
-                .filter(file -> file.kind() == FileKind.JAVA_SOURCE)
-                .map(ChangedFile::changedClassName)
+                .flatMap(file -> file.candidateClassNames().stream())
                 .collect(Collectors.toUnmodifiableSet());
         Set<TestIdentity> newOrModifiedTests = allTests.stream()
                 .filter(test -> new NewOrModifiedTestSelector().appliesTo(

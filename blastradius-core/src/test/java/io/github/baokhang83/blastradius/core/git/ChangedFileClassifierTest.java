@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -40,6 +41,46 @@ class ChangedFileClassifierTest {
         ChangedFile fooTest = single(changed, "src/test/java/com/example/FooTest.java");
         assertEquals(FileKind.JAVA_SOURCE, fooTest.kind());
         assertEquals("com.example.FooTest", fooTest.changedClassName());
+    }
+
+    @Test
+    void kotlinSourceChangeProvidesClassAndFileFacadeCandidates(@TempDir Path tempDir) {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(tempDir);
+        String base = fixture.commit("initial");
+        fixture.writeResource("src/main/kotlin/com/example/Greeting.kt", """
+                package com.example
+                class Greeting
+                """);
+        String head = fixture.commit("add Kotlin greeting");
+
+        ChangedFile greeting = single(classifier.classify(tempDir, base, head),
+                "src/main/kotlin/com/example/Greeting.kt");
+
+        assertEquals(FileKind.JAVA_SOURCE, greeting.kind());
+        assertEquals("com.example.Greeting", greeting.changedClassName());
+        assertEquals(Set.of("com.example.Greeting", "com.example.GreetingKt"),
+                greeting.candidateClassNames());
+    }
+
+    @Test
+    void kotlinInlineFunctionChangeFallsBackToTheFullSuite(@TempDir Path tempDir) {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(tempDir);
+        fixture.writeResource("src/main/kotlin/com/example/Greeting.kt", """
+                package com.example
+                fun greeting() = "hello"
+                """);
+        String base = fixture.commit("ordinary Kotlin greeting");
+        fixture.writeResource("src/main/kotlin/com/example/Greeting.kt", """
+                package com.example
+                inline suspend fun greeting() = "hello"
+                """);
+        String head = fixture.commit("inline Kotlin greeting");
+
+        ChangedFile greeting = single(classifier.classify(tempDir, base, head),
+                "src/main/kotlin/com/example/Greeting.kt");
+
+        assertEquals(FileKind.NON_SOURCE, greeting.kind());
+        assertNull(greeting.changedClassName());
     }
 
     @Test
