@@ -20,3 +20,15 @@
 - `fail-fast: false` lets both matrix entries finish after a sibling failure, preserving the
   complete compatibility evidence for review. GitHub Actions remains the final workflow-parser
   and runtime validation. Status: follow-up.
+- `push.branches: [main]` retains post-merge coverage while the pull-request event supplies the
+  feature-branch matrix, preventing the same commit from producing two identical check pairs.
+  Status: documented.
+
+## Decision: Avoid duplicate feature-branch CI runs
+
+- **where:** `.github/workflows/build.yml triggers`
+- **why:** Pull-request events already execute both JDK checks for a feature branch, while retaining push coverage on main verifies the merged result without duplicate checks.
+- **alternative:** Run on every push and pull request — rejected because each pull request receives the same JDK matrix twice.
+- **design:** ../design.md#compatibility-boundary
+- **constitution:** §II
+- **trust:** ✓ verified

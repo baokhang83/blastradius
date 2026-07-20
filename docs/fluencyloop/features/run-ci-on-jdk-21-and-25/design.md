@@ -57,8 +57,9 @@ sequenceDiagram
 
 ## Compatibility boundary
 
-- The build workflow, rather than the release workflow, is the compatibility gate: every push
-  and pull request proves the full Maven reactor and invoker tests on both supported LTS JDKs.
+- The build workflow, rather than the release workflow, is the compatibility gate: every pull
+  request and every push to `main` proves the full Maven reactor and invoker tests on both
+  supported LTS JDKs. Feature-branch pushes rely on the pull-request run, avoiding duplicate work.
 - A single matrix job keeps checkout, Maven setup, caching, and verification identical across
   JDKs. Duplicating two near-identical jobs was rejected because the steps could drift.
 - Matrix failures do not cancel their sibling job, so a JDK 21 regression cannot hide the JDK 25
