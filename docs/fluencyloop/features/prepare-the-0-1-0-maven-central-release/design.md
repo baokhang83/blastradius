@@ -83,5 +83,7 @@ sequenceDiagram
   only the shaded plugin enters the public bundle.
 - The Invoker executes Maven fixture projects rather than only testing Mojo classes. That is the
   closest repeatable check of the installed plugin's actual lifecycle behavior.
-- CI can upload only with Central and GPG secrets. Namespace claiming, secret creation, tag
-  creation, and observing the completed Central deployment remain account-authorized operations.
+- CI imports its dedicated private signing key and passphrase from encrypted GPG secrets while the
+  public fingerprint is distributed through a supported keyserver. Namespace claiming, secret
+  creation, tag creation, and observing the completed Central deployment remain account-authorized
+  operations.

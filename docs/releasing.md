@@ -13,8 +13,15 @@ contains the core and its tracking agent in the published, shaded artifact.
 
 1. Sign in to the [Sonatype Central Portal](https://central.sonatype.com/) with the
    `baokhang83` GitHub account and claim the `io.github.baokhang83` namespace.
-2. Create a release signing key and publish its public key to a supported public OpenPGP
-   key server.
+2. Create a release signing key and publish its public key to a [supported public OpenPGP
+   key server](https://central.sonatype.org/publish/requirements/gpg/). The current release
+   key is `5A9A88359BF76360F642B87226369AF45B8CBB75` and is available from the
+   [Ubuntu keyserver](https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x5A9A88359BF76360F642B87226369AF45B8CBB75).
+
+   ```bash
+   gpg --keyserver hkps://keyserver.ubuntu.com --send-keys \
+     5A9A88359BF76360F642B87226369AF45B8CBB75
+   ```
 3. Add these GitHub Actions secrets:
 
    | Secret | Value |
@@ -26,6 +33,25 @@ contains the core and its tracking agent in the published, shaded artifact.
 
 The release workflow writes the Central credentials as the Maven server named `central`,
 imports the signing key, and invokes the `release` profile.
+
+Use **Actions -> Release to Maven Central -> Run workflow** to exercise the same CI key import
+and signing path without publishing. Only a pushed `v*` tag can run the deploy step.
+
+Set the signing secrets from a terminal with access to the key. `gpg` prompts through the
+pinentry program; the passphrase is neither echoed nor stored in shell history.
+
+```bash
+export GPG_TTY="$(tty)"
+gpg --armor --export-secret-keys 5A9A88359BF76360F642B87226369AF45B8CBB75 \
+  | base64 \
+  | gh secret set MAVEN_GPG_PRIVATE_KEY --repo baokhang83/blastradius
+
+read -rs 'MAVEN_GPG_PASSPHRASE?GPG passphrase: '
+printf '\n'
+printf '%s' "$MAVEN_GPG_PASSPHRASE" \
+  | gh secret set MAVEN_GPG_PASSPHRASE --repo baokhang83/blastradius
+unset MAVEN_GPG_PASSPHRASE
+```
 
 ## Release procedure
 

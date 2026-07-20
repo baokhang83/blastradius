@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,6 +18,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Require the tag commit to be on main
+        if: github.event_name == 'push'
         run: |
           git fetch origin main
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
@@ -36,8 +38,14 @@ jobs:
           MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
         run: printf '%s' "$MAVEN_GPG_PRIVATE_KEY" | base64 --decode | gpg --batch --import
       - name: Build, sign, and publish
+        if: github.event_name == 'push'
         env:
           CENTRAL_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
           CENTRAL_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
         run: mvn -B --no-transfer-progress -Prelease clean deploy
+      - name: Build and sign without publishing
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: mvn -B --no-transfer-progress -Prelease clean verify -Dcentral.skip.publishing=true
