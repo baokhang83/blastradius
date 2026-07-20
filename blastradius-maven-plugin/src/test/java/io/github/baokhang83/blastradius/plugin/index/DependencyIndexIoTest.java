@@ -3,6 +3,8 @@ package io.github.baokhang83.blastradius.plugin.index;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.baokhang83.blastradius.core.index.FileIndexStore;
+import io.github.baokhang83.blastradius.core.index.IndexStore;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDependencyEntry;
 import java.nio.file.Files;
@@ -14,33 +16,30 @@ import org.junit.jupiter.api.io.TempDir;
 
 class DependencyIndexIoTest {
 
-    private final DependencyIndexWriter writer = new DependencyIndexWriter();
-    private final DependencyIndexReader reader = new DependencyIndexReader();
-
     @Test
     void writtenIndexRoundTripsThroughAFile(@TempDir Path tempDir) {
-        Path file = tempDir.resolve("index.json");
+        IndexStore<DependencyIndex> store = new FileIndexStore<>(tempDir, DependencyIndex.class);
         TestIdentity fooTest = new TestIdentity("com.example.FooTest", "checksAdd");
         DependencyIndex original = new DependencyIndex(
                 "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
                 "2026-07-09T10:03:00Z",
                 List.of(new TestDependencyEntry(fooTest, Set.of("com.example.Foo", "com.example.Helper"))));
 
-        writer.write(file, original);
-        assertTrue(Files.exists(file));
+        store.put("index.json", original);
+        assertTrue(Files.exists(tempDir.resolve("index.json")));
 
-        DependencyIndex roundTripped = reader.read(file);
+        DependencyIndex roundTripped = store.get("index.json").orElseThrow();
 
         assertEquals(original, roundTripped);
     }
 
     @Test
     void emptyTestDependenciesRoundTrips(@TempDir Path tempDir) {
-        Path file = tempDir.resolve("empty.json");
+        IndexStore<DependencyIndex> store = new FileIndexStore<>(tempDir, DependencyIndex.class);
         DependencyIndex original = new DependencyIndex("a1b2c3d", "2026-07-09T10:03:00Z", List.of());
 
-        writer.write(file, original);
-        DependencyIndex roundTripped = reader.read(file);
+        store.put("empty.json", original);
+        DependencyIndex roundTripped = store.get("empty.json").orElseThrow();
 
         assertEquals(original, roundTripped);
     }
@@ -60,9 +59,9 @@ class DependencyIndexIoTest {
     }
 
     @Test
-    void readingAMissingFileThrows(@TempDir Path tempDir) {
-        Path missing = tempDir.resolve("does-not-exist.json");
-        org.junit.jupiter.api.function.Executable readMissing = () -> reader.read(missing);
-        org.junit.jupiter.api.Assertions.assertThrows(java.io.UncheckedIOException.class, readMissing);
+    void missingKeyReturnsEmpty(@TempDir Path tempDir) {
+        IndexStore<DependencyIndex> store = new FileIndexStore<>(tempDir, DependencyIndex.class);
+
+        assertTrue(store.get("does-not-exist.json").isEmpty());
     }
 }

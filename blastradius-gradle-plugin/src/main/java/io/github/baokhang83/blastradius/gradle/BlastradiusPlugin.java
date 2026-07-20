@@ -38,7 +38,7 @@ public final class BlastradiusPlugin implements Plugin<Project> {
         test.getInputs().property("blastradius.baseCommit", gitState.baseCommit());
 
         if (gitState.baseReferenceBuild()) {
-            configureTracking(test, indexPath, gitState.headCommit());
+            configureTracking(test, repositoryDirectory, indexPath, gitState.headCommit());
         } else {
             test.getInputs().file(indexPath.toFile()).withPathSensitivity(PathSensitivity.RELATIVE).optional();
             test.doFirst(new ApplySelectionAction(
@@ -46,13 +46,14 @@ public final class BlastradiusPlugin implements Plugin<Project> {
         }
     }
 
-    private static void configureTracking(Test test, Path indexPath, String anchorCommit) {
+    private static void configureTracking(Test test, Path repositoryDirectory, Path indexPath, String anchorCommit) {
         File recordPrefix = new File(test.getTemporaryDir(), "blastradius-dependencies.json");
         File agentJar = new AgentJarLocator().locate().toFile();
         test.jvmArgs("-javaagent:" + agentJar.getAbsolutePath() + "=" + recordPrefix.getAbsolutePath());
         test.getOutputs().upToDateWhen(ignoredTask -> false);
         test.getOutputs().doNotCacheIf("TRACK must execute test workers to produce dependency records", ignoredTask -> true);
         test.doFirst(new PrepareTrackingAction(recordPrefix));
-        test.doLast(new WriteTrackingIndexAction(indexPath.toFile(), recordPrefix, anchorCommit));
+        test.doLast(new WriteTrackingIndexAction(
+                repositoryDirectory.toFile(), indexPath.toFile(), recordPrefix, anchorCommit));
     }
 }

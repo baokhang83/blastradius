@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
-import io.github.baokhang83.blastradius.plugin.index.DependencyIndexWriter;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
@@ -35,7 +34,7 @@ class UnreachableAnchorFallbackTest {
         String anchorCommit = fixture.commit("initial");
 
         DependencyIndex staleIndex = new DependencyIndex(UNREACHABLE_ANCHOR, Instant.now().toString(), List.of());
-        new DependencyIndexWriter().write(projectDir.resolve(".blastradius/index.json"), staleIndex);
+        EndToEndTestSupport.writeIndex(projectDir, staleIndex);
 
         fixture.writeClass("com.example.Baz",
                 "package com.example; public class Baz { public int value() { return 3; } }");

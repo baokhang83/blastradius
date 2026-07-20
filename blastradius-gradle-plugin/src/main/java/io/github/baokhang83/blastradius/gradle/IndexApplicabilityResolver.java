@@ -1,7 +1,7 @@
 package io.github.baokhang83.blastradius.gradle;
 
+import io.github.baokhang83.blastradius.core.index.IndexStore;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.ObjectId;
@@ -10,18 +10,15 @@ import org.eclipse.jgit.revwalk.RevWalk;
 
 final class IndexApplicabilityResolver {
 
-    private final DependencyIndexReader reader = new DependencyIndexReader();
-
-    IndexApplicability resolve(Path indexPath, Path projectDir) {
-        if (Files.notExists(indexPath)) {
-            return IndexApplicability.missing();
-        }
-
+    IndexApplicability resolve(IndexStore<DependencyIndex> store, String indexKey, Path projectDir) {
         DependencyIndex index;
         try {
-            index = reader.read(indexPath);
+            index = store.get(indexKey).orElse(null);
         } catch (UncheckedIOException e) {
             return IndexApplicability.unreadable();
+        }
+        if (index == null) {
+            return IndexApplicability.missing();
         }
 
         return anchorIsReachable(index.anchorCommit(), projectDir)
