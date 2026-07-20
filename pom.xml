@@ -60,7 +60,7 @@
         <maven.deploy.skip>true</maven.deploy.skip>
         <central.skip.publishing>true</central.skip.publishing>
 
-        <jgit.version>6.9.0.202403050737-r</jgit.version>
+        <jgit.version>7.7.0.202606012155-r</jgit.version>
         <jackson.version>2.17.1</jackson.version>
         <junit.version>5.10.2</junit.version>
         <surefire.version>3.2.5</surefire.version>
