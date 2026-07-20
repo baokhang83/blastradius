@@ -1,8 +1,8 @@
 {
-  "feature": "publish-generated-maven-plugin-goal-documentation",
-  "branch": "feature/publish-generated-maven-plugin-goal-documentation",
+  "feature": "gradle-plugin-scaffold-and-select-wiring",
+  "branch": "feature/gradle-plugin-scaffold-and-select-wiring",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/publish-generated-maven-plugin-goal-documentation/sessions/replace-the-obsolete-plugin-report-provider-and-verify-gener.md",
-  "base_ref": "feature/shadow-mode-validator",
+  "last_session": "docs/fluencyloop/features/gradle-plugin-scaffold-and-select-wiring/sessions/scaffold-the-gradle-adapter-and-prove-select-filtering-in-a.md",
+  "base_ref": "main",
   "updated": "2026-07-20"
 }
