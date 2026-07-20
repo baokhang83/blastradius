@@ -2,7 +2,7 @@
   "feature": "prepare-the-0-1-0-maven-central-release",
   "branch": "feature/prepare-the-0-1-0-maven-central-release",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/prepare-the-0-1-0-maven-central-release/sessions/stabilize-release-verification-and-deployment-boundary.md",
+  "last_session": "docs/fluencyloop/features/prepare-the-0-1-0-maven-central-release/sessions/document-gpg-key-distribution-and-ci-secret-provisioning.md",
   "base_ref": "feature/shadow-mode-validator",
   "updated": "2026-07-20"
 }
