@@ -1,8 +1,8 @@
 {
-  "feature": "abstract-the-index-store-behind-an-interface-25",
-  "branch": "feature/abstract-the-index-store-behind-an-interface-25",
+  "feature": "commit-keyed-index-baseline-resolution-26",
+  "branch": "feature/commit-keyed-index-baseline-resolution-26",
   "stage": "review",
-  "last_session": "docs/fluencyloop/features/abstract-the-index-store-behind-an-interface-25/sessions/route-gradle-index-access-through-the-store-spi.md",
+  "last_session": "docs/fluencyloop/features/commit-keyed-index-baseline-resolution-26/sessions/route-baseline-keys-through-maven-and-gradle.md",
   "base_ref": "main",
   "updated": "2026-07-20"
 }

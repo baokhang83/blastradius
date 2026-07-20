@@ -3,6 +3,7 @@ package io.github.baokhang83.blastradius.plugin.mojo;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import io.github.baokhang83.blastradius.core.index.FileIndexStore;
+import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
@@ -154,7 +155,12 @@ final class EndToEndTestSupport {
     }
 
     static void writeIndex(Path projectDir, DependencyIndex index) {
-        new FileIndexStore<>(projectDir, DependencyIndex.class).put(".blastradius/index.json", index);
+        writeIndex(projectDir, index.anchorCommit(), index);
+    }
+
+    static void writeIndex(Path projectDir, String keyCommit, DependencyIndex index) {
+        new FileIndexStore<>(projectDir, DependencyIndex.class).put(
+                CommitIndexKey.forCommit(".blastradius/index.json", keyCommit), index);
     }
 
     static String runMvnTest(Path projectDir) throws IOException, InterruptedException {

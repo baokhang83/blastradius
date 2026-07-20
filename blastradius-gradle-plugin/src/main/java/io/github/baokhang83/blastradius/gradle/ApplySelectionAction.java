@@ -2,6 +2,7 @@ package io.github.baokhang83.blastradius.gradle;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
+import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
 import io.github.baokhang83.blastradius.core.index.FileIndexStore;
 import io.github.baokhang83.blastradius.core.index.IndexStore;
 import io.github.baokhang83.blastradius.core.selection.NewOrModifiedTestSelector;
@@ -24,13 +25,13 @@ final class ApplySelectionAction implements Action<Task> {
     private static final String NO_SELECTION_PATTERN = "__blastradius__.NoSelectedTests";
 
     private final File repositoryDirectory;
-    private final File indexFile;
+    private final String indexPathKey;
     private final String baseCommit;
     private final String headCommit;
 
-    ApplySelectionAction(File repositoryDirectory, File indexFile, String baseCommit, String headCommit) {
+    ApplySelectionAction(File repositoryDirectory, String indexPathKey, String baseCommit, String headCommit) {
         this.repositoryDirectory = repositoryDirectory;
-        this.indexFile = indexFile;
+        this.indexPathKey = indexPathKey;
         this.baseCommit = baseCommit;
         this.headCommit = headCommit;
     }
@@ -39,9 +40,10 @@ final class ApplySelectionAction implements Action<Task> {
     public void execute(Task task) {
         Test test = (Test) task;
         Path repositoryRoot = repositoryDirectory.toPath().toAbsolutePath().normalize();
-        String indexKey = repositoryRoot.relativize(indexFile.toPath().toAbsolutePath().normalize()).toString();
+        String indexKey = CommitIndexKey.forCommit(indexPathKey, baseCommit);
         IndexStore<DependencyIndex> indexStore = new FileIndexStore<>(repositoryRoot, DependencyIndex.class);
-        IndexApplicability applicability = new IndexApplicabilityResolver().resolve(indexStore, indexKey, repositoryRoot);
+        IndexApplicability applicability = new IndexApplicabilityResolver()
+                .resolve(indexStore, indexKey, baseCommit, repositoryRoot);
         if (applicability.status() != IndexApplicability.Status.APPLICABLE) {
             test.getLogger().info("[blastradius] Gradle test task left unfiltered ({})", applicability.status());
             return;

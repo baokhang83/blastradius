@@ -10,7 +10,8 @@ import org.eclipse.jgit.revwalk.RevWalk;
 
 final class IndexApplicabilityResolver {
 
-    IndexApplicability resolve(IndexStore<DependencyIndex> store, String indexKey, Path projectDir) {
+    IndexApplicability resolve(
+            IndexStore<DependencyIndex> store, String indexKey, String expectedAnchorCommit, Path projectDir) {
         DependencyIndex index;
         try {
             index = store.get(indexKey).orElse(null);
@@ -21,9 +22,13 @@ final class IndexApplicabilityResolver {
             return IndexApplicability.missing();
         }
 
-        return anchorIsReachable(index.anchorCommit(), projectDir)
-                ? IndexApplicability.applicable(index)
-                : IndexApplicability.anchorUnreachable();
+        if (!anchorIsReachable(index.anchorCommit(), projectDir)) {
+            return IndexApplicability.anchorUnreachable();
+        }
+        if (!index.anchorCommit().equals(expectedAnchorCommit)) {
+            return IndexApplicability.anchorMismatch();
+        }
+        return IndexApplicability.applicable(index);
     }
 
     private static boolean anchorIsReachable(String anchorCommit, Path projectDir) {

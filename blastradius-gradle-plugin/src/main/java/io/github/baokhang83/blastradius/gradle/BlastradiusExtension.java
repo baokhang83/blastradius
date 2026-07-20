@@ -8,6 +8,6 @@ public abstract class BlastradiusExtension {
     /** Git ref representing the tracked baseline. */
     public abstract Property<String> getBaseRef();
 
-    /** Shared index path relative to the root project. */
+    /** Root-relative index-file template; each resolved commit receives its own key. */
     public abstract Property<String> getIndexPath();
 }

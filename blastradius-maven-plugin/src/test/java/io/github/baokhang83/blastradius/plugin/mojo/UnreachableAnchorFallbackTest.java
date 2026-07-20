@@ -34,7 +34,7 @@ class UnreachableAnchorFallbackTest {
         String anchorCommit = fixture.commit("initial");
 
         DependencyIndex staleIndex = new DependencyIndex(UNREACHABLE_ANCHOR, Instant.now().toString(), List.of());
-        EndToEndTestSupport.writeIndex(projectDir, staleIndex);
+        EndToEndTestSupport.writeIndex(projectDir, anchorCommit, staleIndex);
 
         fixture.writeClass("com.example.Baz",
                 "package com.example; public class Baz { public int value() { return 3; } }");

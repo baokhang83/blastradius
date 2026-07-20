@@ -1,6 +1,7 @@
 package io.github.baokhang83.blastradius.plugin.mojo;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
+import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
 import io.github.baokhang83.blastradius.core.index.FileIndexStore;
 import io.github.baokhang83.blastradius.core.index.IndexStore;
 import io.github.baokhang83.blastradius.core.selection.NewOrModifiedTestSelector;
@@ -113,7 +114,7 @@ public final class SelectMojo extends AbstractMojo {
             throw new MojoExecutionException("invalid configuration: indexPath \"" + indexPath
                     + "\" resolves outside the project directory (" + resolvedIndexPath + ")");
         }
-        String indexKey = normalizedReactorRoot.relativize(resolvedIndexPath).toString();
+        String indexPathKey = normalizedReactorRoot.relativize(resolvedIndexPath).toString();
         IndexStore<DependencyIndex> indexStore = new FileIndexStore<>(normalizedReactorRoot, DependencyIndex.class);
 
         CurrentChanges changes;
@@ -122,12 +123,14 @@ public final class SelectMojo extends AbstractMojo {
         } catch (IllegalStateException e) {
             throw new MojoExecutionException("invalid configuration: " + e.getMessage(), e);
         }
-        IndexApplicability applicability = indexApplicabilityResolver.resolve(indexStore, indexKey, reactorRoot);
+        String baselineIndexKey = CommitIndexKey.forCommit(indexPathKey, changes.resolvedBaseCommit());
+        IndexApplicability applicability = indexApplicabilityResolver.resolve(
+                indexStore, baselineIndexKey, changes.resolvedBaseCommit(), reactorRoot);
 
         BuildReport.Mode resolvedMode = determineMode(changes, applicability, mode);
 
         switch (resolvedMode) {
-            case TRACK -> runTrack(changes, applicability, reactorRoot, indexStore, indexKey);
+            case TRACK -> runTrack(changes, applicability, reactorRoot, indexStore, indexPathKey);
             case SELECT -> runSelect(changes, applicability);
             case FALLBACK -> runFallback(applicability);
         }
@@ -156,10 +159,10 @@ public final class SelectMojo extends AbstractMojo {
      * builds to use (research.md #1, tasks.md T045).
      */
     private void runTrack(CurrentChanges changes, IndexApplicability applicability, Path reactorRoot,
-            IndexStore<DependencyIndex> indexStore, String indexKey) throws MojoExecutionException {
+            IndexStore<DependencyIndex> indexStore, String indexPathKey) throws MojoExecutionException {
         Path agentJar = locateCoreAgentJar();
         DependencyIndex freshIndex = trackRunner.track(reactorRoot, agentJar, changes.currentCommit());
-        indexStore.put(indexKey, freshIndex);
+        indexStore.put(CommitIndexKey.forCommit(indexPathKey, changes.currentCommit()), freshIndex);
 
         int totalCount = discoverProjectTests().size();
         BuildReport report = BuildReport.forTrack(applicability.status(), totalCount, freshIndex);

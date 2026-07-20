@@ -4,7 +4,7 @@ import java.nio.file.Path;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 
-/** Resolves the root-relative shared index path without allowing it to escape the build root. */
+/** Resolves the root-relative index-file template without allowing it to escape the build root. */
 final class IndexPathResolver {
 
     Path resolve(Project project, BlastradiusExtension extension) {

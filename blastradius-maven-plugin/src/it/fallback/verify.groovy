@@ -6,6 +6,8 @@ assert report.contains('"mode":"FALLBACK"')
 assert report.contains('"indexApplicability":"MISSING"')
 assert report.contains('"selectedCount":1')
 assert report.contains('"totalCount":1')
-assert !new File(root, ".blastradius/index.json").exists()
+assert !(new File(root, ".blastradius").listFiles() ?: []).any {
+    it.isDirectory() && new File(it, "index.json").isFile()
+}
 assert log.contains("[blastradius] FALLBACK — no persisted index found (MISSING)")
 assert log.contains("[blastradius] 1 / 1 tests selected")

@@ -24,9 +24,9 @@ class IndexApplicabilityResolverTest {
 
     @Test
     void missingIndexFileIsReportedAsMissing(@TempDir Path projectDir) {
-        FixtureProjectBuilder.singleModule(projectDir).commit("initial");
+        String baseCommit = FixtureProjectBuilder.singleModule(projectDir).commit("initial");
 
-        IndexApplicability applicability = resolver.resolve(store(projectDir), INDEX_KEY, projectDir);
+        IndexApplicability applicability = resolver.resolve(store(projectDir), INDEX_KEY, baseCommit, projectDir);
 
         assertEquals(IndexApplicability.Status.MISSING, applicability.status());
         assertNull(applicability.index());
@@ -34,12 +34,12 @@ class IndexApplicabilityResolverTest {
 
     @Test
     void unreadableIndexFileIsReportedAsUnreadable(@TempDir Path projectDir) throws Exception {
-        FixtureProjectBuilder.singleModule(projectDir).commit("initial");
+        String baseCommit = FixtureProjectBuilder.singleModule(projectDir).commit("initial");
         Path indexPath = projectDir.resolve(INDEX_KEY);
         Files.createDirectories(indexPath.getParent());
         Files.writeString(indexPath, "{ this is not valid json ");
 
-        IndexApplicability applicability = resolver.resolve(store(projectDir), INDEX_KEY, projectDir);
+        IndexApplicability applicability = resolver.resolve(store(projectDir), INDEX_KEY, baseCommit, projectDir);
 
         assertEquals(IndexApplicability.Status.UNREADABLE, applicability.status());
         assertNull(applicability.index());
@@ -47,12 +47,12 @@ class IndexApplicabilityResolverTest {
 
     @Test
     void unreachableAnchorCommitIsReportedAsUnreachable(@TempDir Path projectDir) {
-        FixtureProjectBuilder.singleModule(projectDir).commit("initial");
+        String baseCommit = FixtureProjectBuilder.singleModule(projectDir).commit("initial");
         DependencyIndex index = new DependencyIndex(
                 "0000000000000000000000000000000000000000", "2026-07-09T10:00:00Z", List.of());
         store(projectDir).put(INDEX_KEY, index);
 
-        IndexApplicability applicability = resolver.resolve(store(projectDir), INDEX_KEY, projectDir);
+        IndexApplicability applicability = resolver.resolve(store(projectDir), INDEX_KEY, baseCommit, projectDir);
 
         assertEquals(IndexApplicability.Status.ANCHOR_UNREACHABLE, applicability.status());
         assertNull(applicability.index());
@@ -67,11 +67,25 @@ class IndexApplicabilityResolverTest {
                 List.of(new TestDependencyEntry(fooTest, Set.of("com.example.Foo"))));
         store(projectDir).put(INDEX_KEY, index);
 
-        IndexApplicability applicability = resolver.resolve(store(projectDir), INDEX_KEY, projectDir);
+        IndexApplicability applicability = resolver.resolve(store(projectDir), INDEX_KEY, anchorCommit, projectDir);
 
         assertEquals(IndexApplicability.Status.APPLICABLE, applicability.status());
         assertNotNull(applicability.index());
         assertEquals(index, applicability.index());
+    }
+
+    @Test
+    void reachableIndexForAnotherBaselineIsReportedAsAnchorMismatch(@TempDir Path projectDir) {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        String expectedBaseCommit = fixture.commit("initial");
+        fixture.writeClass("com.example.Newer", "package com.example; class Newer {}");
+        String otherCommit = fixture.commit("later baseline");
+        store(projectDir).put(INDEX_KEY, new DependencyIndex(otherCommit, "2026-07-09T10:00:00Z", List.of()));
+
+        IndexApplicability applicability = resolver.resolve(store(projectDir), INDEX_KEY, expectedBaseCommit, projectDir);
+
+        assertEquals(IndexApplicability.Status.ANCHOR_MISMATCH, applicability.status());
+        assertNull(applicability.index());
     }
 
     private static IndexStore<DependencyIndex> store(Path projectDir) {

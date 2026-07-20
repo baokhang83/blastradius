@@ -48,7 +48,7 @@ Three modes fall out of this, decided fresh on every invocation — never config
 |---|---|---|
 | **`TRACK`** | Current commit *is* `baseRef` (or `-Dblastradius.mode=track`) | Full suite runs, untouched. A subprocess rebuilds the index in the background for next time. |
 | **`SELECT`** | Not `baseRef`, and a usable index exists | Surefire is narrowed to the affected tests. This is the fast path. |
-| **`FALLBACK`** | Not `baseRef`, and no usable index (missing, unreadable, or its anchor is unreachable) | Full suite runs, untouched. Nothing gained by tracking from a throwaway branch commit, so nothing is forked. |
+| **`FALLBACK`** | Not `baseRef`, and no usable index (missing, unreadable, unreachable, or for another baseline commit) | Full suite runs, untouched. Nothing gained by tracking from a throwaway branch commit, so nothing is forked. |
 
 `TRACK` and `FALLBACK` are never treated as errors — they're the plugin being honest about
 not having enough information yet, and defaulting to safe.
@@ -99,18 +99,18 @@ separate page for each goal, including `help-mojo.html` and `select-mojo.html`.
 | Parameter | CLI property | Default | Required | Meaning |
 |---|---|---|---|---|
 | `baseRef` | `-DbaseRef` | — | **yes** | The git reference every build diffs against (`main`, `origin/main`, a tag — anything JGit can resolve). |
-| `indexPath` | `-DindexPath` | `.blastradius/index.json` | no | Where the persisted dependency index lives, relative to the reactor root. Rejected if it resolves outside the project directory. |
+| `indexPath` | `-DindexPath` | `.blastradius/index.json` | no | Root-relative index-file template. The resolved baseline SHA is inserted before its filename, so the default produces `.blastradius/<full-sha>/index.json`. Rejected if it resolves outside the project directory. |
 | — | `-Dblastradius.mode=track` | — | no | Force `TRACK` regardless of what commit you're on — for explicitly pre-warming the index outside an ordinary trunk build. |
 | — | `-Dblastradius.explain=true` | `false` | no | Print the full per-test decision listing to the console, not just the aggregate summary. |
 
-`indexPath` is one shared file for the whole reactor (see
+`indexPath` is one shared index namespace for the whole reactor (see
 [Multi-module reactors](#multi-module-reactors)) — configure it once at the root; every
-module's own goal execution resolves the same path.
+module's own goal execution resolves the same commit-keyed path.
 
 ### CI setup
 
 - **Trunk/post-merge job**: run as normal — no extra flags needed, `TRACK` is automatic.
-- **PR job**: run as normal too. Just make sure `.blastradius/index.json` is cached and
+- **PR job**: run as normal too. Just make sure `.blastradius/` is cached and
   restored between CI runs the same way you already cache `~/.m2` — it has to survive
   between the trunk job that wrote it and the PR job that reads it, or every PR build stays
   in `FALLBACK` forever (see below).
@@ -153,18 +153,20 @@ Add `-Dblastradius.explain=true` for the per-test breakdown that line is pointin
 [INFO] [blastradius] 2 / 2 tests selected (0.0% skipped)
 ```
 
-The reason in parentheses always tells you *why*: `MISSING` (no trunk `TRACK` build has
-happened yet), `UNREADABLE` (the index file is corrupt), `ANCHOR_UNREACHABLE` (its
-`baseRef` commit no longer exists, e.g. after a history rewrite), or `INTERNAL_ERROR` (the
-goal hit an unexpected fault mid-computation and safely bailed out to a full run rather
-than crash the build or guess).
+The reason in parentheses always tells you *why*: `MISSING` (no TRACK build exists for the
+resolved baseline), `UNREADABLE` (the index file is corrupt), `ANCHOR_UNREACHABLE` (its
+recorded commit no longer exists, e.g. after a history rewrite), `ANCHOR_MISMATCH` (the stored
+index declares a different baseline), or `INTERNAL_ERROR` (the goal hit an unexpected fault
+mid-computation and safely bailed out to a full run rather than crash the build or guess).
 
 ## The files it writes
 
 Both live under `.blastradius/` at the reactor root — add it to `.gitignore`.
 
-- **`index.json`** — the persisted dependency map a `TRACK` build produces and every
-  `SELECT` build reads. `{ anchorCommit, builtAt, testDependencies: [{ test, dependsOnClasses }] }`.
+- **`<full-sha>/index.json`** — the persisted dependency map a `TRACK` build produces for its
+  exact commit and a `SELECT` build reads for its resolved baseline. The default location is
+  `.blastradius/<full-sha>/index.json`.
+  `{ anchorCommit, builtAt, testDependencies: [{ test, dependsOnClasses }] }`.
 - **`last-build-report.json`** — this build's own decisions, machine-readable.
   `{ mode, indexApplicability, decisions: [{ test, selected, reason, matchedChangedClass }], selectedCount, totalCount }`.
   This is the source of truth every console line above is a rendering of — audit a specific
@@ -201,7 +203,7 @@ when those patterns are in use.
 - **PR builds are always `FALLBACK`, never speeding up** — no trunk `TRACK` build has
   produced an index yet, or the index isn't surviving between CI runs. Check that your
   trunk job is actually a `baseRef` build with the plugin enabled, and that
-  `.blastradius/index.json` is cached/restored the same way `~/.m2` already is.
+  `.blastradius/` is cached/restored the same way `~/.m2` already is.
 
 ## Why this is safe to trust
 

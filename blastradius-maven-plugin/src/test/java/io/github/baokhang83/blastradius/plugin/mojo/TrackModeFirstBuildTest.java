@@ -2,6 +2,7 @@ package io.github.baokhang83.blastradius.plugin.mojo;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -41,7 +42,7 @@ class TrackModeFirstBuildTest {
         assertTrue(output.contains("[blastradius] TRACK"),
                 "expected the console summary to report TRACK mode:\n" + output);
 
-        Path indexFile = projectDir.resolve(".blastradius/index.json");
+        Path indexFile = projectDir.resolve(CommitIndexKey.forCommit(".blastradius/index.json", anchorCommit));
         assertTrue(Files.exists(indexFile), "expected a fresh index to be written to " + indexFile);
         String indexJson = Files.readString(indexFile, StandardCharsets.UTF_8);
         assertTrue(indexJson.contains("\"anchorCommit\":\"" + anchorCommit + "\""),
