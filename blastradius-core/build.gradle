@@ -2,6 +2,13 @@ plugins {
     id 'java-library'
 }
 
+configurations {
+    agentElements {
+        canBeConsumed = true
+        canBeResolved = false
+    }
+}
+
 java {
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
@@ -9,6 +16,31 @@ java {
 
 tasks.withType(JavaCompile).configureEach {
     options.release = 21
+}
+
+tasks.register('agentJar', Jar) {
+    archiveClassifier = 'agent'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    dependsOn configurations.runtimeClasspath
+
+    from sourceSets.main.output
+    from {
+        configurations.runtimeClasspath.collect { dependency ->
+            dependency.isDirectory() ? dependency : zipTree(dependency)
+        }
+    }
+
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+    manifest {
+        attributes(
+                'Premain-Class': 'io.github.baokhang83.blastradius.core.tracking.DependencyTrackingAgent',
+                'Can-Redefine-Classes': 'true',
+                'Can-Retransform-Classes': 'true')
+    }
+}
+
+artifacts {
+    agentElements tasks.named('agentJar')
 }
 
 dependencies {

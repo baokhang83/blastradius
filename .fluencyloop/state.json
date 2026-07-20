@@ -1,8 +1,8 @@
 {
-  "feature": "gradle-plugin-scaffold-and-select-wiring",
-  "branch": "feature/gradle-plugin-scaffold-and-select-wiring",
+  "feature": "gradle-plugin-track-mode-agent-wiring",
+  "branch": "feature/gradle-plugin-track-mode-agent-wiring",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/gradle-plugin-scaffold-and-select-wiring/sessions/scaffold-the-gradle-adapter-and-prove-select-filtering-in-a.md",
+  "last_session": "docs/fluencyloop/features/gradle-plugin-track-mode-agent-wiring/sessions/attach-a-self-contained-agent-to-gradle-test-workers-and-mer.md",
   "base_ref": "main",
   "updated": "2026-07-20"
 }
