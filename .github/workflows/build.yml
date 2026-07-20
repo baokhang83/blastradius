@@ -2,6 +2,7 @@ name: Build
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -9,8 +10,12 @@ permissions:
 
 jobs:
   verify:
-    name: Maven 3.9.6 / JDK 21
+    name: Maven 3.9.6 / JDK ${{ matrix.java }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['21', '25']
     steps:
       - uses: actions/checkout@v7
         with:
@@ -18,7 +23,7 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: ${{ matrix.java }}
           cache: maven
       - uses: stCarolas/setup-maven@v5
         with:
