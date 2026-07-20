@@ -1,8 +1,8 @@
 {
-  "feature": "gradle-configuration-cache-and-up-to-date-compatibility",
-  "branch": "feature/gradle-configuration-cache-and-up-to-date-compatibility",
+  "feature": "verify-java-25-tracking-agent-support",
+  "branch": "feature/verify-java-25-tracking-agent-support",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/gradle-configuration-cache-and-up-to-date-compatibility/sessions/model-gradle-selection-inputs-and-isolate-test-execution-act.md",
+  "last_session": "docs/fluencyloop/features/verify-java-25-tracking-agent-support/sessions/track-jdk-25-virtual-and-hidden-class-loads.md",
   "base_ref": "main",
   "updated": "2026-07-20"
 }

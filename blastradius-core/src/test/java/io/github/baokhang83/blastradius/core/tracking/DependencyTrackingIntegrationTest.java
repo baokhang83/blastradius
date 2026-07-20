@@ -95,6 +95,82 @@ class DependencyTrackingIntegrationTest {
                 "cross-module dependency must be attributed (FR-011): " + recorded.get(consumerTest));
     }
 
+    @Test
+    void virtualThreadAttributionIncludesSealedAndHiddenClassLoadsOnJdk25(
+            @TempDir Path projectDir, @TempDir Path outDir) throws Exception {
+        Path agentJar = findOwnAgentJar();
+        Path recordFile = outDir.resolve("deps.json");
+
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        fixture.addSystemDependency(null, agentJar);
+        fixture.writeClass("com.example.VirtualDependency", """
+                package com.example;
+                public sealed interface VirtualDependency permits VirtualDependencyImplementation {
+                    String value();
+                }
+                final class VirtualDependencyImplementation implements VirtualDependency {
+                    public String value() { return "sealed"; }
+                }
+                """);
+        fixture.writeClass("com.example.HiddenTemplate", """
+                package com.example;
+                public class HiddenTemplate {}
+                """);
+        fixture.writeTest("com.example.Jdk25TrackingTest", """
+                package com.example;
+                import java.io.InputStream;
+                import java.lang.invoke.MethodHandles;
+                import java.util.concurrent.atomic.AtomicReference;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                import static org.junit.jupiter.api.Assertions.assertNotNull;
+                import static org.junit.jupiter.api.Assertions.assertTrue;
+
+                class Jdk25TrackingTest {
+                    @Test
+                    void tracksVirtualThreadSealedAndHiddenClassLoads() throws Exception {
+                        byte[] hiddenTemplateBytes;
+                        try (InputStream stream = getClass().getClassLoader()
+                                .getResourceAsStream("com/example/HiddenTemplate.class")) {
+                            assertNotNull(stream, "compiled hidden-class template must be available");
+                            hiddenTemplateBytes = stream.readAllBytes();
+                        }
+
+                        AtomicReference<Throwable> failure = new AtomicReference<>();
+                        Thread worker = Thread.startVirtualThread(() -> {
+                            try {
+                                assertEquals("sealed", new VirtualDependencyImplementation().value());
+                                assertTrue(MethodHandles.lookup()
+                                        .defineHiddenClass(hiddenTemplateBytes, true)
+                                        .lookupClass()
+                                        .isHidden());
+                            } catch (Throwable t) {
+                                failure.set(t);
+                            }
+                        });
+                        worker.join();
+                        if (failure.get() != null) {
+                            throw new AssertionError("virtual-thread work failed", failure.get());
+                        }
+                    }
+                }
+                """);
+        fixture.commit("initial");
+
+        runMvnTest(projectDir, agentJar, recordFile);
+
+        Map<TestIdentity, Map<String, String>> recorded = new DependencyRecordReader().readAll(recordFile);
+        TestIdentity jdk25Test = new TestIdentity(
+                "com.example.Jdk25TrackingTest", "tracksVirtualThreadSealedAndHiddenClassLoads");
+
+        assertTrue(recorded.containsKey(jdk25Test),
+                "expected an entry for " + jdk25Test + " in " + recorded.keySet());
+        assertTrue(recorded.get(jdk25Test).containsKey("com.example.VirtualDependencyImplementation"),
+                "sealed class loaded by the virtual thread must be attributed: " + recorded.get(jdk25Test));
+        assertTrue(recorded.get(jdk25Test).containsKey("com.example.HiddenTemplate"),
+                "hidden class must be attributed under its stable source class name: " + recorded.get(jdk25Test));
+    }
+
     private static Path findOwnAgentJar() throws IOException {
         Path targetDir = Path.of("target");
         try (var stream = Files.list(targetDir)) {
