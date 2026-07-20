@@ -78,6 +78,9 @@ sequenceDiagram
   the published plugin self-contained and keeps a consumer's versions from leaking into the Mojo.
 - Release-only work stays in the `release` profile, so local `test`/`verify` remains quick while
   Central receives its required companion artifacts and signatures.
+- The Central publishing extension stages reactor artifacts independently of Maven's normal deploy
+  skip flag, so its release configuration explicitly excludes the parent, core, and validator;
+  only the shaded plugin enters the public bundle.
 - The Invoker executes Maven fixture projects rather than only testing Mojo classes. That is the
   closest repeatable check of the installed plugin's actual lifecycle behavior.
 - CI can upload only with Central and GPG secrets. Namespace claiming, secret creation, tag
