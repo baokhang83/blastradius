@@ -17,6 +17,7 @@ fail, only how many tests get the chance to.
 
 - [How it works](#how-it-works)
 - [Install](#install)
+- [Generated goal reference](#generated-goal-reference)
 - [Configuration reference](#configuration-reference)
 - [What you'll see in the Maven output](#what-youll-see-in-the-maven-output)
 - [The files it writes](#the-files-it-writes)
@@ -79,6 +80,18 @@ the goal only ever narrows *which* tests they run, bound early enough
 Your first build (whichever branch it happens to run on) will be `TRACK` or `FALLBACK`,
 not `SELECT` — there's no index yet. It becomes fast once a `baseRef` build has produced
 one. See [Reading a build's result](#reading-a-builds-result) if it seems stuck there.
+
+## Generated goal reference
+
+The plugin's Maven-generated reference lists every goal and parameter. Generate it from
+the repository root with:
+
+```sh
+mvn -pl blastradius-maven-plugin -am site
+```
+
+Then view `blastradius-maven-plugin/target/site/plugin-info.html`. Maven also generates a
+separate page for each goal, including `help-mojo.html` and `select-mojo.html`.
 
 ## Configuration reference
 
