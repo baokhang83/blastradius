@@ -182,6 +182,14 @@
                             <autoPublish>true</autoPublish>
                             <waitUntil>published</waitUntil>
                             <skipPublishing>${central.skip.publishing}</skipPublishing>
+                            <!-- The Central lifecycle extension stages reactor artifacts independently
+                                 of Maven's maven.deploy.skip property. Keep implementation modules out
+                                 of the public bundle at that collection point. -->
+                            <excludeArtifacts>
+                                <excludeArtifact>blastradius-parent</excludeArtifact>
+                                <excludeArtifact>blastradius-core</excludeArtifact>
+                                <excludeArtifact>blastradius-validator</excludeArtifact>
+                            </excludeArtifacts>
                         </configuration>
                     </plugin>
                 </plugins>
