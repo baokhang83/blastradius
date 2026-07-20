@@ -5,10 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.InputStream;
+import java.lang.invoke.MethodHandles;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
@@ -61,6 +64,32 @@ class DependencyTrackingAgentTest {
         currentTest.set(FOO_TEST);
         agent.transform(null, null, null, null, "x".getBytes(StandardCharsets.UTF_8));
         assertTrue(agent.recordedDependencies().isEmpty());
+    }
+
+    @Test
+    void newlyCreatedHiddenClassUsesItsStableSourceName() throws Exception {
+        currentTest.set(FOO_TEST);
+        byte[] classFile;
+        try (InputStream stream = DependencyTrackingAgentTest.class
+                .getResourceAsStream("DependencyTrackingAgentTest.class")) {
+            assertTrue(stream != null, "test class bytes must be available as a resource");
+            classFile = stream.readAllBytes();
+        }
+
+        Class<?> hiddenClass = MethodHandles.lookup().defineHiddenClass(classFile, false).lookupClass();
+        agent.recordNewHiddenClasses(FOO_TEST, Set.of(), new Class<?>[] {hiddenClass});
+
+        assertTrue(agent.recordedDependencies().get(FOO_TEST)
+                .containsKey(DependencyTrackingAgentTest.class.getName()));
+    }
+
+    @Test
+    void moduleAwareTransformRecordsTheClass() throws Exception {
+        currentTest.set(FOO_TEST);
+
+        agent.transform(Object.class.getModule(), null, "com/example/Foo", null, null, "x".getBytes(StandardCharsets.UTF_8));
+
+        assertTrue(agent.recordedDependencies().get(FOO_TEST).containsKey("com.example.Foo"));
     }
 
     @Test
