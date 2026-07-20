@@ -1,8 +1,8 @@
 {
-  "feature": "verify-kotlin-aware-dependency-tracking",
-  "branch": "feature/verify-kotlin-aware-dependency-tracking",
+  "feature": "backfill-the-ci-gating-maven-plugin-design-decisions-from-pr",
+  "branch": "feature/backfill-the-ci-gating-maven-plugin-design-decisions-from-pr",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/verify-kotlin-aware-dependency-tracking/sessions/detect-kotlin-inline-modifier-variants-conservatively.md",
-  "base_ref": "main",
+  "last_session": "docs/fluencyloop/features/backfill-the-ci-gating-maven-plugin-design-decisions-from-pr/sessions/reconstruct-ci-gating-maven-plugin-design-decisions-from-pr.md",
+  "base_ref": "f0d1ba6",
   "updated": "2026-07-20"
 }
