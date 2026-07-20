@@ -1,6 +1,8 @@
 package io.github.baokhang83.blastradius.plugin.mojo;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
+import io.github.baokhang83.blastradius.core.index.FileIndexStore;
+import io.github.baokhang83.blastradius.core.index.IndexStore;
 import io.github.baokhang83.blastradius.core.selection.NewOrModifiedTestSelector;
 import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
 import io.github.baokhang83.blastradius.core.selection.SelectionEngine;
@@ -8,7 +10,6 @@ import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.plugin.diff.CurrentChanges;
 import io.github.baokhang83.blastradius.plugin.diff.CurrentChangesResolver;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
-import io.github.baokhang83.blastradius.plugin.index.DependencyIndexWriter;
 import io.github.baokhang83.blastradius.plugin.index.IndexApplicability;
 import io.github.baokhang83.blastradius.plugin.index.IndexApplicabilityResolver;
 import io.github.baokhang83.blastradius.plugin.report.BuildReport;
@@ -89,7 +90,6 @@ public final class SelectMojo extends AbstractMojo {
     private final ConsoleSummaryRenderer consoleSummaryRenderer = new ConsoleSummaryRenderer();
     private final ExplainListingRenderer explainListingRenderer = new ExplainListingRenderer();
     private final TrackRunner trackRunner = new TrackRunner();
-    private final DependencyIndexWriter dependencyIndexWriter = new DependencyIndexWriter();
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
@@ -113,6 +113,8 @@ public final class SelectMojo extends AbstractMojo {
             throw new MojoExecutionException("invalid configuration: indexPath \"" + indexPath
                     + "\" resolves outside the project directory (" + resolvedIndexPath + ")");
         }
+        String indexKey = normalizedReactorRoot.relativize(resolvedIndexPath).toString();
+        IndexStore<DependencyIndex> indexStore = new FileIndexStore<>(normalizedReactorRoot, DependencyIndex.class);
 
         CurrentChanges changes;
         try {
@@ -120,12 +122,12 @@ public final class SelectMojo extends AbstractMojo {
         } catch (IllegalStateException e) {
             throw new MojoExecutionException("invalid configuration: " + e.getMessage(), e);
         }
-        IndexApplicability applicability = indexApplicabilityResolver.resolve(resolvedIndexPath, reactorRoot);
+        IndexApplicability applicability = indexApplicabilityResolver.resolve(indexStore, indexKey, reactorRoot);
 
         BuildReport.Mode resolvedMode = determineMode(changes, applicability, mode);
 
         switch (resolvedMode) {
-            case TRACK -> runTrack(changes, applicability, reactorRoot, resolvedIndexPath);
+            case TRACK -> runTrack(changes, applicability, reactorRoot, indexStore, indexKey);
             case SELECT -> runSelect(changes, applicability);
             case FALLBACK -> runFallback(applicability);
         }
@@ -154,10 +156,10 @@ public final class SelectMojo extends AbstractMojo {
      * builds to use (research.md #1, tasks.md T045).
      */
     private void runTrack(CurrentChanges changes, IndexApplicability applicability, Path reactorRoot,
-            Path resolvedIndexPath) throws MojoExecutionException {
+            IndexStore<DependencyIndex> indexStore, String indexKey) throws MojoExecutionException {
         Path agentJar = locateCoreAgentJar();
         DependencyIndex freshIndex = trackRunner.track(reactorRoot, agentJar, changes.currentCommit());
-        dependencyIndexWriter.write(resolvedIndexPath, freshIndex);
+        indexStore.put(indexKey, freshIndex);
 
         int totalCount = discoverProjectTests().size();
         BuildReport report = BuildReport.forTrack(applicability.status(), totalCount, freshIndex);

@@ -6,7 +6,6 @@ import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDependencyEntry;
-import io.github.baokhang83.blastradius.plugin.index.DependencyIndexWriter;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
@@ -40,7 +39,7 @@ class SelectMojoInternalErrorFallbackTest {
         DependencyIndex corruptedIndex = new DependencyIndex(anchorCommit, Instant.now().toString(), List.of(
                 new TestDependencyEntry(fooTest, Set.of("com.example.Foo")),
                 new TestDependencyEntry(fooTest, Set.of("com.example.Foo"))));
-        new DependencyIndexWriter().write(projectDir.resolve(".blastradius/index.json"), corruptedIndex);
+        EndToEndTestSupport.writeIndex(projectDir, corruptedIndex);
 
         fixture.writeClass("com.example.Baz",
                 "package com.example; public class Baz { public int value() { return 3; } }");

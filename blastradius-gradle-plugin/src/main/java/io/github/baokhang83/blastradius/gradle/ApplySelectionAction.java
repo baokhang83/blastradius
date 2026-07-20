@@ -2,11 +2,14 @@ package io.github.baokhang83.blastradius.gradle;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
+import io.github.baokhang83.blastradius.core.index.FileIndexStore;
+import io.github.baokhang83.blastradius.core.index.IndexStore;
 import io.github.baokhang83.blastradius.core.selection.NewOrModifiedTestSelector;
 import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
 import io.github.baokhang83.blastradius.core.selection.SelectionEngine;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.io.File;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,8 +38,10 @@ final class ApplySelectionAction implements Action<Task> {
     @Override
     public void execute(Task task) {
         Test test = (Test) task;
-        IndexApplicability applicability = new IndexApplicabilityResolver().resolve(
-                indexFile.toPath(), repositoryDirectory.toPath());
+        Path repositoryRoot = repositoryDirectory.toPath().toAbsolutePath().normalize();
+        String indexKey = repositoryRoot.relativize(indexFile.toPath().toAbsolutePath().normalize()).toString();
+        IndexStore<DependencyIndex> indexStore = new FileIndexStore<>(repositoryRoot, DependencyIndex.class);
+        IndexApplicability applicability = new IndexApplicabilityResolver().resolve(indexStore, indexKey, repositoryRoot);
         if (applicability.status() != IndexApplicability.Status.APPLICABLE) {
             test.getLogger().info("[blastradius] Gradle test task left unfiltered ({})", applicability.status());
             return;

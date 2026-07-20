@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
-import io.github.baokhang83.blastradius.plugin.index.DependencyIndexWriter;
 import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -30,7 +29,7 @@ class NonSourceChangeFallbackTest {
         String anchorCommit = fixture.commit("initial");
 
         DependencyIndex index = EndToEndTestSupport.trackDependencies(projectDir, anchorCommit);
-        new DependencyIndexWriter().write(projectDir.resolve(".blastradius/index.json"), index);
+        EndToEndTestSupport.writeIndex(projectDir, index);
 
         // A change touching only a non-source resource — no Java class changed at all.
         fixture.writeResource("src/main/resources/config.properties", "greeting=hi\n");

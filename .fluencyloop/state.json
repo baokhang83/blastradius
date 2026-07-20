@@ -1,8 +1,8 @@
 {
-  "feature": "backfill-the-ci-gating-maven-plugin-design-decisions-from-pr",
-  "branch": "feature/backfill-the-ci-gating-maven-plugin-design-decisions-from-pr",
-  "stage": "build",
-  "last_session": "docs/fluencyloop/features/backfill-the-ci-gating-maven-plugin-design-decisions-from-pr/sessions/reconstruct-ci-gating-maven-plugin-design-decisions-from-pr.md",
-  "base_ref": "f0d1ba6",
+  "feature": "abstract-the-index-store-behind-an-interface-25",
+  "branch": "feature/abstract-the-index-store-behind-an-interface-25",
+  "stage": "review",
+  "last_session": "docs/fluencyloop/features/abstract-the-index-store-behind-an-interface-25/sessions/route-gradle-index-access-through-the-store-spi.md",
+  "base_ref": "main",
   "updated": "2026-07-20"
 }

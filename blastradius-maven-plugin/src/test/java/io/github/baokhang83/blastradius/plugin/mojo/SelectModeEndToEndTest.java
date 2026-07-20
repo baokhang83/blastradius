@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
-import io.github.baokhang83.blastradius.plugin.index.DependencyIndexWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,7 +33,7 @@ class SelectModeEndToEndTest {
         // Build a real baseline index the same way TrackRunner does (subprocess mvn test,
         // agent attached), so the index reflects genuinely-observed dependencies.
         DependencyIndex index = EndToEndTestSupport.trackDependencies(projectDir, anchorCommit);
-        new DependencyIndexWriter().write(projectDir.resolve(".blastradius/index.json"), index);
+        EndToEndTestSupport.writeIndex(projectDir, index);
 
         // A small, contained change: only Foo — value AND its test's expectation both
         // updated consistently, so the change is genuinely correct (this test is about
@@ -101,7 +100,7 @@ class SelectModeEndToEndTest {
         String anchorCommit = fixture.commit("initial Kotlin fixture");
 
         DependencyIndex index = EndToEndTestSupport.trackDependencies(projectDir, anchorCommit);
-        new DependencyIndexWriter().write(projectDir.resolve(".blastradius/index.json"), index);
+        EndToEndTestSupport.writeIndex(projectDir, index);
 
         fixture.writeKotlinClass("com.example.Greeting", """
                 package com.example
@@ -130,7 +129,7 @@ class SelectModeEndToEndTest {
         String anchorCommit = fixture.commit("initial");
 
         DependencyIndex index = EndToEndTestSupport.trackDependencies(projectDir, anchorCommit);
-        new DependencyIndexWriter().write(projectDir.resolve(".blastradius/index.json"), index);
+        EndToEndTestSupport.writeIndex(projectDir, index);
 
         fixture.writeTest("com.example.FooTest", """
                 package com.example;
