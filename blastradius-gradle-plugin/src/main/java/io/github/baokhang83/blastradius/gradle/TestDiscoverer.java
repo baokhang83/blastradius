@@ -5,9 +5,9 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
-import org.gradle.api.tasks.testing.Test;
 import org.junit.platform.engine.discovery.DiscoverySelectors;
 import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.Launcher;
@@ -19,9 +19,11 @@ import org.junit.platform.launcher.core.LauncherFactory;
 
 final class TestDiscoverer {
 
-    Set<TestIdentity> discoverAllTests(Test test) {
-        URL[] urls = test.getClasspath().getFiles().stream().map(TestDiscoverer::toUrl).toArray(URL[]::new);
-        Set<Path> testClassRoots = test.getTestClassesDirs().getFiles().stream().map(java.io.File::toPath).collect(java.util.stream.Collectors.toSet());
+    Set<TestIdentity> discoverAllTests(Collection<java.io.File> classpath, Collection<java.io.File> testClassesDirs) {
+        URL[] urls = classpath.stream().map(TestDiscoverer::toUrl).toArray(URL[]::new);
+        Set<Path> testClassRoots = testClassesDirs.stream()
+                .map(java.io.File::toPath)
+                .collect(java.util.stream.Collectors.toSet());
         try (URLClassLoader discoveryClassLoader = new URLClassLoader(urls, Thread.currentThread().getContextClassLoader())) {
             ClassLoader previous = Thread.currentThread().getContextClassLoader();
             Thread.currentThread().setContextClassLoader(discoveryClassLoader);

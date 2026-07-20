@@ -41,6 +41,30 @@ class BlastradiusPluginFunctionalTest {
     }
 
     @Test
+    void reusesConfigurationCacheWithoutInvalidatingAnUnchangedSelection() throws Exception {
+        writeProject();
+        commitBaseline();
+
+        BuildResult trackResult = runGradle("clean", "test", "--configuration-cache");
+
+        assertTrue(trackResult.getOutput().contains("Configuration cache entry stored"), trackResult.getOutput());
+        Files.deleteIfExists(projectDir.resolve("build/foo-ran"));
+        Files.deleteIfExists(projectDir.resolve("build/bar-ran"));
+        changeFoo();
+
+        BuildResult selectResult = runGradle("test", "--configuration-cache");
+
+        assertTrue(selectResult.getOutput().contains("[blastradius] SELECT — 1 / 2 tests selected"), selectResult.getOutput());
+        assertTrue(Files.exists(projectDir.resolve("build/foo-ran")));
+        assertFalse(Files.exists(projectDir.resolve("build/bar-ran")));
+
+        BuildResult repeatResult = runGradle("test", "--configuration-cache");
+
+        assertTrue(repeatResult.getOutput().contains("Reusing configuration cache."), repeatResult.getOutput());
+        assertTrue(repeatResult.getOutput().contains(":test UP-TO-DATE"), repeatResult.getOutput());
+    }
+
+    @Test
     void selectsOnlyTheTestThatDependsOnTheChangedClass() throws Exception {
         writeProject();
         String baselineCommit = commitBaseline();

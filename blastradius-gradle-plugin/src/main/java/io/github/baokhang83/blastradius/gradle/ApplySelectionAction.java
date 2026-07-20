@@ -1,55 +1,60 @@
 package io.github.baokhang83.blastradius.gradle;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
+import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
 import io.github.baokhang83.blastradius.core.git.FileKind;
 import io.github.baokhang83.blastradius.core.selection.NewOrModifiedTestSelector;
 import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
 import io.github.baokhang83.blastradius.core.selection.SelectionEngine;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
-import java.nio.file.Path;
+import java.io.File;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.gradle.api.GradleException;
-import org.gradle.api.Project;
+import org.gradle.api.Action;
+import org.gradle.api.Task;
 import org.gradle.api.tasks.testing.Test;
 
-final class GradleSelectAction {
+/** Applies the dependency-based filter using only configuration-time values and the {@link Test} task. */
+final class ApplySelectionAction implements Action<Task> {
 
     private static final String NO_SELECTION_PATTERN = "__blastradius__.NoSelectedTests";
 
-    private final Project project;
-    private final BlastradiusExtension extension;
-    private final CurrentChangesResolver currentChangesResolver = new CurrentChangesResolver();
-    private final IndexApplicabilityResolver indexApplicabilityResolver = new IndexApplicabilityResolver();
-    private final TestDiscoverer testDiscoverer = new TestDiscoverer();
-    private final IndexPathResolver indexPathResolver = new IndexPathResolver();
-    GradleSelectAction(Project project, BlastradiusExtension extension) {
-        this.project = project;
-        this.extension = extension;
+    private final File repositoryDirectory;
+    private final File indexFile;
+    private final String baseCommit;
+    private final String headCommit;
+
+    ApplySelectionAction(File repositoryDirectory, File indexFile, String baseCommit, String headCommit) {
+        this.repositoryDirectory = repositoryDirectory;
+        this.indexFile = indexFile;
+        this.baseCommit = baseCommit;
+        this.headCommit = headCommit;
     }
 
-    void apply(Test test) {
-        Path projectRoot = project.getRootDir().toPath();
-        Path indexPath = indexPathResolver.resolve(project, extension);
-        CurrentChanges changes = currentChangesResolver.resolve(projectRoot, extension.getBaseRef().get());
-        IndexApplicability applicability = indexApplicabilityResolver.resolve(indexPath, projectRoot);
-        if (changes.baseRefBuild() || applicability.status() != IndexApplicability.Status.APPLICABLE) {
-            project.getLogger().info("[blastradius] Gradle test task left unfiltered ({})",
-                    changes.baseRefBuild() ? "TRACK not yet implemented" : applicability.status());
+    @Override
+    public void execute(Task task) {
+        Test test = (Test) task;
+        IndexApplicability applicability = new IndexApplicabilityResolver().resolve(
+                indexFile.toPath(), repositoryDirectory.toPath());
+        if (applicability.status() != IndexApplicability.Status.APPLICABLE) {
+            test.getLogger().info("[blastradius] Gradle test task left unfiltered ({})", applicability.status());
             return;
         }
 
         try {
-            Set<TestIdentity> allTests = testDiscoverer.discoverAllTests(test);
-            List<SelectionDecision> decisions = computeDecisions(allTests, applicability.index(), changes.changedFiles());
+            Set<TestIdentity> allTests = new TestDiscoverer().discoverAllTests(
+                    test.getClasspath().getFiles(), test.getTestClassesDirs().getFiles());
+            List<ChangedFile> changedFiles = new ChangedFileClassifier().classify(
+                    repositoryDirectory.toPath(), baseCommit, headCommit);
+            List<SelectionDecision> decisions = computeDecisions(allTests, applicability.index(), changedFiles);
             applyFilter(test, decisions);
-            project.getLogger().lifecycle("[blastradius] SELECT — {} / {} tests selected", decisions.stream()
+            test.getLogger().lifecycle("[blastradius] SELECT — {} / {} tests selected", decisions.stream()
                     .filter(SelectionDecision::selected)
                     .count(), decisions.size());
         } catch (RuntimeException e) {
-            project.getLogger().warn("[blastradius] selection failed; running the full test task", e);
+            test.getLogger().warn("[blastradius] selection failed; running the full test task", e);
         }
     }
 

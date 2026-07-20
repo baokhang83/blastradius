@@ -1,8 +1,8 @@
 {
-  "feature": "gradle-plugin-track-mode-agent-wiring",
-  "branch": "feature/gradle-plugin-track-mode-agent-wiring",
+  "feature": "gradle-configuration-cache-and-up-to-date-compatibility",
+  "branch": "feature/gradle-configuration-cache-and-up-to-date-compatibility",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/gradle-plugin-track-mode-agent-wiring/sessions/attach-a-self-contained-agent-to-gradle-test-workers-and-mer.md",
+  "last_session": "docs/fluencyloop/features/gradle-configuration-cache-and-up-to-date-compatibility/sessions/model-gradle-selection-inputs-and-isolate-test-execution-act.md",
   "base_ref": "main",
   "updated": "2026-07-20"
 }
