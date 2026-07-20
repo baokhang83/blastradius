@@ -1,0 +1,4 @@
+allprojects {
+    group = 'io.github.baokhang83.blastradius'
+    version = '0.1.0'
+}

@@ -1,0 +1,35 @@
+plugins {
+    id 'java-gradle-plugin'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+}
+
+gradlePlugin {
+    plugins {
+        blastradius {
+            id = 'io.github.baokhang83.blastradius'
+            implementationClass = 'io.github.baokhang83.blastradius.gradle.BlastradiusPlugin'
+        }
+    }
+}
+
+dependencies {
+    implementation project(':blastradius-core')
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:6.9.0.202403050737-r'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.1'
+    implementation 'org.junit.platform:junit-platform-launcher:1.10.2'
+
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
