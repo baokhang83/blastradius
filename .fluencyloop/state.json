@@ -1,0 +1,8 @@
+{
+  "feature": "publish-generated-maven-plugin-goal-documentation",
+  "branch": "feature/publish-generated-maven-plugin-goal-documentation",
+  "stage": "build",
+  "last_session": "docs/fluencyloop/features/publish-generated-maven-plugin-goal-documentation/sessions/replace-the-obsolete-plugin-report-provider-and-verify-gener.md",
+  "base_ref": "feature/shadow-mode-validator",
+  "updated": "2026-07-20"
+}

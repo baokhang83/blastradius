@@ -1,0 +1,13 @@
+def root = new File(basedir.toString())
+def report = new File(root, ".blastradius/last-build-report.json").getText("UTF-8")
+def log = new File(root, "build.log").getText("UTF-8")
+
+assert report.contains('"mode":"SELECT"')
+assert report.contains('"selectedCount":1')
+assert report.contains('"totalCount":2')
+assert log.contains("[blastradius] SELECT")
+assert log.contains("[blastradius] 1 / 2 tests selected")
+assert !log.contains("LinkageError")
+assert !log.contains("NoSuchMethodError")
+assert new File(root, "target/surefire-reports/TEST-example.FooTest.xml").isFile()
+assert !new File(root, "target/surefire-reports/TEST-example.BarTest.xml").exists()
