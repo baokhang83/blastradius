@@ -24,6 +24,7 @@ final class GradleSelectAction {
     private final CurrentChangesResolver currentChangesResolver = new CurrentChangesResolver();
     private final IndexApplicabilityResolver indexApplicabilityResolver = new IndexApplicabilityResolver();
     private final TestDiscoverer testDiscoverer = new TestDiscoverer();
+    private final IndexPathResolver indexPathResolver = new IndexPathResolver();
     GradleSelectAction(Project project, BlastradiusExtension extension) {
         this.project = project;
         this.extension = extension;
@@ -31,7 +32,7 @@ final class GradleSelectAction {
 
     void apply(Test test) {
         Path projectRoot = project.getRootDir().toPath();
-        Path indexPath = resolveIndexPath(projectRoot);
+        Path indexPath = indexPathResolver.resolve(project, extension);
         CurrentChanges changes = currentChangesResolver.resolve(projectRoot, extension.getBaseRef().get());
         IndexApplicability applicability = indexApplicabilityResolver.resolve(indexPath, projectRoot);
         if (changes.baseRefBuild() || applicability.status() != IndexApplicability.Status.APPLICABLE) {
@@ -50,15 +51,6 @@ final class GradleSelectAction {
         } catch (RuntimeException e) {
             project.getLogger().warn("[blastradius] selection failed; running the full test task", e);
         }
-    }
-
-    private Path resolveIndexPath(Path projectRoot) {
-        Path normalizedRoot = projectRoot.normalize();
-        Path resolved = projectRoot.resolve(extension.getIndexPath().get()).normalize();
-        if (!resolved.startsWith(normalizedRoot)) {
-            throw new GradleException("indexPath resolves outside the root project: " + resolved);
-        }
-        return resolved;
     }
 
     private static List<SelectionDecision> computeDecisions(Set<TestIdentity> allTests, DependencyIndex index,

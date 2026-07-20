@@ -21,7 +21,7 @@ gradlePlugin {
 }
 
 dependencies {
-    implementation project(':blastradius-core')
+    implementation project(path: ':blastradius-core', configuration: 'agentElements')
     implementation 'org.eclipse.jgit:org.eclipse.jgit:6.9.0.202403050737-r'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.1'
     implementation 'org.junit.platform:junit-platform-launcher:1.10.2'

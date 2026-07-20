@@ -15,6 +15,15 @@ public final class BlastradiusPlugin implements Plugin<Project> {
 
         project.getPluginManager().withPlugin("java", ignored -> project.getTasks()
                 .withType(Test.class)
-                .configureEach(test -> test.doFirst(ignoredTask -> new GradleSelectAction(project, extension).apply(test))));
+                .configureEach(test -> {
+                    GradleTrackAction trackAction = new GradleTrackAction(project, extension);
+                    GradleSelectAction selectAction = new GradleSelectAction(project, extension);
+                    test.doFirst(ignoredTask -> {
+                        if (!trackAction.prepare(test)) {
+                            selectAction.apply(test);
+                        }
+                    });
+                    test.doLast(ignoredTask -> trackAction.complete());
+                }));
     }
 }

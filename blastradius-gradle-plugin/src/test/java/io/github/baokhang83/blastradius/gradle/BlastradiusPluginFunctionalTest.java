@@ -18,17 +18,36 @@ class BlastradiusPluginFunctionalTest {
     Path projectDir;
 
     @Test
+    void tracksOnTheBaseReferenceThenSelectsTheChangedTest() throws Exception {
+        writeProject();
+        String baselineCommit = commitBaseline();
+
+        BuildResult trackResult = runGradle("clean", "test");
+
+        Path indexPath = projectDir.resolve(".blastradius/index.json");
+        assertTrue(trackResult.getOutput().contains("[blastradius] TRACK — 2 / 2 tests selected"), trackResult.getOutput());
+        assertTrue(Files.exists(indexPath), "TRACK must create the shared dependency index");
+        assertTrue(Files.readString(indexPath).contains(baselineCommit), "TRACK must anchor the index at the base commit");
+
+        Files.deleteIfExists(projectDir.resolve("build/foo-ran"));
+        Files.deleteIfExists(projectDir.resolve("build/bar-ran"));
+        changeFoo();
+
+        BuildResult selectResult = runGradle("clean", "test");
+
+        assertTrue(selectResult.getOutput().contains("[blastradius] SELECT — 1 / 2 tests selected"), selectResult.getOutput());
+        assertTrue(Files.exists(projectDir.resolve("build/foo-ran")));
+        assertFalse(Files.exists(projectDir.resolve("build/bar-ran")));
+    }
+
+    @Test
     void selectsOnlyTheTestThatDependsOnTheChangedClass() throws Exception {
         writeProject();
         String baselineCommit = commitBaseline();
         changeFoo();
         writeIndex(baselineCommit);
 
-        BuildResult result = GradleRunner.create()
-                .withProjectDir(projectDir.toFile())
-                .withPluginClasspath()
-                .withArguments("test", "--stacktrace", "--info")
-                .build();
+        BuildResult result = runGradle("test");
 
         assertTrue(result.getOutput().contains("[blastradius] SELECT — 1 / 2 tests selected"), result.getOutput());
         assertTrue(Files.exists(projectDir.resolve("build/foo-ran")));
@@ -122,6 +141,17 @@ class BlastradiusPluginFunctionalTest {
                   ]
                 }
                 """.formatted(baselineCommit));
+    }
+
+    private BuildResult runGradle(String... arguments) {
+        String[] argumentsWithLogging = java.util.stream.Stream.concat(
+                        java.util.Arrays.stream(arguments), java.util.stream.Stream.of("--stacktrace", "--info"))
+                .toArray(String[]::new);
+        return GradleRunner.create()
+                .withProjectDir(projectDir.toFile())
+                .withPluginClasspath()
+                .withArguments(argumentsWithLogging)
+                .build();
     }
 
     private void write(String relativePath, String content) throws IOException {
