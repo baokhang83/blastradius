@@ -1,6 +1,7 @@
 package io.github.baokhang83.blastradius.core.git;
 
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * One file that differs between a commit pair's base and head.
@@ -18,5 +19,20 @@ public record ChangedFile(String path, FileKind kind, String changedClassName) {
         if (kind == FileKind.JAVA_SOURCE) {
             Objects.requireNonNull(changedClassName, "changedClassName required for JAVA_SOURCE");
         }
+    }
+
+    /**
+     * JVM class names a source change can affect. Kotlin emits a file facade named
+     * {@code FileNameKt} for top-level declarations in addition to an ordinary class whose
+     * name follows the source file name.
+     */
+    public Set<String> candidateClassNames() {
+        if (kind != FileKind.JAVA_SOURCE) {
+            return Set.of();
+        }
+        if (path.endsWith(".kt")) {
+            return Set.of(changedClassName, changedClassName + "Kt");
+        }
+        return Set.of(changedClassName);
     }
 }

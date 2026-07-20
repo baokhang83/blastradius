@@ -19,6 +19,7 @@ import org.eclipse.jgit.lib.PersonIdent;
 public final class FixtureProjectBuilder {
 
     private static final PersonIdent AUTHOR = new PersonIdent("fixture", "fixture@example.invalid");
+    private static final String KOTLIN_VERSION = "2.4.10";
 
     private final Path root;
     private final Git git;
@@ -82,22 +83,81 @@ public final class FixtureProjectBuilder {
         return writeTestInModule(null, fqcn, source);
     }
 
+    /** Write (or overwrite) a Kotlin production class in the single-module project. */
+    public FixtureProjectBuilder writeKotlinClass(String fqcn, String source) {
+        return writeKotlinClassInModule(null, fqcn, source);
+    }
+
+    /** Write (or overwrite) a Kotlin test class in the single-module project. */
+    public FixtureProjectBuilder writeKotlinTest(String fqcn, String source) {
+        return writeKotlinTestInModule(null, fqcn, source);
+    }
+
     /** Write (or overwrite) a production class in {@code module} (null = single-module root). */
     public FixtureProjectBuilder writeClassInModule(String module, String fqcn, String source) {
-        write(sourcePath(module, "main", fqcn), source);
+        write(sourcePath(module, "main", fqcn, ".java"), source);
         return this;
     }
 
     /** Write (or overwrite) a test class in {@code module} (null = single-module root). */
     public FixtureProjectBuilder writeTestInModule(String module, String fqcn, String source) {
-        write(sourcePath(module, "test", fqcn), source);
+        write(sourcePath(module, "test", fqcn, ".java"), source);
+        return this;
+    }
+
+    /** Write (or overwrite) a Kotlin production class in {@code module} (null = single-module root). */
+    public FixtureProjectBuilder writeKotlinClassInModule(String module, String fqcn, String source) {
+        write(sourcePath(module, "main", fqcn, ".kt"), source);
+        return this;
+    }
+
+    /** Write (or overwrite) a Kotlin test class in {@code module} (null = single-module root). */
+    public FixtureProjectBuilder writeKotlinTestInModule(String module, String fqcn, String source) {
+        write(sourcePath(module, "test", fqcn, ".kt"), source);
+        return this;
+    }
+
+    /** Enables Maven's Kotlin compiler extension in the single-module fixture. */
+    public FixtureProjectBuilder enableKotlin() {
+        return enableKotlinInModule(null);
+    }
+
+    /** Enables Maven's Kotlin compiler extension in {@code module} (null = single-module root). */
+    public FixtureProjectBuilder enableKotlinInModule(String module) {
+        Path pomPath = module == null ? root.resolve("pom.xml") : root.resolve(module).resolve("pom.xml");
+        try {
+            String pom = Files.readString(pomPath, StandardCharsets.UTF_8);
+            if (!pom.contains("<artifactId>kotlin-maven-plugin</artifactId>")) {
+                pom = pom.replace("</properties>", """
+                            <kotlin.version>%s</kotlin.version>
+                        </properties>""".formatted(KOTLIN_VERSION));
+                pom = pom.replace("</dependencies>", """
+                            <dependency>
+                                <groupId>org.jetbrains.kotlin</groupId>
+                                <artifactId>kotlin-stdlib</artifactId>
+                                <version>${kotlin.version}</version>
+                            </dependency>
+                        </dependencies>""");
+                pom = pom.replace("</plugins>", """
+                            <plugin>
+                                <groupId>org.jetbrains.kotlin</groupId>
+                                <artifactId>kotlin-maven-plugin</artifactId>
+                                <version>${kotlin.version}</version>
+                                <extensions>true</extensions>
+                            </plugin>
+                        </plugins>""");
+                Files.writeString(pomPath, pom, StandardCharsets.UTF_8);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         return this;
     }
 
     /** Delete a previously-written file (module-relative fqcn), e.g. to simulate removal. */
     public FixtureProjectBuilder deleteClassInModule(String module, String fqcn) {
         try {
-            Files.deleteIfExists(sourcePath(module, "main", fqcn));
+            Files.deleteIfExists(sourcePath(module, "main", fqcn, ".java"));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -179,10 +239,11 @@ public final class FixtureProjectBuilder {
         return git;
     }
 
-    private Path sourcePath(String module, String mainOrTest, String fqcn) {
+    private Path sourcePath(String module, String mainOrTest, String fqcn, String extension) {
         Path base = module == null ? root : root.resolve(module);
-        String relative = fqcn.replace('.', '/') + ".java";
-        return base.resolve("src").resolve(mainOrTest).resolve("java").resolve(relative);
+        String relative = fqcn.replace('.', '/') + extension;
+        String languageDirectory = ".kt".equals(extension) ? "kotlin" : "java";
+        return base.resolve("src").resolve(mainOrTest).resolve(languageDirectory).resolve(relative);
     }
 
     private static void write(Path file, String content) {

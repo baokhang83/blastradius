@@ -1,8 +1,8 @@
 {
-  "feature": "run-ci-on-jdk-21-and-25",
-  "branch": "feature/run-ci-on-jdk-21-and-25",
+  "feature": "verify-kotlin-aware-dependency-tracking",
+  "branch": "feature/verify-kotlin-aware-dependency-tracking",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/run-ci-on-jdk-21-and-25/sessions/verify-jdk-matrix-coverage.md",
+  "last_session": "docs/fluencyloop/features/verify-kotlin-aware-dependency-tracking/sessions/detect-kotlin-inline-modifier-variants-conservatively.md",
   "base_ref": "main",
   "updated": "2026-07-20"
 }

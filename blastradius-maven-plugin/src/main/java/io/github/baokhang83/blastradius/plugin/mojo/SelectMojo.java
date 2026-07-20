@@ -1,7 +1,6 @@
 package io.github.baokhang83.blastradius.plugin.mojo;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
-import io.github.baokhang83.blastradius.core.git.FileKind;
 import io.github.baokhang83.blastradius.core.selection.NewOrModifiedTestSelector;
 import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
 import io.github.baokhang83.blastradius.core.selection.SelectionEngine;
@@ -271,8 +270,7 @@ public final class SelectMojo extends AbstractMojo {
                         }));
 
         Set<String> changedClassNames = changedFiles.stream()
-                .filter(f -> f.kind() == FileKind.JAVA_SOURCE)
-                .map(ChangedFile::changedClassName)
+                .flatMap(file -> file.candidateClassNames().stream())
                 .collect(Collectors.toUnmodifiableSet());
 
         Set<TestIdentity> newOrModifiedTests = allTests.stream()

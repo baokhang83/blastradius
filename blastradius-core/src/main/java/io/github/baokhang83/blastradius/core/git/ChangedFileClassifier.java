@@ -1,5 +1,7 @@
 package io.github.baokhang83.blastradius.core.git;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,18 +15,24 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
+import java.util.regex.Pattern;
 
 /**
  * Diffs a commit pair and classifies each changed file as {@link FileKind#JAVA_SOURCE}
  * (subject to dependency-match selection) or {@link FileKind#NON_SOURCE} (subject to the
- * conservative fallback rule, per FR-006). Java source class names are derived from the
- * standard Maven {@code src/main/java/} / {@code src/test/java/} layout, which also
- * makes multi-module reactors module-agnostic here (research.md #5).
+ * conservative fallback rule, per FR-006). Java and conventional Kotlin source class names are
+ * derived from standard Maven source layouts, which also makes multi-module reactors
+ * module-agnostic here (research.md #5). Kotlin files with an {@code inline fun} on either side
+ * of a diff deliberately fall back: the compiler copies their body into callers, so no stable
+ * class-load dependency can prove every affected test was selected.
  */
 public final class ChangedFileClassifier {
 
     private static final String MAIN_JAVA_MARKER = "src/main/java/";
     private static final String TEST_JAVA_MARKER = "src/test/java/";
+    private static final String MAIN_KOTLIN_MARKER = "src/main/kotlin/";
+    private static final String TEST_KOTLIN_MARKER = "src/test/kotlin/";
+    private static final Pattern INLINE_FUNCTION = Pattern.compile("\\binline\\b(?:\\s+[A-Za-z]+)*\\s+fun\\b");
 
     public List<ChangedFile> classify(Path repoPath, String baseCommit, String headCommit) {
         try (Git git = Git.open(repoPath.toFile())) {
@@ -48,7 +56,7 @@ public final class ChangedFileClassifier {
                     String path = entry.getChangeType() == DiffEntry.ChangeType.DELETE
                             ? entry.getOldPath()
                             : entry.getNewPath();
-                    result.add(classifyPath(path));
+                    result.add(classifyEntry(path, entry, reader));
                 }
                 return result;
             }
@@ -58,7 +66,10 @@ public final class ChangedFileClassifier {
         }
     }
 
-    private static ChangedFile classifyPath(String path) {
+    private static ChangedFile classifyEntry(String path, DiffEntry entry, ObjectReader reader) throws IOException {
+        if (path.endsWith(".kt") && containsInlineFunction(entry, reader)) {
+            return new ChangedFile(path, FileKind.NON_SOURCE, null);
+        }
         String className = classNameFromPath(path);
         if (className != null) {
             return new ChangedFile(path, FileKind.JAVA_SOURCE, className);
@@ -67,6 +78,19 @@ public final class ChangedFileClassifier {
             return new ChangedFile(path, FileKind.INERT, null);
         }
         return new ChangedFile(path, FileKind.NON_SOURCE, null);
+    }
+
+    private static boolean containsInlineFunction(DiffEntry entry, ObjectReader reader) throws IOException {
+        return sourceContainsInlineFunction(entry.getOldId().toObjectId(), reader)
+                || sourceContainsInlineFunction(entry.getNewId().toObjectId(), reader);
+    }
+
+    private static boolean sourceContainsInlineFunction(ObjectId sourceId, ObjectReader reader) throws IOException {
+        if (ObjectId.zeroId().equals(sourceId)) {
+            return false;
+        }
+        String source = new String(reader.open(sourceId).getBytes(), StandardCharsets.UTF_8);
+        return INLINE_FUNCTION.matcher(source).find();
     }
 
     // Documentation and media extensions that cannot affect a test outcome.
@@ -114,16 +138,24 @@ public final class ChangedFileClassifier {
 
     private static String classNameFromPath(String path) {
         String marker = null;
-        if (path.contains(MAIN_JAVA_MARKER)) {
+        String extension;
+        if (path.contains(MAIN_JAVA_MARKER) && path.endsWith(".java")) {
             marker = MAIN_JAVA_MARKER;
-        } else if (path.contains(TEST_JAVA_MARKER)) {
+            extension = ".java";
+        } else if (path.contains(TEST_JAVA_MARKER) && path.endsWith(".java")) {
             marker = TEST_JAVA_MARKER;
-        }
-        if (marker == null || !path.endsWith(".java")) {
+            extension = ".java";
+        } else if (path.contains(MAIN_KOTLIN_MARKER) && path.endsWith(".kt")) {
+            marker = MAIN_KOTLIN_MARKER;
+            extension = ".kt";
+        } else if (path.contains(TEST_KOTLIN_MARKER) && path.endsWith(".kt")) {
+            marker = TEST_KOTLIN_MARKER;
+            extension = ".kt";
+        } else {
             return null;
         }
         String relative = path.substring(path.indexOf(marker) + marker.length());
-        String withoutExtension = relative.substring(0, relative.length() - ".java".length());
+        String withoutExtension = relative.substring(0, relative.length() - extension.length());
         return withoutExtension.replace('/', '.');
     }
 }

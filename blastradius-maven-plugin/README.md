@@ -34,7 +34,8 @@ fail, only how many tests get the chance to.
    independent `mvn test` subprocess; your own build's Surefire execution is completely
    untouched by it.
 2. **Diff.** On every other build, the goal diffs the current commit against `baseRef` —
-   Java source changes vs. everything else (config, resources, `pom.xml`, migrations).
+   JVM source changes (Java and conventional Kotlin) vs. everything else (config, resources,
+   `pom.xml`, migrations).
 3. **Select.** A test runs if **(a)** one of its tracked dependencies changed, **(b)** it's
    new or was itself modified, or **(c)** a non-source-code change triggered the
    conservative "just run everything" fallback.
@@ -175,6 +176,21 @@ Fully supported. The goal runs once per module and computes an independent, corr
 Surefire filter for each — a change in one module correctly selects a *dependent* test in
 another module, because tracking is based on actual class loads observed at runtime, not a
 static per-module dependency graph that would need separate bookkeeping to get right.
+
+## Kotlin/JVM support
+
+Kotlin sources in the standard Maven roots (`src/main/kotlin` and `src/test/kotlin`) participate
+in the same track-and-select flow. For a changed `Greeting.kt`, Blastradius matches both the
+source-root class (`Greeting`) and Kotlin's `GreetingKt` file facade. Compiler-generated nested
+and lambda classes with names such as `GreetingKt$format$1` match their stable source root.
+
+If either version of a changed Kotlin file contains an inline function, the goal runs the full
+suite. Kotlin copies inline bodies into callers, so runtime class loads cannot reliably identify
+every test affected by that source file.
+
+Custom `@file:JvmName` facades and types whose emitted class names do not follow the source file
+name are outside this filename-based mapping. Retain the regular full-suite run recommended below
+when those patterns are in use.
 
 ## Reading a build's result
 

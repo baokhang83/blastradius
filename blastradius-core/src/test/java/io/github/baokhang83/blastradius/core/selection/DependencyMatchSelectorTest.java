@@ -35,6 +35,17 @@ class DependencyMatchSelectorTest {
     }
 
     @Test
+    void selectsWhenACompilerGeneratedNestedClassBelongsToAChangedSourceCandidate() {
+        SelectionDecision decision = selector.select(FOO_TEST,
+                Set.of("com.example.GreetingKt$format$1"),
+                Set.of("com.example.GreetingKt"));
+
+        assertTrue(decision.selected());
+        assertEquals(SelectionReason.DEPENDENCY_MATCH, decision.reason());
+        assertEquals("com.example.GreetingKt", decision.matchedChangedClass());
+    }
+
+    @Test
     void emptyDependencySetNeverMatches() {
         SelectionDecision decision = selector.select(FOO_TEST, Set.of(), Set.of("com.example.Foo"));
         assertFalse(decision.selected());

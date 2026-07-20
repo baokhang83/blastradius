@@ -29,8 +29,8 @@ name mismatch) is in [`SESSION.md`](SESSION.md).
    class actually loaded while each test runs and records which production classes it
    really touched — ground truth, not a guess.
 2. **Diff.** On every other build, the current commit is diffed against your base
-   reference: Java source changes vs. everything else (config, resources, `pom.xml`,
-   migrations).
+   reference: JVM source changes (Java and conventional Kotlin) vs. everything else
+   (config, resources, `pom.xml`, migrations).
 3. **Select.** A test runs if one of its tracked dependencies changed, it's new or was
    itself modified, or a non-source change triggered the conservative "just run
    everything" fallback.
@@ -81,6 +81,21 @@ Fully supported, without extra bookkeeping. Because tracking is based on actual 
 loads rather than a static per-module dependency graph, a change in one module correctly
 selects a *dependent* test living in another module — attribution falls out of the
 mechanism itself.
+
+## Kotlin/JVM support
+
+Blastradius recognizes conventional Kotlin source roots — `src/main/kotlin` and
+`src/test/kotlin` — alongside their Java equivalents. A changed `Greeting.kt` contributes both
+the ordinary `Greeting` name and Kotlin's generated `GreetingKt` file facade; recorded nested
+or lambda classes such as `GreetingKt$format$1` are attributed to that stable source root.
+
+Kotlin inline functions are deliberately conservative. Their bodies are copied into callers, so
+there may be no stable class load to attribute to the changed source file. If either side of a
+Kotlin change contains an inline function, Blastradius runs the full suite instead of narrowing.
+
+Custom `@file:JvmName` facades and Kotlin source files whose emitted class names do not follow
+their file names are outside this filename-based mapping. Keep the recommended regular full-suite
+run for those projects and for any other compiler-generated edge case.
 
 ## Why this is safe to use
 

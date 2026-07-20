@@ -1,7 +1,6 @@
 package io.github.baokhang83.blastradius.core.selection;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
-import io.github.baokhang83.blastradius.core.git.FileKind;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,8 +40,7 @@ public final class SelectionEngine {
         }
 
         Set<String> changedClassNames = changedFiles.stream()
-                .filter(f -> f.kind() == FileKind.JAVA_SOURCE)
-                .map(ChangedFile::changedClassName)
+                .flatMap(file -> file.candidateClassNames().stream())
                 .collect(Collectors.toUnmodifiableSet());
 
         List<SelectionDecision> decisions = new ArrayList<>();

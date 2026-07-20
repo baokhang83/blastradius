@@ -11,7 +11,6 @@ import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
 import io.github.baokhang83.blastradius.validator.git.CommitCheckout;
 import io.github.baokhang83.blastradius.validator.git.CommitPair;
 import io.github.baokhang83.blastradius.validator.git.CommitWindowResolver;
-import io.github.baokhang83.blastradius.core.git.FileKind;
 import io.github.baokhang83.blastradius.validator.git.PairStatus;
 import io.github.baokhang83.blastradius.validator.report.AnalysisReport;
 import io.github.baokhang83.blastradius.validator.report.ReportWriter;
@@ -156,8 +155,7 @@ public final class RunCommand {
         List<ChangedFile> changedFiles =
                 changedFileClassifier.classify(targetRepo, pair.baseCommit(), pair.headCommit());
         Set<String> changedClassNames = changedFiles.stream()
-                .filter(f -> f.kind() == FileKind.JAVA_SOURCE)
-                .map(ChangedFile::changedClassName)
+                .flatMap(file -> file.candidateClassNames().stream())
                 .collect(Collectors.toUnmodifiableSet());
 
         Set<TestIdentity> allTests = groundTruth.stream().map(GroundTruthResult::test).collect(Collectors.toSet());

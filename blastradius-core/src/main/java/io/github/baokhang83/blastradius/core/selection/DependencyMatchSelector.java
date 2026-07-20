@@ -7,9 +7,11 @@ import java.util.Set;
 public final class DependencyMatchSelector {
 
     public SelectionDecision select(TestIdentity test, Set<String> testDependencies, Set<String> changedClassNames) {
-        for (String dependency : testDependencies) {
-            if (changedClassNames.contains(dependency)) {
-                return SelectionDecision.dependencyMatch(test, dependency);
+        for (String changedClassName : changedClassNames) {
+            if (testDependencies.contains(changedClassName)
+                    || testDependencies.stream().anyMatch(
+                            dependency -> dependency.startsWith(changedClassName + "$"))) {
+                return SelectionDecision.dependencyMatch(test, changedClassName);
             }
         }
         return SelectionDecision.noMatch(test);
