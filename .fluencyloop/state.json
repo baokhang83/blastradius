@@ -1,8 +1,8 @@
 {
-  "feature": "verify-java-25-tracking-agent-support",
-  "branch": "feature/verify-java-25-tracking-agent-support",
+  "feature": "run-ci-on-jdk-21-and-25",
+  "branch": "feature/run-ci-on-jdk-21-and-25",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/verify-java-25-tracking-agent-support/sessions/track-jdk-25-virtual-and-hidden-class-loads.md",
+  "last_session": "docs/fluencyloop/features/run-ci-on-jdk-21-and-25/sessions/verify-jdk-matrix-coverage.md",
   "base_ref": "main",
   "updated": "2026-07-20"
 }
