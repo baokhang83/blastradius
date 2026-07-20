@@ -1,8 +1,8 @@
 {
-  "feature": "prepare-the-0-1-0-maven-central-release",
-  "branch": "feature/prepare-the-0-1-0-maven-central-release",
+  "feature": "enforce-the-required-jdk-21-build-check-on-main",
+  "branch": "feature/enforce-the-required-jdk-21-build-check-on-main",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/prepare-the-0-1-0-maven-central-release/sessions/document-gpg-key-distribution-and-ci-secret-provisioning.md",
+  "last_session": "docs/fluencyloop/features/enforce-the-required-jdk-21-build-check-on-main/sessions/require-the-existing-jdk-21-build-before-main-merges.md",
   "base_ref": "feature/shadow-mode-validator",
   "updated": "2026-07-20"
 }
