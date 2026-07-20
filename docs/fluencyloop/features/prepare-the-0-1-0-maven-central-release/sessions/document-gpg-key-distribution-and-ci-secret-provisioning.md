@@ -10,11 +10,12 @@
   encrypted `MAVEN_GPG_PRIVATE_KEY` GitHub secret. **Status:** documented.
 - **Noninteractive signing:** The release workflow imports that key into the ephemeral runner and
   receives `MAVEN_GPG_PASSPHRASE` separately, allowing Maven's loopback pinentry configuration
-  to sign without a workstation GPG agent. The passphrase secret still requires one interactive,
-  local provisioning step. **Status:** follow-up.
-- **CI signing proof:** `workflow_dispatch` runs the same CI key-import and release-signing path
-  with `central.skip.publishing=true`; it is safe to trigger without creating a release tag or
-  deploying artifacts. **Status:** documented.
+  to sign without a workstation GPG agent. The passphrase secret was provisioned locally and then
+  exercised successfully in CI. **Status:** documented.
+- **CI signing proof:** A temporary branch workflow successfully imported the encrypted private
+  key and completed `-Prelease verify` with publishing disabled. The permanent
+  `workflow_dispatch` path reuses those steps and is safe to run after it reaches `main`.
+  **Status:** documented.
 
 ## Decision: separate public-key distribution from encrypted CI signing secrets
 
@@ -22,7 +23,7 @@
 - **why:** The supported keyserver exposes the fingerprint for Central verification while GitHub Actions imports the private key and reads its passphrase only from encrypted secrets.
 - **alternative:** Commit the signing material or rely on a workstation GPG agent — rejected: either exposes credentials or makes tag releases non-reproducible.
 - **design:** ../design.md#release-flow
-- **trust:** ⚠ not independently verified
+- **trust:** ✓ verified
 
 ## Decision: add a manual non-publishing signing check instead of using a test tag
 
@@ -31,3 +32,19 @@
 - **alternative:** Push a temporary v* tag to test signing — rejected: the existing tag trigger would attempt a real Central deployment.
 - **design:** ../design.md#release-flow
 - **trust:** ⚠ not independently verified
+
+## Decision: read the GPG passphrase by environment-variable name
+
+- **where:** `pom.xml release maven-gpg-plugin configuration`
+- **why:** passphraseEnvName reads MAVEN_GPG_PASSPHRASE directly in the ephemeral CI runner and avoids Maven's deprecated direct passphrase interpolation.
+- **alternative:** Configure the passphrase value directly in the POM — rejected: Maven flags it as deprecated and it needlessly materializes secret handling in project configuration.
+- **design:** ../design.md#release-flow
+- **trust:** ✓ verified
+
+## Decision: prove CI signing with a temporary branch-scoped verifier
+
+- **where:** `.github/workflows/verify-release-signing.yml temporary verification workflow`
+- **why:** The temporary push workflow exercised the imported private key and release-profile signing before the permanent workflow reaches main, then was removed after a successful run.
+- **alternative:** Wait for default-branch registration or push a test release tag — rejected: waiting defers verification and a tag could publish artifacts.
+- **design:** ../design.md#release-flow
+- **trust:** ✓ verified
