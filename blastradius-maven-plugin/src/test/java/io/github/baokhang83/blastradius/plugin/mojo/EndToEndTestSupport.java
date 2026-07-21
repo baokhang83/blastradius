@@ -28,13 +28,15 @@ import java.util.concurrent.TimeUnit;
  */
 final class EndToEndTestSupport {
 
+    private static final PluginInstaller PLUGIN_INSTALLER = new PluginInstaller();
+
     private EndToEndTestSupport() {
     }
 
     static void installThisPluginOnce() throws IOException, InterruptedException {
-        runToCompletion(new ProcessBuilder(
+        PLUGIN_INSTALLER.installOnce(() -> runToCompletion(new ProcessBuilder(
                 "mvn", "-q", "-pl", "blastradius-maven-plugin", "-am", "install", "-DskipTests", "-Dinvoker.skip=true")
-                .directory(Path.of("..").toAbsolutePath().normalize().toFile()));
+                .directory(Path.of("..").toAbsolutePath().normalize().toFile())));
     }
 
     /** A single-module fixture with an independent Foo/FooTest and Bar/BarTest pair. */
