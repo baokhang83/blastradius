@@ -38,18 +38,22 @@ public final class BlastradiusPlugin implements Plugin<Project> {
             String baseReference) {
         test.getInputs().property("blastradius.baseReference", baseReference);
         test.getInputs().property("blastradius.headCommit", gitState.headCommit());
-        test.getInputs().property("blastradius.baseCommit", gitState.baseCommit());
+        test.getInputs().property("blastradius.baseReferenceCommit", gitState.baseReferenceCommit());
 
         if (gitState.baseReferenceBuild()) {
             configureTracking(test, repositoryDirectory, indexPathKey, gitState.headCommit());
+        } else if (!gitState.comparisonBaseAvailable()) {
+            test.doFirst(new NoComparisonBaseFallbackAction());
         } else {
+            String comparisonBase = gitState.comparisonBaseCommit();
+            test.getInputs().property("blastradius.comparisonBaseCommit", comparisonBase);
             Path baselineIndexPath = repositoryDirectory.resolve(
-                    CommitIndexKey.forCommit(indexPathKey, gitState.baseCommit()));
+                    CommitIndexKey.forCommit(indexPathKey, comparisonBase));
             test.getInputs()
                     .files(project.files(baselineIndexPath.toFile()).filter(File::isFile))
                     .withPathSensitivity(PathSensitivity.RELATIVE);
             test.doFirst(new ApplySelectionAction(
-                    repositoryDirectory.toFile(), indexPathKey, gitState.baseCommit(), gitState.headCommit()));
+                    repositoryDirectory.toFile(), indexPathKey, comparisonBase, gitState.headCommit()));
         }
     }
 

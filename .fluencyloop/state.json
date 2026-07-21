@@ -1,8 +1,8 @@
 {
-  "feature": "commit-keyed-index-baseline-resolution-26",
-  "branch": "feature/commit-keyed-index-baseline-resolution-26",
+  "feature": "pr-merge-base-aware-diffing-28",
+  "branch": "feature/pr-merge-base-aware-diffing-28",
   "stage": "review",
-  "last_session": "docs/fluencyloop/features/commit-keyed-index-baseline-resolution-26/sessions/route-baseline-keys-through-maven-and-gradle.md",
+  "last_session": "docs/fluencyloop/features/pr-merge-base-aware-diffing-28/sessions/apply-the-comparison-base-to-maven-and-gradle-selection.md",
   "base_ref": "main",
-  "updated": "2026-07-20"
+  "updated": "2026-07-21"
 }

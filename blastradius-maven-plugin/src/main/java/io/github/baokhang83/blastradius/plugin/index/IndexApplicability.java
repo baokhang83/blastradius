@@ -14,6 +14,7 @@ public record IndexApplicability(Status status, DependencyIndex index) {
         UNREADABLE,
         ANCHOR_UNREACHABLE,
         ANCHOR_MISMATCH,
+        MERGE_BASE_UNAVAILABLE,
         /**
          * Not a property of the index itself — set only when an otherwise-{@code
          * APPLICABLE} index's {@code SELECT} computation hits an unexpected internal
@@ -42,6 +43,10 @@ public record IndexApplicability(Status status, DependencyIndex index) {
 
     public static IndexApplicability anchorMismatch() {
         return new IndexApplicability(Status.ANCHOR_MISMATCH, null);
+    }
+
+    public static IndexApplicability mergeBaseUnavailable() {
+        return new IndexApplicability(Status.MERGE_BASE_UNAVAILABLE, null);
     }
 
     public static IndexApplicability internalError() {

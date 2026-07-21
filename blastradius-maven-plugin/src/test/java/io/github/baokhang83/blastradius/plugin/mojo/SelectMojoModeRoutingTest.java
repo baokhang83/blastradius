@@ -7,14 +7,15 @@ import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
 import io.github.baokhang83.blastradius.plugin.index.IndexApplicability;
 import io.github.baokhang83.blastradius.plugin.report.BuildReport;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class SelectMojoModeRoutingTest {
 
     private static final CurrentChanges BASE_REF_BUILD =
-            new CurrentChanges("main", "abc123", "abc123", true, List.of());
+            new CurrentChanges("main", "abc123", Optional.of("abc123"), "abc123", true, List.of());
     private static final CurrentChanges PR_BUILD =
-            new CurrentChanges("main", "abc123", "def456", false, List.of());
+            new CurrentChanges("main", "abc123", Optional.of("abc123"), "def456", false, List.of());
 
     @Test
     void baseRefBuildAlwaysRoutesToTrack() {
@@ -63,6 +64,13 @@ class SelectMojoModeRoutingTest {
     @Test
     void prBuildWithUnreachableAnchorRoutesToFallback() {
         BuildReport.Mode mode = SelectMojo.determineMode(PR_BUILD, IndexApplicability.anchorUnreachable(), null);
+
+        assertEquals(BuildReport.Mode.FALLBACK, mode);
+    }
+
+    @Test
+    void prBuildWithoutAMergeBaseRoutesToFallback() {
+        BuildReport.Mode mode = SelectMojo.determineMode(PR_BUILD, IndexApplicability.mergeBaseUnavailable(), null);
 
         assertEquals(BuildReport.Mode.FALLBACK, mode);
     }

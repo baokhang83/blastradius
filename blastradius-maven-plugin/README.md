@@ -33,9 +33,10 @@ fail, only how many tests get the chance to.
    fresh dependency map — which test touched which production classes. This runs as an
    independent `mvn test` subprocess; your own build's Surefire execution is completely
    untouched by it.
-2. **Diff.** On every other build, the goal diffs the current commit against `baseRef` —
-   JVM source changes (Java and conventional Kotlin) vs. everything else (config, resources,
-   `pom.xml`, migrations).
+2. **Diff.** On every other build, the goal finds the merge base of the current commit and
+   `baseRef`, then diffs from that common ancestor to `HEAD`. This excludes target-branch
+   changes that landed after the branch diverged while still classifying JVM source changes
+   (Java and conventional Kotlin) versus config, resources, `pom.xml`, and migrations.
 3. **Select.** A test runs if **(a)** one of its tracked dependencies changed, **(b)** it's
    new or was itself modified, or **(c)** a non-source-code change triggered the
    conservative "just run everything" fallback.
@@ -47,8 +48,8 @@ Three modes fall out of this, decided fresh on every invocation — never config
 | Mode | When | What happens |
 |---|---|---|
 | **`TRACK`** | Current commit *is* `baseRef` (or `-Dblastradius.mode=track`) | Full suite runs, untouched. A subprocess rebuilds the index in the background for next time. |
-| **`SELECT`** | Not `baseRef`, and a usable index exists | Surefire is narrowed to the affected tests. This is the fast path. |
-| **`FALLBACK`** | Not `baseRef`, and no usable index (missing, unreadable, unreachable, or for another baseline commit) | Full suite runs, untouched. Nothing gained by tracking from a throwaway branch commit, so nothing is forked. |
+| **`SELECT`** | Not `baseRef`, and a usable index exists for the merge base | Surefire is narrowed to the affected tests. This is the fast path. |
+| **`FALLBACK`** | Not `baseRef`, and no usable index (missing, unreadable, unreachable, for another baseline commit, or no common ancestor) | Full suite runs, untouched. Nothing gained by tracking from a throwaway branch commit, so nothing is forked. |
 
 `TRACK` and `FALLBACK` are never treated as errors — they're the plugin being honest about
 not having enough information yet, and defaulting to safe.
@@ -98,8 +99,8 @@ separate page for each goal, including `help-mojo.html` and `select-mojo.html`.
 
 | Parameter | CLI property | Default | Required | Meaning |
 |---|---|---|---|---|
-| `baseRef` | `-DbaseRef` | — | **yes** | The git reference every build diffs against (`main`, `origin/main`, a tag — anything JGit can resolve). |
-| `indexPath` | `-DindexPath` | `.blastradius/index.json` | no | Root-relative index-file template. The resolved baseline SHA is inserted before its filename, so the default produces `.blastradius/<full-sha>/index.json`. Rejected if it resolves outside the project directory. |
+| `baseRef` | `-DbaseRef` | — | **yes** | The target git reference (`main`, `origin/main`, a tag — anything JGit can resolve). Non-target builds compare from its merge base with `HEAD`. |
+| `indexPath` | `-DindexPath` | `.blastradius/index.json` | no | Root-relative index-file template. The merge-base SHA is inserted before its filename for `SELECT`, so the default produces `.blastradius/<full-sha>/index.json`. Rejected if it resolves outside the project directory. |
 | — | `-Dblastradius.mode=track` | — | no | Force `TRACK` regardless of what commit you're on — for explicitly pre-warming the index outside an ordinary trunk build. |
 | — | `-Dblastradius.explain=true` | `false` | no | Print the full per-test decision listing to the console, not just the aggregate summary. |
 
@@ -154,17 +155,18 @@ Add `-Dblastradius.explain=true` for the per-test breakdown that line is pointin
 ```
 
 The reason in parentheses always tells you *why*: `MISSING` (no TRACK build exists for the
-resolved baseline), `UNREADABLE` (the index file is corrupt), `ANCHOR_UNREACHABLE` (its
+resolved merge base), `UNREADABLE` (the index file is corrupt), `ANCHOR_UNREACHABLE` (its
 recorded commit no longer exists, e.g. after a history rewrite), `ANCHOR_MISMATCH` (the stored
-index declares a different baseline), or `INTERNAL_ERROR` (the goal hit an unexpected fault
-mid-computation and safely bailed out to a full run rather than crash the build or guess).
+index declares a different baseline), `MERGE_BASE_UNAVAILABLE` (the refs have no common
+ancestor), or `INTERNAL_ERROR` (the goal hit an unexpected fault mid-computation and safely
+bailed out to a full run rather than crash the build or guess).
 
 ## The files it writes
 
 Both live under `.blastradius/` at the reactor root — add it to `.gitignore`.
 
 - **`<full-sha>/index.json`** — the persisted dependency map a `TRACK` build produces for its
-  exact commit and a `SELECT` build reads for its resolved baseline. The default location is
+  exact commit and a `SELECT` build reads for its resolved merge base. The default location is
   `.blastradius/<full-sha>/index.json`.
   `{ anchorCommit, builtAt, testDependencies: [{ test, dependsOnClasses }] }`.
 - **`last-build-report.json`** — this build's own decisions, machine-readable.

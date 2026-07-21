@@ -79,6 +79,41 @@ class BlastradiusPluginFunctionalTest {
         assertFalse(Files.exists(projectDir.resolve("build/bar-ran")));
     }
 
+    @Test
+    void selectsAgainstTheMergeBaseWhenMainAdvancesAfterTheFeatureBranches() throws Exception {
+        writeProject();
+        String branchPoint = commitBaseline();
+        changeFoo();
+        advanceMainWithBarChange();
+        writeIndex(branchPoint);
+
+        BuildResult result = runGradle("clean", "test");
+
+        assertTrue(result.getOutput().contains("[blastradius] SELECT — 1 / 2 tests selected"), result.getOutput());
+        assertTrue(Files.exists(projectDir.resolve("build/foo-ran")));
+        assertFalse(Files.exists(projectDir.resolve("build/bar-ran")));
+    }
+
+    @Test
+    void leavesTheTaskUnfilteredWhenTheHistoriesHaveNoCommonAncestor() throws Exception {
+        writeProject();
+        commitBaseline();
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.checkout().setName("unrelated").setOrphan(true).call();
+        }
+        write("unrelated.txt", "unrelated history\n");
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.add().addFilepattern(".").call();
+            git.commit().setMessage("unrelated history").setAuthor("fixture", "fixture@example.invalid").call();
+        }
+
+        BuildResult result = runGradle("clean", "test");
+
+        assertTrue(result.getOutput().contains("MERGE_BASE_UNAVAILABLE"), result.getOutput());
+        assertTrue(Files.exists(projectDir.resolve("build/foo-ran")));
+        assertTrue(Files.exists(projectDir.resolve("build/bar-ran")));
+    }
+
     private void writeProject() throws IOException {
         write("settings.gradle", "rootProject.name = 'consumer'\n");
         write("build.gradle", """
@@ -152,6 +187,18 @@ class BlastradiusPluginFunctionalTest {
             git.checkout().setCreateBranch(true).setName("feature").call();
             git.add().addFilepattern("src/main/java/example/Foo.java").call();
             git.commit().setMessage("change foo").setAuthor("fixture", "fixture@example.invalid").call();
+        }
+    }
+
+    private void advanceMainWithBarChange() throws Exception {
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.checkout().setName("main").call();
+        }
+        write("src/main/java/example/Bar.java", "package example; public final class Bar { public int value() { return 4; } }\n");
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.add().addFilepattern("src/main/java/example/Bar.java").call();
+            git.commit().setMessage("advance main").setAuthor("fixture", "fixture@example.invalid").call();
+            git.checkout().setName("feature").call();
         }
     }
 

@@ -26,13 +26,13 @@ final class ApplySelectionAction implements Action<Task> {
 
     private final File repositoryDirectory;
     private final String indexPathKey;
-    private final String baseCommit;
+    private final String comparisonBaseCommit;
     private final String headCommit;
 
-    ApplySelectionAction(File repositoryDirectory, String indexPathKey, String baseCommit, String headCommit) {
+    ApplySelectionAction(File repositoryDirectory, String indexPathKey, String comparisonBaseCommit, String headCommit) {
         this.repositoryDirectory = repositoryDirectory;
         this.indexPathKey = indexPathKey;
-        this.baseCommit = baseCommit;
+        this.comparisonBaseCommit = comparisonBaseCommit;
         this.headCommit = headCommit;
     }
 
@@ -40,10 +40,10 @@ final class ApplySelectionAction implements Action<Task> {
     public void execute(Task task) {
         Test test = (Test) task;
         Path repositoryRoot = repositoryDirectory.toPath().toAbsolutePath().normalize();
-        String indexKey = CommitIndexKey.forCommit(indexPathKey, baseCommit);
+        String indexKey = CommitIndexKey.forCommit(indexPathKey, comparisonBaseCommit);
         IndexStore<DependencyIndex> indexStore = new FileIndexStore<>(repositoryRoot, DependencyIndex.class);
         IndexApplicability applicability = new IndexApplicabilityResolver()
-                .resolve(indexStore, indexKey, baseCommit, repositoryRoot);
+                .resolve(indexStore, indexKey, comparisonBaseCommit, repositoryRoot);
         if (applicability.status() != IndexApplicability.Status.APPLICABLE) {
             test.getLogger().info("[blastradius] Gradle test task left unfiltered ({})", applicability.status());
             return;
@@ -53,7 +53,7 @@ final class ApplySelectionAction implements Action<Task> {
             Set<TestIdentity> allTests = new TestDiscoverer().discoverAllTests(
                     test.getClasspath().getFiles(), test.getTestClassesDirs().getFiles());
             List<ChangedFile> changedFiles = new ChangedFileClassifier().classify(
-                    repositoryDirectory.toPath(), baseCommit, headCommit);
+                    repositoryDirectory.toPath(), comparisonBaseCommit, headCommit);
             List<SelectionDecision> decisions = computeDecisions(allTests, applicability.index(), changedFiles);
             applyFilter(test, decisions);
             test.getLogger().lifecycle("[blastradius] SELECT — {} / {} tests selected", decisions.stream()

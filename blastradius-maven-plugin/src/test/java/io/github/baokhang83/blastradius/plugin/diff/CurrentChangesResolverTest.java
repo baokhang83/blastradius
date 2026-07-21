@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.baokhang83.blastradius.core.git.FileKind;
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import java.nio.file.Path;
+import org.eclipse.jgit.api.Git;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -54,5 +55,34 @@ class CurrentChangesResolverTest {
         CurrentChanges changes = resolver.resolve(projectDir, initial);
 
         assertEquals(initial, changes.baseReference());
+    }
+
+    @Test
+    void diffsTheFeatureBranchFromItsMergeBaseNotTheAdvancedTarget(@TempDir Path projectDir) throws Exception {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        String branchPoint = fixture.commit("initial");
+
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.checkout().setCreateBranch(true).setName("feature").call();
+        }
+        fixture.writeClass("com.example.FeatureOnly", "package com.example; class FeatureOnly {}");
+        fixture.commit("feature change");
+
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.checkout().setName("main").call();
+        }
+        fixture.writeClass("com.example.TargetOnly", "package com.example; class TargetOnly {}");
+        String targetTip = fixture.commit("target change");
+
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.checkout().setName("feature").call();
+        }
+
+        CurrentChanges changes = resolver.resolve(projectDir, "main");
+
+        assertEquals(targetTip, changes.resolvedBaseCommit());
+        assertEquals(branchPoint, changes.comparisonBaseCommit().orElseThrow());
+        assertEquals(1, changes.changedFiles().size());
+        assertEquals("com.example.FeatureOnly", changes.changedFiles().get(0).changedClassName());
     }
 }
