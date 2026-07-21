@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import io.github.baokhang83.blastradius.core.index.FileIndexStore;
+import io.github.baokhang83.blastradius.core.index.DependencyIndexFormat;
 import io.github.baokhang83.blastradius.core.index.IndexStore;
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
@@ -85,6 +86,18 @@ class IndexApplicabilityResolverTest {
         IndexApplicability applicability = resolver.resolve(store(projectDir), INDEX_KEY, expectedBaseCommit, projectDir);
 
         assertEquals(IndexApplicability.Status.ANCHOR_MISMATCH, applicability.status());
+        assertNull(applicability.index());
+    }
+
+    @Test
+    void unsupportedIndexFormatIsReportedAsAMismatch(@TempDir Path projectDir) {
+        String anchorCommit = FixtureProjectBuilder.singleModule(projectDir).commit("initial");
+        store(projectDir).put(INDEX_KEY, new DependencyIndex(
+                DependencyIndexFormat.CURRENT_VERSION + 1, anchorCommit, "2026-07-09T10:00:00Z", List.of()));
+
+        IndexApplicability applicability = resolver.resolve(store(projectDir), INDEX_KEY, anchorCommit, projectDir);
+
+        assertEquals(IndexApplicability.Status.FORMAT_VERSION_MISMATCH, applicability.status());
         assertNull(applicability.index());
     }
 

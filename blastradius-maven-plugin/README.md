@@ -49,7 +49,7 @@ Three modes fall out of this, decided fresh on every invocation — never config
 |---|---|---|
 | **`TRACK`** | Current commit *is* `baseRef` (or `-Dblastradius.mode=track`) | Full suite runs, untouched. A subprocess rebuilds the index in the background for next time. |
 | **`SELECT`** | Not `baseRef`, and a usable index exists for the merge base | Surefire is narrowed to the affected tests. This is the fast path. |
-| **`FALLBACK`** | Not `baseRef`, and no usable index (missing, unreadable, unreachable, for another baseline commit, or no common ancestor) | Full suite runs, untouched. Nothing gained by tracking from a throwaway branch commit, so nothing is forked. |
+| **`FALLBACK`** | Not `baseRef`, and no usable index (missing, unreadable, unsupported format, unreachable, for another baseline commit, or no common ancestor) | Full suite runs, untouched. Nothing gained by tracking from a throwaway branch commit, so nothing is forked. |
 
 `TRACK` and `FALLBACK` are never treated as errors — they're the plugin being honest about
 not having enough information yet, and defaulting to safe.
@@ -155,7 +155,8 @@ Add `-Dblastradius.explain=true` for the per-test breakdown that line is pointin
 ```
 
 The reason in parentheses always tells you *why*: `MISSING` (no TRACK build exists for the
-resolved merge base), `UNREADABLE` (the index file is corrupt), `ANCHOR_UNREACHABLE` (its
+resolved merge base), `UNREADABLE` (the index file is corrupt), `FORMAT_VERSION_MISMATCH` (the
+index was written by an unsupported schema version), `ANCHOR_UNREACHABLE` (its
 recorded commit no longer exists, e.g. after a history rewrite), `ANCHOR_MISMATCH` (the stored
 index declares a different baseline), `MERGE_BASE_UNAVAILABLE` (the refs have no common
 ancestor), or `INTERNAL_ERROR` (the goal hit an unexpected fault mid-computation and safely
@@ -168,7 +169,9 @@ Both live under `.blastradius/` at the reactor root — add it to `.gitignore`.
 - **`<full-sha>/index.json`** — the persisted dependency map a `TRACK` build produces for its
   exact commit and a `SELECT` build reads for its resolved merge base. The default location is
   `.blastradius/<full-sha>/index.json`.
-  `{ anchorCommit, builtAt, testDependencies: [{ test, dependsOnClasses }] }`.
+  `{ formatVersion, anchorCommit, builtAt, testDependencies: [{ test, dependsOnClasses }] }`.
+  Newly tracked indexes use format version 1. Existing unversioned indexes are migrated in
+  memory; any other version safely falls back to the full suite.
 - **`last-build-report.json`** — this build's own decisions, machine-readable.
   `{ mode, indexApplicability, decisions: [{ test, selected, reason, matchedChangedClass }], selectedCount, totalCount }`.
   This is the source of truth every console line above is a rendering of — audit a specific

@@ -114,6 +114,20 @@ class BlastradiusPluginFunctionalTest {
         assertTrue(Files.exists(projectDir.resolve("build/bar-ran")));
     }
 
+    @Test
+    void leavesTheTaskUnfilteredWhenTheIndexFormatIsUnsupported() throws Exception {
+        writeProject();
+        String baselineCommit = commitBaseline();
+        changeFoo();
+        writeUnsupportedIndex(baselineCommit);
+
+        BuildResult result = runGradle("test");
+
+        assertTrue(result.getOutput().contains("FORMAT_VERSION_MISMATCH"), result.getOutput());
+        assertTrue(Files.exists(projectDir.resolve("build/foo-ran")));
+        assertTrue(Files.exists(projectDir.resolve("build/bar-ran")));
+    }
+
     private void writeProject() throws IOException {
         write("settings.gradle", "rootProject.name = 'consumer'\n");
         write("build.gradle", """
@@ -211,6 +225,17 @@ class BlastradiusPluginFunctionalTest {
                     {"test": {"className": "example.FooTest", "methodName": "checksFoo"}, "dependsOnClasses": ["example.Foo"]},
                     {"test": {"className": "example.BarTest", "methodName": "checksBar"}, "dependsOnClasses": ["example.Bar"]}
                   ]
+                }
+                """.formatted(baselineCommit));
+    }
+
+    private void writeUnsupportedIndex(String baselineCommit) throws IOException {
+        write(CommitIndexKey.forCommit(".blastradius/index.json", baselineCommit), """
+                {
+                  "formatVersion": 2,
+                  "anchorCommit": "%s",
+                  "builtAt": "2026-07-20T00:00:00Z",
+                  "testDependencies": []
                 }
                 """.formatted(baselineCommit));
     }

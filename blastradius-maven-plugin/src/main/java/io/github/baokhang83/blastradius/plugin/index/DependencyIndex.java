@@ -1,5 +1,6 @@
 package io.github.baokhang83.blastradius.plugin.index;
 
+import io.github.baokhang83.blastradius.core.index.DependencyIndexFormat;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +18,15 @@ import java.util.stream.Collectors;
  * checksums (data-model.md) — the proven {@code SelectionEngine}/{@code
  * DependencyMatchSelector} logic only ever consumes class names.
  */
-public record DependencyIndex(String anchorCommit, String builtAt, List<TestDependencyEntry> testDependencies) {
+public record DependencyIndex(int formatVersion, String anchorCommit, String builtAt, List<TestDependencyEntry> testDependencies) {
+
+    public DependencyIndex {
+        formatVersion = DependencyIndexFormat.migrateLegacyVersion(formatVersion);
+    }
+
+    public DependencyIndex(String anchorCommit, String builtAt, List<TestDependencyEntry> testDependencies) {
+        this(DependencyIndexFormat.CURRENT_VERSION, anchorCommit, builtAt, testDependencies);
+    }
 
     public record TestDependencyEntry(TestIdentity test, Set<String> dependsOnClasses) {}
 
@@ -25,5 +34,9 @@ public record DependencyIndex(String anchorCommit, String builtAt, List<TestDepe
     public Map<TestIdentity, Set<String>> testDependenciesByTest() {
         return testDependencies.stream()
                 .collect(Collectors.toUnmodifiableMap(TestDependencyEntry::test, TestDependencyEntry::dependsOnClasses));
+    }
+
+    public boolean hasCurrentFormat() {
+        return DependencyIndexFormat.isCurrentVersion(formatVersion);
     }
 }

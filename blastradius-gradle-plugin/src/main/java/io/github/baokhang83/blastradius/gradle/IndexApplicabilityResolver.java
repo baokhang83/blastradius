@@ -21,6 +21,9 @@ final class IndexApplicabilityResolver {
         if (index == null) {
             return IndexApplicability.missing();
         }
+        if (!index.hasCurrentFormat()) {
+            return IndexApplicability.formatVersionMismatch();
+        }
 
         if (!anchorIsReachable(index.anchorCommit(), projectDir)) {
             return IndexApplicability.anchorUnreachable();

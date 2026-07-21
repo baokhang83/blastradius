@@ -60,6 +60,16 @@ class ConsoleSummaryRendererTest {
                 "expected the fallback reason to be surfaced: " + lines.get(0));
     }
 
+    @Test
+    void fallbackModeNamesAnUnsupportedIndexFormat() {
+        BuildReport report = new BuildReport(
+                BuildReport.Mode.FALLBACK, IndexApplicability.Status.FORMAT_VERSION_MISMATCH, List.of(), 20, 20, null);
+
+        List<String> lines = renderer.render(report, null);
+
+        assertTrue(lines.get(0).contains("FORMAT_VERSION_MISMATCH"), lines.get(0));
+    }
+
     private static List<SelectionDecision> decisionsOfSizes(int matched, int newOrModified, int fallback, int noMatch) {
         List<SelectionDecision> decisions = new java.util.ArrayList<>();
         for (int i = 0; i < matched; i++) {

@@ -12,6 +12,7 @@ public record IndexApplicability(Status status, DependencyIndex index) {
         APPLICABLE,
         MISSING,
         UNREADABLE,
+        FORMAT_VERSION_MISMATCH,
         ANCHOR_UNREACHABLE,
         ANCHOR_MISMATCH,
         MERGE_BASE_UNAVAILABLE,
@@ -35,6 +36,10 @@ public record IndexApplicability(Status status, DependencyIndex index) {
 
     public static IndexApplicability unreadable() {
         return new IndexApplicability(Status.UNREADABLE, null);
+    }
+
+    public static IndexApplicability formatVersionMismatch() {
+        return new IndexApplicability(Status.FORMAT_VERSION_MISMATCH, null);
     }
 
     public static IndexApplicability anchorUnreachable() {
