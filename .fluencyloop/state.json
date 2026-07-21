@@ -1,8 +1,8 @@
 {
-  "feature": "pr-merge-base-aware-diffing-28",
-  "branch": "feature/pr-merge-base-aware-diffing-28",
+  "feature": "reduce-maven-plugin-integration-test-runtime-75",
+  "branch": "feature/reduce-maven-plugin-integration-test-runtime-75",
   "stage": "review",
-  "last_session": "docs/fluencyloop/features/pr-merge-base-aware-diffing-28/sessions/apply-the-comparison-base-to-maven-and-gradle-selection.md",
+  "last_session": "docs/fluencyloop/features/reduce-maven-plugin-integration-test-runtime-75/sessions/cache-successful-maven-plugin-setup-per-test-jvm.md",
   "base_ref": "main",
   "updated": "2026-07-21"
 }
