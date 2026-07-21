@@ -28,9 +28,9 @@ name mismatch) is in [`SESSION.md`](SESSION.md).
 1. **Track.** On a build of your base branch, a `java.lang.instrument` agent watches every
    class actually loaded while each test runs and records which production classes it
    really touched — ground truth, not a guess.
-2. **Diff.** On every other build, the current commit is diffed against your base
-   reference: JVM source changes (Java and conventional Kotlin) vs. everything else
-   (config, resources, `pom.xml`, migrations).
+2. **Diff.** On every other build, the current commit is diffed from its merge base with your
+   base reference. This isolates the PR's own JVM source changes (Java and conventional Kotlin)
+   from changes that landed on the target branch after the PR diverged.
 3. **Select.** A test runs if one of its tracked dependencies changed, it's new or was
    itself modified, or a non-source change triggered the conservative "just run
    everything" fallback.

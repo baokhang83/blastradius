@@ -2,11 +2,10 @@ package io.github.baokhang83.blastradius.plugin.diff;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
+import io.github.baokhang83.blastradius.core.git.GitComparison;
+import io.github.baokhang83.blastradius.core.git.MergeBaseResolver;
 import java.nio.file.Path;
 import java.util.List;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.Repository;
 
 /**
  * Resolves the current build's changes relative to a configured base reference
@@ -17,33 +16,23 @@ import org.eclipse.jgit.lib.Repository;
 public final class CurrentChangesResolver {
 
     private final ChangedFileClassifier changedFileClassifier = new ChangedFileClassifier();
+    private final MergeBaseResolver mergeBaseResolver = new MergeBaseResolver();
 
     public CurrentChanges resolve(Path projectDir, String baseReference) {
-        ObjectId resolvedBaseId;
-        ObjectId currentId;
-        try (Git git = Git.open(projectDir.toFile())) {
-            Repository repository = git.getRepository();
-            resolvedBaseId = repository.resolve(baseReference);
-            currentId = repository.resolve("HEAD");
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to open git repository at " + projectDir, e);
-        }
-        if (resolvedBaseId == null) {
-            throw new IllegalStateException(
-                    "base reference \"" + baseReference + "\" does not resolve to a commit in " + projectDir);
-        }
-        if (currentId == null) {
-            throw new IllegalStateException("HEAD does not resolve to a commit in " + projectDir);
-        }
-
-        String resolvedBaseCommit = resolvedBaseId.getName();
-        String currentCommit = currentId.getName();
-        boolean isBaseRefBuild = resolvedBaseCommit.equals(currentCommit);
-
-        List<ChangedFile> changedFiles = isBaseRefBuild
+        GitComparison comparison = mergeBaseResolver.resolve(projectDir, baseReference);
+        List<ChangedFile> changedFiles = comparison.baseReferenceBuild()
                 ? List.of()
-                : changedFileClassifier.classify(projectDir, resolvedBaseCommit, currentCommit);
+                : comparison.comparisonBaseCommit()
+                        .map(comparisonBase -> changedFileClassifier.classify(
+                                projectDir, comparisonBase, comparison.headCommit()))
+                        .orElseGet(List::of);
 
-        return new CurrentChanges(baseReference, resolvedBaseCommit, currentCommit, isBaseRefBuild, changedFiles);
+        return new CurrentChanges(
+                baseReference,
+                comparison.baseReferenceCommit(),
+                comparison.comparisonBaseCommit(),
+                comparison.headCommit(),
+                comparison.baseReferenceBuild(),
+                changedFiles);
     }
 }

@@ -8,6 +8,7 @@ import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.eclipse.jgit.api.Git;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -162,5 +163,57 @@ class SelectModeEndToEndTest {
         assertTrue(reportJson.contains("\"mode\":\"SELECT\""), "expected mode=SELECT in:\n" + reportJson);
         assertTrue(reportJson.contains("\"selectedCount\":2"), "expected selectedCount=2 in:\n" + reportJson);
         assertTrue(reportJson.contains("\"totalCount\":3"), "expected totalCount=3 in:\n" + reportJson);
+    }
+
+    @Test
+    void ignoresTargetOnlyChangesWhenSelectingOnADivergedFeatureBranch(@TempDir Path projectDir) throws Exception {
+        FixtureProjectBuilder fixture = EndToEndTestSupport.seedFooBarFixture(projectDir);
+        String branchPoint = fixture.commit("initial");
+        DependencyIndex index = EndToEndTestSupport.trackDependencies(projectDir, branchPoint);
+        EndToEndTestSupport.writeIndex(projectDir, index);
+
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.checkout().setCreateBranch(true).setName("feature").call();
+        }
+        fixture.writeClass("com.example.Foo",
+                "package com.example; public class Foo { public int value() { return 99; } }");
+        fixture.writeTest("com.example.FooTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class FooTest {
+                    @Test
+                    void checksFoo() { assertEquals(99, new Foo().value()); }
+                }
+                """);
+        fixture.commit("feature changes Foo");
+
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.checkout().setName("main").call();
+        }
+        fixture.writeClass("com.example.Bar",
+                "package com.example; public class Bar { public int value() { return 7; } }");
+        fixture.writeTest("com.example.BarTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class BarTest {
+                    @Test
+                    void checksBar() { assertEquals(7, new Bar().value()); }
+                }
+                """);
+        fixture.commit("main changes Bar");
+
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.checkout().setName("feature").call();
+        }
+        fixture.addBuildPlugin(null, EndToEndTestSupport.pluginXml("main"));
+
+        String output = EndToEndTestSupport.runMvnTest(projectDir);
+
+        assertTrue(output.contains("BUILD SUCCESS"), "expected the build to succeed:\n" + output);
+        assertTrue(output.contains("[blastradius] 1 / 2 tests selected"), output);
+        assertTrue(output.contains("Running com.example.FooTest"), "expected FooTest to run:\n" + output);
+        assertFalse(output.contains("Running com.example.BarTest"), "expected BarTest to remain skipped:\n" + output);
     }
 }

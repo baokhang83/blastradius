@@ -123,9 +123,13 @@ public final class SelectMojo extends AbstractMojo {
         } catch (IllegalStateException e) {
             throw new MojoExecutionException("invalid configuration: " + e.getMessage(), e);
         }
-        String baselineIndexKey = CommitIndexKey.forCommit(indexPathKey, changes.resolvedBaseCommit());
-        IndexApplicability applicability = indexApplicabilityResolver.resolve(
-                indexStore, baselineIndexKey, changes.resolvedBaseCommit(), reactorRoot);
+        IndexApplicability applicability = changes.comparisonBaseCommit()
+                .map(comparisonBase -> indexApplicabilityResolver.resolve(
+                        indexStore,
+                        CommitIndexKey.forCommit(indexPathKey, comparisonBase),
+                        comparisonBase,
+                        reactorRoot))
+                .orElseGet(IndexApplicability::mergeBaseUnavailable);
 
         BuildReport.Mode resolvedMode = determineMode(changes, applicability, mode);
 
