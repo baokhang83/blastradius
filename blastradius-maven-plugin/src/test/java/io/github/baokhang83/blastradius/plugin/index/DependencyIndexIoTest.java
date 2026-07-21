@@ -3,6 +3,7 @@ package io.github.baokhang83.blastradius.plugin.index;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.baokhang83.blastradius.core.index.DependencyIndexFormat;
 import io.github.baokhang83.blastradius.core.index.FileIndexStore;
 import io.github.baokhang83.blastradius.core.index.IndexStore;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
@@ -17,7 +18,7 @@ import org.junit.jupiter.api.io.TempDir;
 class DependencyIndexIoTest {
 
     @Test
-    void writtenIndexRoundTripsThroughAFile(@TempDir Path tempDir) {
+    void writtenIndexRoundTripsThroughAFile(@TempDir Path tempDir) throws Exception {
         IndexStore<DependencyIndex> store = new FileIndexStore<>(tempDir, DependencyIndex.class);
         TestIdentity fooTest = new TestIdentity("com.example.FooTest", "checksAdd");
         DependencyIndex original = new DependencyIndex(
@@ -27,6 +28,8 @@ class DependencyIndexIoTest {
 
         store.put("index.json", original);
         assertTrue(Files.exists(tempDir.resolve("index.json")));
+        assertTrue(Files.readString(tempDir.resolve("index.json"))
+                .contains("\"formatVersion\":" + DependencyIndexFormat.CURRENT_VERSION));
 
         DependencyIndex roundTripped = store.get("index.json").orElseThrow();
 
@@ -63,5 +66,21 @@ class DependencyIndexIoTest {
         IndexStore<DependencyIndex> store = new FileIndexStore<>(tempDir, DependencyIndex.class);
 
         assertTrue(store.get("does-not-exist.json").isEmpty());
+    }
+
+    @Test
+    void unversionedLegacyIndexMigratesToTheCurrentFormat(@TempDir Path tempDir) throws Exception {
+        IndexStore<DependencyIndex> store = new FileIndexStore<>(tempDir, DependencyIndex.class);
+        Files.writeString(tempDir.resolve("legacy.json"), """
+                {
+                  "anchorCommit": "a1b2c3d",
+                  "builtAt": "2026-07-09T10:03:00Z",
+                  "testDependencies": []
+                }
+                """);
+
+        DependencyIndex migrated = store.get("legacy.json").orElseThrow();
+
+        assertEquals(DependencyIndexFormat.CURRENT_VERSION, migrated.formatVersion());
     }
 }

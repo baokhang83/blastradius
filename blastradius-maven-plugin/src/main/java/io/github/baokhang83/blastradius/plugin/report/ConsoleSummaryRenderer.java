@@ -50,6 +50,7 @@ public final class ConsoleSummaryRenderer {
         return switch (status) {
             case MISSING -> "no persisted index found (MISSING)";
             case UNREADABLE -> "persisted index could not be read (UNREADABLE)";
+            case FORMAT_VERSION_MISMATCH -> "persisted index uses an unsupported format version (FORMAT_VERSION_MISMATCH)";
             case ANCHOR_UNREACHABLE -> "persisted index's anchor commit is no longer reachable (ANCHOR_UNREACHABLE)";
             case ANCHOR_MISMATCH -> "persisted index does not match the resolved comparison base (ANCHOR_MISMATCH)";
             case MERGE_BASE_UNAVAILABLE -> "Git could not establish a common comparison base (MERGE_BASE_UNAVAILABLE)";

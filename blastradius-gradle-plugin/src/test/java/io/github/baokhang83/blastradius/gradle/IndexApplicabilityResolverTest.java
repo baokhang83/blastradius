@@ -3,6 +3,7 @@ package io.github.baokhang83.blastradius.gradle;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.baokhang83.blastradius.core.index.FileIndexStore;
+import io.github.baokhang83.blastradius.core.index.DependencyIndexFormat;
 import io.github.baokhang83.blastradius.core.index.IndexStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,6 +41,18 @@ class IndexApplicabilityResolverTest {
                 .resolve(store(projectDir), INDEX_KEY, expectedBaseCommit, projectDir);
 
         assertEquals(IndexApplicability.Status.ANCHOR_MISMATCH, applicability.status());
+    }
+
+    @Test
+    void unsupportedIndexFormatIsReportedAsAMismatch(@TempDir Path projectDir) throws Exception {
+        String baseCommit = commit(projectDir, "initial");
+        store(projectDir).put(INDEX_KEY, new DependencyIndex(
+                DependencyIndexFormat.CURRENT_VERSION + 1, baseCommit, Instant.now().toString(), List.of()));
+
+        IndexApplicability applicability = new IndexApplicabilityResolver()
+                .resolve(store(projectDir), INDEX_KEY, baseCommit, projectDir);
+
+        assertEquals(IndexApplicability.Status.FORMAT_VERSION_MISMATCH, applicability.status());
     }
 
     private static String commit(Path projectDir, String message) throws Exception {

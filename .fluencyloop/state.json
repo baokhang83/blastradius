@@ -1,8 +1,8 @@
 {
-  "feature": "reduce-maven-plugin-integration-test-runtime-75",
-  "branch": "feature/reduce-maven-plugin-integration-test-runtime-75",
+  "feature": "version-dependency-indexes-and-safely-handle-incompatibility",
+  "branch": "feature/version-dependency-indexes-and-safely-handle-incompatibility",
   "stage": "review",
-  "last_session": "docs/fluencyloop/features/reduce-maven-plugin-integration-test-runtime-75/sessions/cache-successful-maven-plugin-setup-per-test-jvm.md",
+  "last_session": "docs/fluencyloop/features/version-dependency-indexes-and-safely-handle-incompatibility/sessions/apply-format-checks-in-maven-and-gradle-selection.md",
   "base_ref": "main",
   "updated": "2026-07-21"
 }

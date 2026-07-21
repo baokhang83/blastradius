@@ -6,6 +6,7 @@ record IndexApplicability(Status status, DependencyIndex index) {
         APPLICABLE,
         MISSING,
         UNREADABLE,
+        FORMAT_VERSION_MISMATCH,
         ANCHOR_UNREACHABLE,
         ANCHOR_MISMATCH
     }
@@ -20,6 +21,10 @@ record IndexApplicability(Status status, DependencyIndex index) {
 
     static IndexApplicability unreadable() {
         return new IndexApplicability(Status.UNREADABLE, null);
+    }
+
+    static IndexApplicability formatVersionMismatch() {
+        return new IndexApplicability(Status.FORMAT_VERSION_MISMATCH, null);
     }
 
     static IndexApplicability anchorUnreachable() {

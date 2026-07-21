@@ -45,6 +45,11 @@ final class ApplySelectionAction implements Action<Task> {
         IndexApplicability applicability = new IndexApplicabilityResolver()
                 .resolve(indexStore, indexKey, comparisonBaseCommit, repositoryRoot);
         if (applicability.status() != IndexApplicability.Status.APPLICABLE) {
+            if (applicability.status() == IndexApplicability.Status.FORMAT_VERSION_MISMATCH) {
+                test.getLogger().lifecycle(
+                        "[blastradius] FALLBACK — persisted index uses an unsupported format version (FORMAT_VERSION_MISMATCH)");
+                return;
+            }
             test.getLogger().info("[blastradius] Gradle test task left unfiltered ({})", applicability.status());
             return;
         }
