@@ -49,6 +49,42 @@ no heuristics, no opaque score.
 </plugin>
 ```
 
+For separate CI runners, add the shared S3 index-store settings inside the Maven plugin's
+`<configuration>` block:
+
+```xml
+<indexStore>s3</indexStore>
+<s3Bucket>ci-dependency-indexes</s3Bucket>
+<s3Prefix>blastradius</s3Prefix>
+<s3Region>eu-central-1</s3Region>
+<!-- <s3Endpoint>https://minio.example.com</s3Endpoint> optional -->
+```
+
+### Gradle
+
+```groovy
+plugins {
+  id 'io.github.baokhang83.blastradius' version '0.1.0'
+}
+
+blastradius {
+  baseRef = 'main'
+}
+```
+
+For separate CI runners, configure the same shared S3 index store:
+
+```groovy
+blastradius {
+  baseRef = 'main'
+  indexStore = 's3'
+  s3Bucket = 'ci-dependency-indexes'
+  s3Prefix = 'blastradius'
+  s3Region = 'eu-central-1'
+  // s3Endpoint = 'https://minio.example.com' // optional
+}
+```
+
 No other change required — Surefire/Failsafe stay configured exactly as they already are.
 See [`blastradius-maven-plugin/README.md`](blastradius-maven-plugin/README.md) for the full
 configuration reference, what each build mode (`TRACK`/`SELECT`/`FALLBACK`) prints, and how
