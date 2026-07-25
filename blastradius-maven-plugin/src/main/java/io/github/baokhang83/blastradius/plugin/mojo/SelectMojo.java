@@ -4,6 +4,8 @@ import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
 import io.github.baokhang83.blastradius.core.index.FileIndexStore;
 import io.github.baokhang83.blastradius.core.index.IndexStore;
+import io.github.baokhang83.blastradius.s3.S3IndexStoreConfiguration;
+import io.github.baokhang83.blastradius.s3.S3IndexStoreFactory;
 import io.github.baokhang83.blastradius.core.selection.NewOrModifiedTestSelector;
 import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
 import io.github.baokhang83.blastradius.core.selection.SelectionEngine;
@@ -19,6 +21,7 @@ import io.github.baokhang83.blastradius.plugin.report.ConsoleSummaryRenderer;
 import io.github.baokhang83.blastradius.plugin.report.ExplainListingRenderer;
 import io.github.baokhang83.blastradius.plugin.track.TrackRunner;
 import java.net.URISyntaxException;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +58,21 @@ public final class SelectMojo extends AbstractMojo {
 
     @Parameter(property = "indexPath", defaultValue = ".blastradius/index.json")
     private String indexPath;
+
+    @Parameter(property = "indexStore", defaultValue = "file")
+    private String indexStoreType;
+
+    @Parameter(property = "s3Bucket")
+    private String s3Bucket;
+
+    @Parameter(property = "s3Prefix", defaultValue = "")
+    private String s3Prefix;
+
+    @Parameter(property = "s3Region")
+    private String s3Region;
+
+    @Parameter(property = "s3Endpoint")
+    private String s3Endpoint;
 
     @Parameter(property = "blastradius.mode")
     private String mode;
@@ -115,28 +133,58 @@ public final class SelectMojo extends AbstractMojo {
                     + "\" resolves outside the project directory (" + resolvedIndexPath + ")");
         }
         String indexPathKey = normalizedReactorRoot.relativize(resolvedIndexPath).toString();
-        IndexStore<DependencyIndex> indexStore = new FileIndexStore<>(normalizedReactorRoot, DependencyIndex.class);
+        IndexStore<DependencyIndex> indexStore = createIndexStore(normalizedReactorRoot);
 
-        CurrentChanges changes;
         try {
-            changes = currentChangesResolver.resolve(reactorRoot, baseRef);
-        } catch (IllegalStateException e) {
-            throw new MojoExecutionException("invalid configuration: " + e.getMessage(), e);
+            CurrentChanges changes;
+            try {
+                changes = currentChangesResolver.resolve(reactorRoot, baseRef);
+            } catch (IllegalStateException e) {
+                throw new MojoExecutionException("invalid configuration: " + e.getMessage(), e);
+            }
+            IndexApplicability applicability = changes.comparisonBaseCommit()
+                    .map(comparisonBase -> indexApplicabilityResolver.resolve(
+                            indexStore,
+                            CommitIndexKey.forCommit(indexPathKey, comparisonBase),
+                            comparisonBase,
+                            reactorRoot))
+                    .orElseGet(IndexApplicability::mergeBaseUnavailable);
+
+            BuildReport.Mode resolvedMode = determineMode(changes, applicability, mode);
+
+            switch (resolvedMode) {
+                case TRACK -> runTrack(changes, applicability, reactorRoot, indexStore, indexPathKey);
+                case SELECT -> runSelect(changes, applicability);
+                case FALLBACK -> runFallback(applicability);
+            }
+        } finally {
+            close(indexStore);
         }
-        IndexApplicability applicability = changes.comparisonBaseCommit()
-                .map(comparisonBase -> indexApplicabilityResolver.resolve(
-                        indexStore,
-                        CommitIndexKey.forCommit(indexPathKey, comparisonBase),
-                        comparisonBase,
-                        reactorRoot))
-                .orElseGet(IndexApplicability::mergeBaseUnavailable);
+    }
 
-        BuildReport.Mode resolvedMode = determineMode(changes, applicability, mode);
+    private IndexStore<DependencyIndex> createIndexStore(Path root) throws MojoExecutionException {
+        if (indexStoreType == null || indexStoreType.isBlank() || "file".equalsIgnoreCase(indexStoreType)) {
+            return new FileIndexStore<>(root, DependencyIndex.class);
+        }
+        if (!"s3".equalsIgnoreCase(indexStoreType)) {
+            throw new MojoExecutionException("invalid configuration: indexStore must be file or s3");
+        }
+        try {
+            return S3IndexStoreFactory.create(new S3IndexStoreConfiguration(
+                    s3Bucket, s3Prefix, s3Region, s3Endpoint == null || s3Endpoint.isBlank() ? null : URI.create(s3Endpoint)),
+                    DependencyIndex.class);
+        } catch (IllegalArgumentException e) {
+            throw new MojoExecutionException("invalid S3 index-store configuration: " + e.getMessage(), e);
+        }
+    }
 
-        switch (resolvedMode) {
-            case TRACK -> runTrack(changes, applicability, reactorRoot, indexStore, indexPathKey);
-            case SELECT -> runSelect(changes, applicability);
-            case FALLBACK -> runFallback(applicability);
+    private static void close(IndexStore<?> store) {
+        if (store instanceof AutoCloseable closeable) {
+            try {
+                closeable.close();
+            } catch (Exception ignored) {
+                // The index operation already completed; closing an SDK client must not change its result.
+            }
         }
     }
 

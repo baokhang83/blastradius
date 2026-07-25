@@ -1,8 +1,8 @@
 {
-  "feature": "version-dependency-indexes-and-safely-handle-incompatibility",
-  "branch": "feature/version-dependency-indexes-and-safely-handle-incompatibility",
-  "stage": "review",
-  "last_session": "docs/fluencyloop/features/version-dependency-indexes-and-safely-handle-incompatibility/sessions/apply-format-checks-in-maven-and-gradle-selection.md",
+  "feature": "remote-index-backend-with-s3-compatible-object-storage-for-i",
+  "branch": "feature/remote-index-backend-with-s3-compatible-object-storage-for-i",
+  "stage": "build",
+  "last_session": "docs/fluencyloop/features/remote-index-backend-with-s3-compatible-object-storage-for-i/sessions/route-gradle-tracking-and-selection-through-the-configured-s.md",
   "base_ref": "main",
-  "updated": "2026-07-21"
+  "updated": "2026-07-25"
 }

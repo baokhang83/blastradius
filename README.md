@@ -69,6 +69,15 @@ See [`blastradius-maven-plugin/README.md`](blastradius-maven-plugin/README.md) f
 configuration reference, what each build mode (`TRACK`/`SELECT`/`FALLBACK`) prints, and how
 to set it up in CI.
 
+### Sharing indexes across CI runners
+
+By default, indexes stay under the workspace's `.blastradius/` directory. If a trunk `TRACK`
+job and PR `SELECT` job run on separate workers, configure the Maven plugin or Gradle extension
+with `indexStore = s3`, a bucket, and a region. The shared object store lets the PR job read the
+same commit-keyed index that the trunk job wrote. Credentials come from the standard AWS
+credential chain; do not put access keys in build files. Missing or inaccessible remote indexes
+still run the full suite safely. See the [Maven S3 configuration reference](blastradius-maven-plugin/README.md#shared-s3-index-store).
+
 ```bash
 git clone https://github.com/baokhang83/blastradius.git
 cd blastradius

@@ -101,6 +101,11 @@ separate page for each goal, including `help-mojo.html` and `select-mojo.html`.
 |---|---|---|---|---|
 | `baseRef` | `-DbaseRef` | — | **yes** | The target git reference (`main`, `origin/main`, a tag — anything JGit can resolve). Non-target builds compare from its merge base with `HEAD`. |
 | `indexPath` | `-DindexPath` | `.blastradius/index.json` | no | Root-relative index-file template. The merge-base SHA is inserted before its filename for `SELECT`, so the default produces `.blastradius/<full-sha>/index.json`. Rejected if it resolves outside the project directory. |
+| `indexStore` | `-DindexStore` | `file` | no | `file` keeps indexes in the reactor workspace. Set to `s3` to share indexes between runners. |
+| `s3Bucket` | `-Ds3Bucket` | — | when `indexStore=s3` | Bucket holding the shared indexes. |
+| `s3Prefix` | `-Ds3Prefix` | empty | no | Optional object-key prefix below the bucket. |
+| `s3Region` | `-Ds3Region` | — | when `indexStore=s3` | AWS region used to sign S3 requests. |
+| `s3Endpoint` | `-Ds3Endpoint` | — | no | Optional S3-compatible endpoint, for example MinIO. Path-style access is enabled when supplied. |
 | — | `-Dblastradius.mode=track` | — | no | Force `TRACK` regardless of what commit you're on — for explicitly pre-warming the index outside an ordinary trunk build. |
 | — | `-Dblastradius.explain=true` | `false` | no | Print the full per-test decision listing to the console, not just the aggregate summary. |
 
@@ -115,6 +120,27 @@ module's own goal execution resolves the same commit-keyed path.
   restored between CI runs the same way you already cache `~/.m2` — it has to survive
   between the trunk job that wrote it and the PR job that reads it, or every PR build stays
   in `FALLBACK` forever (see below).
+
+### Shared S3 index store
+
+Use S3 when the trunk `TRACK` job and PR `SELECT` job run on different workers and cannot
+share a workspace cache:
+
+```xml
+<configuration>
+  <baseRef>main</baseRef>
+  <indexStore>s3</indexStore>
+  <s3Bucket>ci-dependency-indexes</s3Bucket>
+  <s3Prefix>blastradius</s3Prefix>
+  <s3Region>eu-central-1</s3Region>
+</configuration>
+```
+
+The plugin uses the AWS SDK default credential chain. Configure credentials through standard
+CI environment variables, a workload/instance role, or a shared AWS profile; never put access
+keys in the POM. For MinIO or another S3-compatible service, add `s3Endpoint`; its region is
+still required for request signing. A missing, unreadable, unauthorized, or malformed remote
+index remains a safe `FALLBACK` that runs the full suite.
 
 ## What you'll see in the Maven output
 

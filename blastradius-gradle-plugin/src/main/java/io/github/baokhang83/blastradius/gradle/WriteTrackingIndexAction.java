@@ -1,7 +1,7 @@
 package io.github.baokhang83.blastradius.gradle;
 
-import io.github.baokhang83.blastradius.core.index.FileIndexStore;
 import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
+import io.github.baokhang83.blastradius.core.index.IndexStore;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.io.File;
@@ -20,12 +20,14 @@ final class WriteTrackingIndexAction implements Action<Task> {
     private final String indexPathKey;
     private final File recordPrefix;
     private final String anchorCommit;
+    private final ConfiguredIndexStore configuredStore;
 
-    WriteTrackingIndexAction(File repositoryDirectory, String indexPathKey, File recordPrefix, String anchorCommit) {
+    WriteTrackingIndexAction(File repositoryDirectory, String indexPathKey, File recordPrefix, String anchorCommit, ConfiguredIndexStore configuredStore) {
         this.repositoryDirectory = repositoryDirectory;
         this.indexPathKey = indexPathKey;
         this.recordPrefix = recordPrefix;
         this.anchorCommit = anchorCommit;
+        this.configuredStore = configuredStore;
     }
 
     @Override
@@ -37,8 +39,12 @@ final class WriteTrackingIndexAction implements Action<Task> {
                     .toList();
             Path repositoryRoot = repositoryDirectory.toPath().toAbsolutePath().normalize();
             String indexKey = CommitIndexKey.forCommit(indexPathKey, anchorCommit);
-            new FileIndexStore<>(repositoryRoot, DependencyIndex.class).put(
-                    indexKey, new DependencyIndex(anchorCommit, Instant.now().toString(), entries));
+            IndexStore<DependencyIndex> store = configuredStore.create(repositoryDirectory);
+            try {
+                store.put(indexKey, new DependencyIndex(anchorCommit, Instant.now().toString(), entries));
+            } finally {
+                ConfiguredIndexStore.close(store);
+            }
             task.getLogger().lifecycle("[blastradius] TRACK — {} / {} tests selected", entries.size(), entries.size());
         } catch (RuntimeException e) {
             throw new GradleException("failed to create the blastradius dependency index after TRACK", e);
