@@ -8,21 +8,6 @@ train something probabilistic on historical flakiness. Blastradius does neither:
 uses that real, per-test dependency map to decide what to run next time. No training data,
 no heuristics, no opaque score.
 
-## Proven on real projects, not just fixtures
-
-Before any of this was trusted to actually skip tests in CI, it ran in shadow mode against
-real open-source history and had every decision checked against ground truth:
-
-| Project | Real history | Commit pairs analyzed | Would-miss cases | Savings |
-|---|---|---|---|---|
-| [commons-io](https://commons.apache.org/proper/commons-io/) | 6,230 commits | 5 | **0** | 41.2% of test executions correctly skipped |
-| [jsoup](https://jsoup.org/) | 2,455 commits | 100 | **0** | 2.0% skipped (83% of this window was non-source maintenance commits — correctly triggering the safe fallback, not a mechanism weakness) |
-
-**105 real commit pairs across two independent, unmodified production codebases. Zero
-missed test failures.** Full analysis and how three real mechanism bugs were found and
-fixed along the way (a hardcoded `argLine`, a JaCoCo collision, a parameterized-test
-name mismatch) is in [`SESSION.md`](SESSION.md).
-
 ## How it works
 
 1. **Track.** On a build of your base branch, a `java.lang.instrument` agent watches every
