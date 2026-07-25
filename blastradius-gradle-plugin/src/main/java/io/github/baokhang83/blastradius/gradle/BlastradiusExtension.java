@@ -10,4 +10,15 @@ public abstract class BlastradiusExtension {
 
     /** Root-relative index-file template; each resolved commit receives its own key. */
     public abstract Property<String> getIndexPath();
+
+    /** Selects the local file store or the shared S3-compatible store. */
+    public abstract Property<String> getIndexStore();
+
+    public abstract Property<String> getS3Bucket();
+
+    public abstract Property<String> getS3Prefix();
+
+    public abstract Property<String> getS3Region();
+
+    public abstract Property<String> getS3Endpoint();
 }

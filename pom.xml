@@ -48,6 +48,7 @@
 
     <modules>
         <module>blastradius-core</module>
+        <module>blastradius-s3-index-store</module>
         <module>blastradius-validator</module>
         <module>blastradius-maven-plugin</module>
     </modules>
@@ -74,6 +75,8 @@
         <central.publishing.plugin.version>0.11.0</central.publishing.plugin.version>
         <flatten.plugin.version>1.6.0</flatten.plugin.version>
         <invoker.plugin.version>3.10.1</invoker.plugin.version>
+        <aws.sdk.version>2.41.33</aws.sdk.version>
+        <slf4j.version>2.0.18</slf4j.version>
     </properties>
 
     <dependencyManagement>
@@ -84,6 +87,18 @@
                 <version>${junit.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws.sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${slf4j.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

@@ -28,12 +28,14 @@ final class ApplySelectionAction implements Action<Task> {
     private final String indexPathKey;
     private final String comparisonBaseCommit;
     private final String headCommit;
+    private final ConfiguredIndexStore configuredStore;
 
-    ApplySelectionAction(File repositoryDirectory, String indexPathKey, String comparisonBaseCommit, String headCommit) {
+    ApplySelectionAction(File repositoryDirectory, String indexPathKey, String comparisonBaseCommit, String headCommit, ConfiguredIndexStore configuredStore) {
         this.repositoryDirectory = repositoryDirectory;
         this.indexPathKey = indexPathKey;
         this.comparisonBaseCommit = comparisonBaseCommit;
         this.headCommit = headCommit;
+        this.configuredStore = configuredStore;
     }
 
     @Override
@@ -41,9 +43,13 @@ final class ApplySelectionAction implements Action<Task> {
         Test test = (Test) task;
         Path repositoryRoot = repositoryDirectory.toPath().toAbsolutePath().normalize();
         String indexKey = CommitIndexKey.forCommit(indexPathKey, comparisonBaseCommit);
-        IndexStore<DependencyIndex> indexStore = new FileIndexStore<>(repositoryRoot, DependencyIndex.class);
-        IndexApplicability applicability = new IndexApplicabilityResolver()
-                .resolve(indexStore, indexKey, comparisonBaseCommit, repositoryRoot);
+        IndexStore<DependencyIndex> indexStore = configuredStore.create(repositoryDirectory);
+        IndexApplicability applicability;
+        try {
+            applicability = new IndexApplicabilityResolver().resolve(indexStore, indexKey, comparisonBaseCommit, repositoryRoot);
+        } finally {
+            ConfiguredIndexStore.close(indexStore);
+        }
         if (applicability.status() != IndexApplicability.Status.APPLICABLE) {
             if (applicability.status() == IndexApplicability.Status.FORMAT_VERSION_MISMATCH) {
                 test.getLogger().lifecycle(

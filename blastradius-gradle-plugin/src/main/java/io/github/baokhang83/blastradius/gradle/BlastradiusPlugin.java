@@ -17,6 +17,8 @@ public final class BlastradiusPlugin implements Plugin<Project> {
         BlastradiusExtension extension = project.getExtensions()
                 .create("blastradius", BlastradiusExtension.class);
         extension.getIndexPath().convention(".blastradius/index.json");
+        extension.getIndexStore().convention("file");
+        extension.getS3Prefix().convention("");
 
         project.getPluginManager().withPlugin("java", ignored -> project.afterEvaluate(ignoredProject -> {
             Path repositoryDirectory = project.getRootDir().toPath();
@@ -28,20 +30,22 @@ public final class BlastradiusPlugin implements Plugin<Project> {
             GitBuildState resolvedGitState = gitState.get();
             Path normalizedRepositoryDirectory = repositoryDirectory.toAbsolutePath().normalize();
             String indexPathKey = normalizedRepositoryDirectory.relativize(indexPath.toAbsolutePath().normalize()).toString();
+            ConfiguredIndexStore indexStore = new ConfiguredIndexStore(extension.getIndexStore().get(), extension.getS3Bucket().getOrNull(),
+                    extension.getS3Prefix().get(), extension.getS3Region().getOrNull(), extension.getS3Endpoint().getOrNull());
 
             project.getTasks().withType(Test.class).configureEach(test -> configureTest(
-                    project, test, repositoryDirectory, indexPathKey, resolvedGitState, extension.getBaseRef().get()));
+                    project, test, repositoryDirectory, indexPathKey, resolvedGitState, extension.getBaseRef().get(), indexStore));
         }));
     }
 
     private static void configureTest(Project project, Test test, Path repositoryDirectory, String indexPathKey, GitBuildState gitState,
-            String baseReference) {
+            String baseReference, ConfiguredIndexStore indexStore) {
         test.getInputs().property("blastradius.baseReference", baseReference);
         test.getInputs().property("blastradius.headCommit", gitState.headCommit());
         test.getInputs().property("blastradius.baseReferenceCommit", gitState.baseReferenceCommit());
 
         if (gitState.baseReferenceBuild()) {
-            configureTracking(test, repositoryDirectory, indexPathKey, gitState.headCommit());
+            configureTracking(test, repositoryDirectory, indexPathKey, gitState.headCommit(), indexStore);
         } else if (!gitState.comparisonBaseAvailable()) {
             test.doFirst(new NoComparisonBaseFallbackAction());
         } else {
@@ -53,11 +57,11 @@ public final class BlastradiusPlugin implements Plugin<Project> {
                     .files(project.files(baselineIndexPath.toFile()).filter(File::isFile))
                     .withPathSensitivity(PathSensitivity.RELATIVE);
             test.doFirst(new ApplySelectionAction(
-                    repositoryDirectory.toFile(), indexPathKey, comparisonBase, gitState.headCommit()));
+                    repositoryDirectory.toFile(), indexPathKey, comparisonBase, gitState.headCommit(), indexStore));
         }
     }
 
-    private static void configureTracking(Test test, Path repositoryDirectory, String indexPathKey, String anchorCommit) {
+    private static void configureTracking(Test test, Path repositoryDirectory, String indexPathKey, String anchorCommit, ConfiguredIndexStore indexStore) {
         File recordPrefix = new File(test.getTemporaryDir(), "blastradius-dependencies.json");
         File agentJar = new AgentJarLocator().locate().toFile();
         test.jvmArgs("-javaagent:" + agentJar.getAbsolutePath() + "=" + recordPrefix.getAbsolutePath());
@@ -65,6 +69,6 @@ public final class BlastradiusPlugin implements Plugin<Project> {
         test.getOutputs().doNotCacheIf("TRACK must execute test workers to produce dependency records", ignoredTask -> true);
         test.doFirst(new PrepareTrackingAction(recordPrefix));
         test.doLast(new WriteTrackingIndexAction(
-                repositoryDirectory.toFile(), indexPathKey, recordPrefix, anchorCommit));
+                repositoryDirectory.toFile(), indexPathKey, recordPrefix, anchorCommit, indexStore));
     }
 }

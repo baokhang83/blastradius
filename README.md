@@ -8,21 +8,6 @@ train something probabilistic on historical flakiness. Blastradius does neither:
 uses that real, per-test dependency map to decide what to run next time. No training data,
 no heuristics, no opaque score.
 
-## Proven on real projects, not just fixtures
-
-Before any of this was trusted to actually skip tests in CI, it ran in shadow mode against
-real open-source history and had every decision checked against ground truth:
-
-| Project | Real history | Commit pairs analyzed | Would-miss cases | Savings |
-|---|---|---|---|---|
-| [commons-io](https://commons.apache.org/proper/commons-io/) | 6,230 commits | 5 | **0** | 41.2% of test executions correctly skipped |
-| [jsoup](https://jsoup.org/) | 2,455 commits | 100 | **0** | 2.0% skipped (83% of this window was non-source maintenance commits — correctly triggering the safe fallback, not a mechanism weakness) |
-
-**105 real commit pairs across two independent, unmodified production codebases. Zero
-missed test failures.** Full analysis and how three real mechanism bugs were found and
-fixed along the way (a hardcoded `argLine`, a JaCoCo collision, a parameterized-test
-name mismatch) is in [`SESSION.md`](SESSION.md).
-
 ## How it works
 
 1. **Track.** On a build of your base branch, a `java.lang.instrument` agent watches every
@@ -68,6 +53,15 @@ No other change required — Surefire/Failsafe stay configured exactly as they a
 See [`blastradius-maven-plugin/README.md`](blastradius-maven-plugin/README.md) for the full
 configuration reference, what each build mode (`TRACK`/`SELECT`/`FALLBACK`) prints, and how
 to set it up in CI.
+
+### Sharing indexes across CI runners
+
+By default, indexes stay under the workspace's `.blastradius/` directory. If a trunk `TRACK`
+job and PR `SELECT` job run on separate workers, configure the Maven plugin or Gradle extension
+with `indexStore = s3`, a bucket, and a region. The shared object store lets the PR job read the
+same commit-keyed index that the trunk job wrote. Credentials come from the standard AWS
+credential chain; do not put access keys in build files. Missing or inaccessible remote indexes
+still run the full suite safely. See the [Maven S3 configuration reference](blastradius-maven-plugin/README.md#shared-s3-index-store).
 
 ```bash
 git clone https://github.com/baokhang83/blastradius.git
