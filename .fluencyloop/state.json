@@ -1,8 +1,8 @@
 {
-  "feature": "remote-index-backend-with-s3-compatible-object-storage-for-i",
-  "branch": "feature/remote-index-backend-with-s3-compatible-object-storage-for-i",
+  "feature": "json-selection-report-31",
+  "branch": "feature/json-selection-report-31",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/remote-index-backend-with-s3-compatible-object-storage-for-i/sessions/route-gradle-tracking-and-selection-through-the-configured-s.md",
+  "last_session": "docs/fluencyloop/features/json-selection-report-31/sessions/capture-completed-test-timings-without-changing-selection-be.md",
   "base_ref": "main",
-  "updated": "2026-07-25"
+  "updated": "2026-07-26"
 }

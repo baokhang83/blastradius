@@ -190,7 +190,9 @@ bailed out to a full run rather than crash the build or guess).
 
 ## The files it writes
 
-Both live under `.blastradius/` at the reactor root — add it to `.gitignore`.
+These files live under `.blastradius/` — add it to `.gitignore`. The shared index is rooted at
+the reactor root; each module execution writes its own report and timing cache under that
+module's project directory.
 
 - **`<full-sha>/index.json`** — the persisted dependency map a `TRACK` build produces for its
   exact commit and a `SELECT` build reads for its resolved merge base. The default location is
@@ -198,10 +200,21 @@ Both live under `.blastradius/` at the reactor root — add it to `.gitignore`.
   `{ formatVersion, anchorCommit, builtAt, testDependencies: [{ test, dependsOnClasses }] }`.
   Newly tracked indexes use format version 1. Existing unversioned indexes are migrated in
   memory; any other version safely falls back to the full suite.
-- **`last-build-report.json`** — this build's own decisions, machine-readable.
-  `{ mode, indexApplicability, decisions: [{ test, selected, reason, matchedChangedClass }], selectedCount, totalCount }`.
-  This is the source of truth every console line above is a rendering of — audit a specific
-  test's outcome here without re-running anything.
+- **`last-build-report.json`** — schema version 1 of this build's machine-readable selection
+  report. It includes `{ schemaVersion, mode, indexApplicability, changedFiles, decisions,
+  selectedCount, skippedCount, totalCount, reasonCounts, estimatedTimeSavedMillis,
+  timingCoverage }`. `reasonCounts` always includes every `SelectionReason`, including zero
+  buckets, so CI parsers do not need mode-specific handling. `estimatedTimeSavedMillis` is set
+  only when every skipped test has a timing sample; otherwise it is `null` and `timingCoverage`
+  states how much of the skipped set is known. The selected/skipped counts describe the set the
+  goal passes to Surefire/Failsafe, not a claim about the test engines' final outcome.
+- **`test-timings.json`** — version 1 local cache of the most recently observed duration for
+  each test. The goal observes completed Surefire/Failsafe executions and updates this cache
+  after their standard XML reports are written. Persist `.blastradius/` in CI when you want
+  subsequent builds to calculate a millisecond estimate immediately.
+
+`last-build-report.json` remains the source of truth every console line above renders from —
+audit a specific test's selection outcome without re-running anything.
 
 ## Multi-module reactors
 
