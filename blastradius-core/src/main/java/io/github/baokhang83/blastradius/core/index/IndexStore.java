@@ -1,6 +1,7 @@
 package io.github.baokhang83.blastradius.core.index;
 
 import java.util.Optional;
+import java.util.List;
 
 /**
  * Stores dependency indexes under caller-defined, stable keys.
@@ -14,6 +15,9 @@ public interface IndexStore<T> {
 
     /** Returns the value for {@code key}, or empty when no value has been stored for it. */
     Optional<T> get(String key);
+
+    /** Returns stored keys below {@code prefix}, relative to the store root. */
+    List<String> keys(String prefix);
 
     /** Stores {@code value} under {@code key}, replacing a value previously stored for that key. */
     void put(String key, T value);

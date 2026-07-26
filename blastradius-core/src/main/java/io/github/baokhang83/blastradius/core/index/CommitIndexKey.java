@@ -5,6 +5,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /** Derives a stable, root-relative index key for one full Git commit ID. */
@@ -33,6 +34,23 @@ public final class CommitIndexKey {
         parts.add(commit.toLowerCase(Locale.ROOT));
         parts.add(indexPath.getFileName().toString());
         return String.join("/", parts);
+    }
+
+    /** Extracts the commit segment when {@code indexKey} has this index path's commit-keyed shape. */
+    public static Optional<String> commitFromKey(String indexPathKey, String indexKey) {
+        Path indexPath = relativeIndexPath(indexPathKey);
+        Path keyPath = relativeIndexPath(indexKey);
+        Path indexParent = indexPath.getParent();
+        Path keyParent = keyPath.getParent();
+        if (keyParent == null || !keyPath.getFileName().equals(indexPath.getFileName())) {
+            return Optional.empty();
+        }
+        Path keyGrandparent = keyParent.getParent();
+        if (indexParent == null ? keyGrandparent != null : !indexParent.equals(keyGrandparent)) {
+            return Optional.empty();
+        }
+        String commit = keyParent.getFileName().toString();
+        return FULL_COMMIT_ID.matcher(commit).matches() ? Optional.of(commit.toLowerCase(Locale.ROOT)) : Optional.empty();
     }
 
     private static Path relativeIndexPath(String indexPathKey) {

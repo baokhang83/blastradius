@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,24 @@ class S3IndexStoreTest {
     }
 
     @Test
+    void listsRelativeKeysBelowTheConfiguredPrefix() {
+        S3IndexStore<StoredIndex> store = new S3IndexStore<>(new InMemoryObjectStore(), "ci", StoredIndex.class);
+        store.put(".blastradius/one/index.json", new StoredIndex("one"));
+        store.put(".blastradius/two/index.json", new StoredIndex("two"));
+
+        assertEquals(List.of(".blastradius/one/index.json", ".blastradius/two/index.json"),
+                store.keys(".blastradius"));
+    }
+
+    @Test
+    void listsFromTheConfiguredStoreRootWhenThePrefixIsEmpty() {
+        S3IndexStore<StoredIndex> store = new S3IndexStore<>(new InMemoryObjectStore(), "ci", StoredIndex.class);
+        store.put("index.json", new StoredIndex("root"));
+
+        assertEquals(List.of("index.json"), store.keys(""));
+    }
+
+    @Test
     void rejectsObjectKeysThatEscapeTheConfiguredPrefix() {
         S3IndexStore<StoredIndex> store = new S3IndexStore<>(new InMemoryObjectStore(), "ci", StoredIndex.class);
 
@@ -45,6 +64,11 @@ class S3IndexStoreTest {
         @Override
         public Optional<byte[]> get(String key) {
             return Optional.ofNullable(values.get(key));
+        }
+
+        @Override
+        public List<String> keys(String prefix) {
+            return values.keySet().stream().filter(key -> key.startsWith(prefix)).sorted().toList();
         }
 
         @Override

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import io.github.baokhang83.blastradius.core.index.FileIndexStore;
+import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
 import io.github.baokhang83.blastradius.core.index.DependencyIndexFormat;
 import io.github.baokhang83.blastradius.core.index.IndexStore;
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
@@ -87,6 +88,35 @@ class IndexApplicabilityResolverTest {
 
         assertEquals(IndexApplicability.Status.ANCHOR_MISMATCH, applicability.status());
         assertNull(applicability.index());
+    }
+
+    @Test
+    void usesNearestReachableAncestorWhenTheExactBaselineIsMissing(@TempDir Path projectDir) {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        String oldestAnchor = fixture.commit("oldest baseline");
+        fixture.writeClass("com.example.Stale", "package com.example; class Stale {}");
+        String staleAnchor = fixture.commit("stale baseline");
+        fixture.writeClass("com.example.Expected", "package com.example; class Expected {}");
+        String expectedBase = fixture.commit("expected base without an index");
+        fixture.writeClass("com.example.Feature", "package com.example; class Feature {}");
+        String head = fixture.commit("feature change");
+
+        DependencyIndex olderIndex = new DependencyIndex(oldestAnchor, "2026-07-09T10:00:00Z", List.of());
+        DependencyIndex staleIndex = new DependencyIndex(staleAnchor, "2026-07-09T10:00:00Z", List.of());
+        IndexStore<DependencyIndex> store = store(projectDir);
+        store.put(CommitIndexKey.forCommit(INDEX_KEY, oldestAnchor), olderIndex);
+        store.put(CommitIndexKey.forCommit(INDEX_KEY, staleAnchor), staleIndex);
+
+        IndexApplicability applicability = resolver.resolve(
+                store,
+                CommitIndexKey.forCommit(INDEX_KEY, expectedBase),
+                INDEX_KEY,
+                expectedBase,
+                head,
+                projectDir);
+
+        assertEquals(IndexApplicability.Status.STALE_BASELINE, applicability.status());
+        assertEquals(staleIndex, applicability.index());
     }
 
     @Test

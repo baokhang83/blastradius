@@ -225,4 +225,60 @@ class SelectModeEndToEndTest {
         assertTrue(output.contains("Running com.example.FooTest"), "expected FooTest to run:\n" + output);
         assertFalse(output.contains("Running com.example.BarTest"), "expected BarTest to remain skipped:\n" + output);
     }
+
+    @Test
+    void usesAReachableStaleBaselineAndWidensTheDiffToCoverInterveningMainChanges(@TempDir Path projectDir)
+            throws Exception {
+        FixtureProjectBuilder fixture = EndToEndTestSupport.seedFooBarFixture(projectDir);
+        String staleAnchor = fixture.commit("initial");
+        DependencyIndex index = EndToEndTestSupport.trackDependencies(projectDir, staleAnchor);
+        EndToEndTestSupport.writeIndex(projectDir, index);
+
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.checkout().setCreateBranch(true).setName("feature").call();
+        }
+        fixture.writeClass("com.example.Foo",
+                "package com.example; public class Foo { public int value() { return 99; } }");
+        fixture.writeTest("com.example.FooTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class FooTest {
+                    @Test
+                    void checksFoo() { assertEquals(99, new Foo().value()); }
+                }
+                """);
+        fixture.commit("feature changes Foo");
+
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.checkout().setName("main").call();
+        }
+        fixture.writeClass("com.example.Bar",
+                "package com.example; public class Bar { public int value() { return 7; } }");
+        fixture.writeTest("com.example.BarTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class BarTest {
+                    @Test
+                    void checksBar() { assertEquals(7, new Bar().value()); }
+                }
+                """);
+        fixture.commit("main changes Bar without a new index");
+
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.checkout().setCreateBranch(true).setName("merge-result").call();
+            git.merge().include(git.getRepository().resolve("feature")).call();
+        }
+        fixture.addBuildPlugin(null, EndToEndTestSupport.pluginXml("main"));
+
+        String output = EndToEndTestSupport.runMvnTest(projectDir);
+
+        assertTrue(output.contains("BUILD SUCCESS"), "expected the build to succeed:\n" + output);
+        assertTrue(output.contains("SELECT — stale baseline index built from " + staleAnchor.substring(0, 7)), output);
+        assertTrue(output.contains("[blastradius] 2 / 2 tests selected"), output);
+        assertTrue(output.contains("Running com.example.FooTest"), "expected FooTest to run:\n" + output);
+        assertTrue(output.contains("Running com.example.BarTest"),
+                "expected BarTest to run because the stale baseline widens the diff:\n" + output);
+    }
 }

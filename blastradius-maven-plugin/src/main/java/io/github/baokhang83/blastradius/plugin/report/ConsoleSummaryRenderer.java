@@ -40,7 +40,9 @@ public final class ConsoleSummaryRenderer {
 
     private static String headerLine(BuildReport report, DependencyIndex usedIndex) {
         return switch (report.mode()) {
-            case SELECT -> "SELECT — index built from " + shortSha(usedIndex.anchorCommit()) + " (" + usedIndex.builtAt() + ")";
+            case SELECT -> report.indexApplicability() == IndexApplicability.Status.STALE_BASELINE
+                    ? "SELECT — stale baseline index built from " + shortSha(usedIndex.anchorCommit()) + " (" + usedIndex.builtAt() + ")"
+                    : "SELECT — index built from " + shortSha(usedIndex.anchorCommit()) + " (" + usedIndex.builtAt() + ")";
             case TRACK -> "TRACK — building a fresh index";
             case FALLBACK -> "FALLBACK — " + fallbackReason(report.indexApplicability());
         };
@@ -55,7 +57,7 @@ public final class ConsoleSummaryRenderer {
             case ANCHOR_MISMATCH -> "persisted index does not match the resolved comparison base (ANCHOR_MISMATCH)";
             case MERGE_BASE_UNAVAILABLE -> "Git could not establish a common comparison base (MERGE_BASE_UNAVAILABLE)";
             case INTERNAL_ERROR -> "an internal error occurred during selection computation (INTERNAL_ERROR)";
-            case APPLICABLE -> throw new IllegalStateException("FALLBACK mode never has an APPLICABLE index");
+            case APPLICABLE, STALE_BASELINE -> throw new IllegalStateException("FALLBACK mode never has an applicable index");
         };
     }
 

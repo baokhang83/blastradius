@@ -10,6 +10,7 @@ public record IndexApplicability(Status status, DependencyIndex index) {
 
     public enum Status {
         APPLICABLE,
+        STALE_BASELINE,
         MISSING,
         UNREADABLE,
         FORMAT_VERSION_MISMATCH,
@@ -28,6 +29,10 @@ public record IndexApplicability(Status status, DependencyIndex index) {
 
     public static IndexApplicability applicable(DependencyIndex index) {
         return new IndexApplicability(Status.APPLICABLE, index);
+    }
+
+    public static IndexApplicability staleBaseline(DependencyIndex index) {
+        return new IndexApplicability(Status.STALE_BASELINE, index);
     }
 
     public static IndexApplicability missing() {
