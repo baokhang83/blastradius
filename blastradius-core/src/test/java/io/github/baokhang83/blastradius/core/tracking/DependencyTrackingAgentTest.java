@@ -67,6 +67,13 @@ class DependencyTrackingAgentTest {
     }
 
     @Test
+    void executedTestWithNoClassLoadsHasAnEmptyBaseline() {
+        agent.recordTestExecution(FOO_TEST);
+
+        assertEquals(Map.of(), agent.recordedDependencies().get(FOO_TEST));
+    }
+
+    @Test
     void newlyCreatedHiddenClassUsesItsStableSourceName() throws Exception {
         currentTest.set(FOO_TEST);
         byte[] classFile;

@@ -28,7 +28,12 @@ public final class TestBoundaryListener implements TestExecutionListener {
     @Override
     public void executionStarted(TestIdentifier testIdentifier) {
         if (testIdentifier.isTest()) {
-            CURRENT_TEST.set(toTestIdentity(testIdentifier));
+            TestIdentity test = toTestIdentity(testIdentifier);
+            // Register before publishing this identity to the agent. Computing the record's
+            // generated hash code may load JVM support classes; while no test is current those
+            // loads are intentionally ignored instead of recursively recording themselves.
+            DependencyTrackingAgent.recordTestStarted(test);
+            CURRENT_TEST.set(test);
             CLASSES_AT_TEST_START.set(DependencyTrackingAgent.loadedClasses());
         }
     }
