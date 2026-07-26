@@ -96,6 +96,33 @@ class DependencyTrackingIntegrationTest {
     }
 
     @Test
+    void testWithNoApplicationClassLoadsStillHasABaseline(@TempDir Path projectDir, @TempDir Path outDir)
+            throws Exception {
+        Path agentJar = findOwnAgentJar();
+        Path recordFile = outDir.resolve("deps.json");
+
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        fixture.addSystemDependency(null, agentJar);
+        fixture.writeTest("com.example.EmptyTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                class EmptyTest {
+                    @Test
+                    void doesNothing() {}
+                }
+                """);
+        fixture.commit("initial");
+
+        runMvnTest(projectDir, agentJar, recordFile);
+
+        Map<TestIdentity, Map<String, String>> recorded = new DependencyRecordReader().readAll(recordFile);
+        TestIdentity emptyTest = new TestIdentity("com.example.EmptyTest", "doesNothing");
+
+        assertTrue(recorded.containsKey(emptyTest),
+                "an executed test must have a baseline even without application class loads: " + recorded.keySet());
+    }
+
+    @Test
     void virtualThreadAttributionIncludesSealedAndHiddenClassLoadsOnJdk25(
             @TempDir Path projectDir, @TempDir Path outDir) throws Exception {
         Path agentJar = findOwnAgentJar();

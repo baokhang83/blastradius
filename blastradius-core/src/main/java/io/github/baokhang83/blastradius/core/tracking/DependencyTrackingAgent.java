@@ -91,6 +91,25 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         return null;
     }
 
+    /**
+     * Records that a test executed even if it never causes a class-load event while it is active.
+     *
+     * <p>An empty dependency map is meaningful: it is a baseline for an existing test, not an
+     * absent baseline for a newly added test. Selection must preserve that distinction or it
+     * conservatively re-runs every test whose dependencies happened to be loaded before the test
+     * began.
+     */
+    static void recordTestStarted(TestIdentity test) {
+        DependencyTrackingAgent currentAgent = installedAgent;
+        if (currentAgent != null) {
+            currentAgent.recordTestExecution(test);
+        }
+    }
+
+    void recordTestExecution(TestIdentity test) {
+        checksumsByTest.computeIfAbsent(test, ignored -> new ConcurrentHashMap<>());
+    }
+
     /** An immutable snapshot of {@code test -> {className -> tracking token}} recorded so far. */
     public Map<TestIdentity, Map<String, String>> recordedDependencies() {
         return checksumsByTest.entrySet().stream()

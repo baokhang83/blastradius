@@ -1,6 +1,7 @@
 package io.github.baokhang83.blastradius.plugin.mojo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
@@ -52,5 +53,18 @@ class SelectModeSelectionTest {
         assertEquals(1, decisions.size());
         assertTrue(decisions.get(0).selected());
         assertEquals(SelectionReason.NEW_OR_MODIFIED_TEST, decisions.get(0).reason());
+    }
+
+    @Test
+    void aTestWithAnEmptyTrackedBaselineIsNotTreatedAsNew() {
+        TestIdentity existingTest = new TestIdentity("com.example.EmptyTest", "doesNothing");
+        DependencyIndex index = new DependencyIndex("abc123", "2026-07-09T10:00:00Z", List.of(
+                new TestDependencyEntry(existingTest, Set.of())));
+
+        List<SelectionDecision> decisions = SelectMojo.computeDecisions(Set.of(existingTest), index, List.of());
+
+        assertEquals(1, decisions.size());
+        assertFalse(decisions.get(0).selected());
+        assertEquals(SelectionReason.NO_MATCH, decisions.get(0).reason());
     }
 }
