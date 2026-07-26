@@ -59,7 +59,17 @@ jobs:
             -Dversion="${SELF_HOST_VERSION}" \
             -Dpackaging=maven-plugin \
             -DgeneratePom=true
-      - run: mvn -B --no-transfer-progress -Pself-host-blastradius clean verify
+      - name: Verify with Blastradius
+        env:
+          # A restore-key hit contains an older baseline. It is safe for a PR to select
+          # from that baseline, but main must rebuild before saving this commit's cache key.
+          BLASTRADIUS_REFRESH_MAIN_INDEX: ${{ github.ref == 'refs/heads/main' && steps.blastradius-index.outputs.cache-hit != 'true' }}
+        run: |
+          blastradius_mode=()
+          if [[ "$BLASTRADIUS_REFRESH_MAIN_INDEX" == "true" ]]; then
+            blastradius_mode+=("-Dblastradius.mode=track")
+          fi
+          mvn -B --no-transfer-progress "${blastradius_mode[@]}" -Pself-host-blastradius clean verify
       - name: Generate JaCoCo badge
         if: matrix.java == '21'
         uses: cicirello/jacoco-badge-generator@v2
