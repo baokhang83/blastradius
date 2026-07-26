@@ -1,8 +1,8 @@
 {
-  "feature": "backfill-ci-test-selection-reliability-decisions-from-2026-0",
-  "branch": "feature/backfill-ci-test-selection-reliability-decisions-from-2026-0",
+  "feature": "refresh-the-main-ci-dependency-index-after-conservative-fall",
+  "branch": "feature/refresh-the-main-ci-dependency-index-after-conservative-fall",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/backfill-ci-test-selection-reliability-decisions-from-2026-0/sessions/reconstruct-ci-test-selection-reliability-fixes-merged-on-20.md",
-  "base_ref": "origin/main",
+  "last_session": "docs/fluencyloop/features/refresh-the-main-ci-dependency-index-after-conservative-fall/sessions/refresh-main-baselines-after-non-exact-cache-restores.md",
+  "base_ref": "main",
   "updated": "2026-07-26"
 }
