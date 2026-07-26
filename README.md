@@ -49,8 +49,9 @@ no heuristics, no opaque score.
 </plugin>
 ```
 
-For separate CI runners, add the shared S3 index-store settings inside the Maven plugin's
-`<configuration>` block:
+For separate CI runners, first persist and restore the workspace's `.blastradius/` directory
+with your CI cache. S3 is optional; use these Maven settings only when an S3-compatible shared
+store is a better fit for your runners:
 
 ```xml
 <indexStore>s3</indexStore>
@@ -72,7 +73,8 @@ blastradius {
 }
 ```
 
-For separate CI runners, configure the same shared S3 index store:
+For separate CI runners, first persist and restore `.blastradius/` with your CI cache. S3 is
+optional; configure the same shared S3 index store only when needed:
 
 ```groovy
 blastradius {
@@ -92,12 +94,18 @@ to set it up in CI.
 
 ### Sharing indexes across CI runners
 
-By default, indexes stay under the workspace's `.blastradius/` directory. If a trunk `TRACK`
-job and PR `SELECT` job run on separate workers, configure the Maven plugin or Gradle extension
-with `indexStore = s3`, a bucket, and a region. The shared object store lets the PR job read the
-same commit-keyed index that the trunk job wrote. Credentials come from the standard AWS
-credential chain; do not put access keys in build files. Missing or inaccessible remote indexes
-still run the full suite safely. See the [Maven S3 configuration reference](blastradius-maven-plugin/README.md#shared-s3-index-store).
+By default, indexes stay under the workspace's `.blastradius/` directory. That directory is a
+saved map of which production classes each test used. A trunk `TRACK` job writes the map; a PR
+`SELECT` job restores it, compares the PR's changed classes to it, and runs only matching tests.
+
+On fresh CI workers, preserve `.blastradius/` between the trunk and PR jobs with the CI cache
+alongside your usual Maven dependency cache. **S3 is not required.** It is an alternative when
+your runners cannot share a reliable cache: configure the Maven plugin or Gradle extension with
+`indexStore = s3`, a bucket, and a region. The shared object store lets the PR job read the same
+commit-keyed index that the trunk job wrote. Credentials come from the standard AWS credential
+chain; do not put access keys in build files. If no saved index can be restored — for example,
+on a first build or cache miss — Blastradius safely runs the full suite instead. See the
+[Maven S3 configuration reference](blastradius-maven-plugin/README.md#shared-s3-index-store).
 
 ```bash
 git clone https://github.com/baokhang83/blastradius.git
