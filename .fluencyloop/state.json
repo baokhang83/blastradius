@@ -1,8 +1,8 @@
 {
-  "feature": "self-host-blastradius-test-selection-in-ci",
-  "branch": "feature/self-host-blastradius-test-selection-in-ci",
+  "feature": "backfill-ci-test-selection-reliability-decisions-from-2026-0",
+  "branch": "feature/backfill-ci-test-selection-reliability-decisions-from-2026-0",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/self-host-blastradius-test-selection-in-ci/sessions/self-host-the-maven-reactor-in-ci.md",
-  "base_ref": "main",
+  "last_session": "docs/fluencyloop/features/backfill-ci-test-selection-reliability-decisions-from-2026-0/sessions/reconstruct-ci-test-selection-reliability-fixes-merged-on-20.md",
+  "base_ref": "origin/main",
   "updated": "2026-07-26"
 }
