@@ -113,7 +113,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Download Blastradius selection reports
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: blastradius-selection-report-jdk*
           path: selection-reports
