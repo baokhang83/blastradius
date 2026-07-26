@@ -73,10 +73,23 @@ human-readable summary to the build's own console output (FR-008, FR-009):
 
 ```json
 {
+  "schemaVersion": 1,
   "mode": "TRACK | SELECT | FALLBACK",
   "indexApplicability": "APPLICABLE | MISSING | UNREADABLE | ANCHOR_UNREACHABLE",
+  "changedFiles": [
+    { "path": "string", "kind": "JAVA_SOURCE | NON_SOURCE | INERT", "changedClassName": "string | null" }
+  ],
   "totalCount": "integer",
   "selectedCount": "integer",
+  "skippedCount": "integer",
+  "reasonCounts": {
+    "DEPENDENCY_MATCH": "integer",
+    "FALLBACK_NON_SOURCE_CHANGE": "integer",
+    "NEW_OR_MODIFIED_TEST": "integer",
+    "NO_MATCH": "integer"
+  },
+  "estimatedTimeSavedMillis": "integer | null",
+  "timingCoverage": { "recordedSkippedTests": "integer", "totalSkippedTests": "integer" },
   "decisions": [
     {
       "test": { "className": "string", "methodName": "string | null" },
@@ -90,8 +103,17 @@ human-readable summary to the build's own console output (FR-008, FR-009):
 
 `decisions` is empty when `mode = TRACK` or `mode = FALLBACK` — both run everything
 unconditionally (neither is computing a per-test selection); `totalCount`/`selectedCount` are
-still populated (`selectedCount = totalCount` in both cases). Only `TRACK` also forks a
-subprocess and populates a fresh index; `FALLBACK` does neither (research.md #1).
+still populated (`selectedCount = totalCount` in both cases). `skippedCount = totalCount -
+selectedCount`, and `reasonCounts` always includes all four enum values, even if each count is
+zero. Only `TRACK` also forks a subprocess and populates a fresh index; `FALLBACK` does neither
+(research.md #1).
+
+`estimatedTimeSavedMillis` is the sum of persisted durations for every skipped test. It is
+`null` instead of a guess until `timingCoverage.recordedSkippedTests` equals
+`timingCoverage.totalSkippedTests`. The plugin stores duration history in the versioned local
+cache `.blastradius/test-timings.json`, populated from completed Surefire/Failsafe XML reports.
+The report is written before those test engines execute, so selected/skipped counts are the
+planned execution set, not their final pass/fail result.
 
 ## Console summary (rendered, not authoritative)
 
@@ -109,6 +131,10 @@ has to its `AnalysisReport` (spec 001's contract) — a rendering, not a second 
 
 - `selectedCount = totalCount` whenever `mode = TRACK` or `mode = FALLBACK` (FR-007 — both run
   everything).
+- `skippedCount = totalCount - selectedCount`; `estimatedTimeSavedMillis = 0` for TRACK and
+  FALLBACK, and is non-null for SELECT only when timing coverage is complete.
+- `reasonCounts` contains exactly one zero-or-positive bucket for every `SelectionReason`; the
+  bucket sum equals `decisions.size()`.
 - `decisions` is non-empty if and only if `mode = SELECT`.
 - `updatedIndex` (data-model.md) is present if and only if `mode = TRACK` — `FALLBACK` never
   produces or refreshes an index (research.md #1).

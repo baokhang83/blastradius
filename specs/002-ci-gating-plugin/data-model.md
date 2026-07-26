@@ -56,8 +56,14 @@ The plugin's per-build output (Key Entity: Build Report; FR-008, FR-009).
 | `mode` | enum: `TRACK`, `SELECT`, `FALLBACK` | Which path this invocation took (research.md #1). `TRACK`: `isBaseRefBuild` (or explicit `-Dblastradius.mode=track`) — full suite runs, and a subprocess refreshes the index. `SELECT`: a valid index applies — narrowed to the selected subset. `FALLBACK`: no valid index and *not* a base-ref build — full suite runs, same as `TRACK`, but no subprocess is forked (research.md #1's "why not track on every miss") |
 | `indexApplicability` | IndexApplicability | Why `SELECT` was or wasn't chosen |
 | `decisions` | list\<SelectionDecision\> | One per test in the suite; empty for `TRACK`/`FALLBACK`, where the *entire* suite ran unconditionally rather than per-test decisions being computed |
-| `selectedCount` | int | Tests that actually ran |
+| `schemaVersion` | int | Stable machine-readable report contract version; the initial version is `1` |
+| `changedFiles` | list\<ChangedFile\> | The complete classified git diff used for this selection |
+| `selectedCount` | int | Tests selected to run by the Surefire/Failsafe filter (the report is written before test execution completes) |
+| `skippedCount` | int | `totalCount - selectedCount` |
 | `totalCount` | int | Tests in the full suite |
+| `reasonCounts` | map\<SelectionReason, int\> | Every reason enum bucket, including zeros, for stable CI aggregation |
+| `estimatedTimeSavedMillis` | long, nullable | Sum of persisted durations for every skipped test; absent when timing coverage is incomplete |
+| `timingCoverage` | `{ recordedSkippedTests, totalSkippedTests }` | States whether the duration estimate has a complete baseline |
 | `updatedIndex` | DependencyIndex, nullable | Present only when `mode = TRACK` — the freshly (re)built index this run produced, now persisted for future `SELECT` runs. Always absent for `FALLBACK`, which deliberately does not attempt an index refresh (research.md #1) |
 
 ## Relationships

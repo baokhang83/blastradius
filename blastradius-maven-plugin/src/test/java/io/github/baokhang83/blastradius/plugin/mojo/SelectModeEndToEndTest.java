@@ -160,9 +160,18 @@ class SelectModeEndToEndTest {
         Path reportFile = projectDir.resolve(".blastradius/last-build-report.json");
         assertTrue(Files.exists(reportFile), "expected a BuildReport to be written to " + reportFile);
         String reportJson = Files.readString(reportFile, StandardCharsets.UTF_8);
+        assertTrue(reportJson.contains("\"schemaVersion\":1"), "expected schema v1 in:\n" + reportJson);
         assertTrue(reportJson.contains("\"mode\":\"SELECT\""), "expected mode=SELECT in:\n" + reportJson);
         assertTrue(reportJson.contains("\"selectedCount\":2"), "expected selectedCount=2 in:\n" + reportJson);
+        assertTrue(reportJson.contains("\"skippedCount\":1"), "expected skippedCount=1 in:\n" + reportJson);
         assertTrue(reportJson.contains("\"totalCount\":3"), "expected totalCount=3 in:\n" + reportJson);
+        assertTrue(reportJson.contains("\"changedFiles\":"), "expected changed files in:\n" + reportJson);
+        assertTrue(reportJson.contains("\"reasonCounts\":"), "expected reason counts in:\n" + reportJson);
+
+        Path timingHistory = projectDir.resolve(".blastradius/test-timings.json");
+        assertTrue(Files.exists(timingHistory), "expected completed Surefire timings at " + timingHistory);
+        assertTrue(Files.readString(timingHistory, StandardCharsets.UTF_8).contains("checksFoo"),
+                "expected the timing cache to include the test that ran");
     }
 
     @Test

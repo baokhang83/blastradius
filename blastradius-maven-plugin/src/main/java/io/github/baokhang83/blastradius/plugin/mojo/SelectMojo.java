@@ -19,6 +19,9 @@ import io.github.baokhang83.blastradius.plugin.report.BuildReport;
 import io.github.baokhang83.blastradius.plugin.report.BuildReportWriter;
 import io.github.baokhang83.blastradius.plugin.report.ConsoleSummaryRenderer;
 import io.github.baokhang83.blastradius.plugin.report.ExplainListingRenderer;
+import io.github.baokhang83.blastradius.plugin.report.SurefireReportReader;
+import io.github.baokhang83.blastradius.plugin.report.TestTimingHistoryStore;
+import io.github.baokhang83.blastradius.plugin.report.TimingHistoryRecorder;
 import io.github.baokhang83.blastradius.plugin.track.TrackRunner;
 import java.net.URISyntaxException;
 import java.net.URI;
@@ -29,6 +32,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.execution.MavenSession;
+import org.apache.maven.execution.AbstractExecutionListener;
+import org.apache.maven.execution.ExecutionListener;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -109,6 +114,8 @@ public final class SelectMojo extends AbstractMojo {
     private final ConsoleSummaryRenderer consoleSummaryRenderer = new ConsoleSummaryRenderer();
     private final ExplainListingRenderer explainListingRenderer = new ExplainListingRenderer();
     private final TrackRunner trackRunner = new TrackRunner();
+    private final TestTimingHistoryStore timingHistoryStore = new TestTimingHistoryStore();
+    private final SurefireReportReader surefireReportReader = new SurefireReportReader();
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
@@ -151,12 +158,14 @@ public final class SelectMojo extends AbstractMojo {
                     .orElseGet(IndexApplicability::mergeBaseUnavailable);
 
             BuildReport.Mode resolvedMode = determineMode(changes, applicability, mode);
+            Map<TestIdentity, Long> durationsByTest = timingHistoryStore.load(timingHistoryPath()).durationsByTest();
 
             switch (resolvedMode) {
                 case TRACK -> runTrack(changes, applicability, reactorRoot, indexStore, indexPathKey);
-                case SELECT -> runSelect(changes, applicability);
-                case FALLBACK -> runFallback(applicability);
+                case SELECT -> runSelect(changes, applicability, durationsByTest);
+                case FALLBACK -> runFallback(changes, applicability);
             }
+            registerTimingRecorder();
         } finally {
             close(indexStore);
         }
@@ -217,7 +226,7 @@ public final class SelectMojo extends AbstractMojo {
         indexStore.put(CommitIndexKey.forCommit(indexPathKey, changes.currentCommit()), freshIndex);
 
         int totalCount = discoverProjectTests().size();
-        BuildReport report = BuildReport.forTrack(applicability.status(), totalCount, freshIndex);
+        BuildReport report = BuildReport.forTrack(applicability.status(), totalCount, freshIndex, changes.changedFiles());
         buildReportWriter.write(reportPath(), report);
         renderReport(report, null);
     }
@@ -227,9 +236,9 @@ public final class SelectMojo extends AbstractMojo {
      * safely, but deliberately no track subprocess is forked for this commit (a poor
      * anchor for the shared index) (research.md #1, tasks.md T046).
      */
-    private void runFallback(IndexApplicability applicability) throws MojoExecutionException {
+    private void runFallback(CurrentChanges changes, IndexApplicability applicability) throws MojoExecutionException {
         int totalCount = discoverProjectTests().size();
-        BuildReport report = BuildReport.forFallback(applicability.status(), totalCount);
+        BuildReport report = BuildReport.forFallback(applicability.status(), totalCount, changes.changedFiles());
         buildReportWriter.write(reportPath(), report);
         renderReport(report, null);
     }
@@ -272,7 +281,8 @@ public final class SelectMojo extends AbstractMojo {
      * caught before any filter is applied — the safe fallback below is exactly what Surefire
      * would have done anyway (run everything) had the goal never run at all.
      */
-    private void runSelect(CurrentChanges changes, IndexApplicability applicability) throws MojoExecutionException {
+    private void runSelect(CurrentChanges changes, IndexApplicability applicability,
+            Map<TestIdentity, Long> durationsByTest) throws MojoExecutionException {
         try {
             Set<TestIdentity> allTests = discoverProjectTests();
             List<SelectionDecision> decisions = computeDecisions(allTests, applicability.index(), changes.changedFiles());
@@ -283,14 +293,15 @@ public final class SelectMojo extends AbstractMojo {
 
             surefireFilterApplier.apply(project, selectedTests);
 
-            BuildReport report = BuildReport.forSelect(applicability, decisions);
+            BuildReport report = BuildReport.forSelect(applicability, changes.changedFiles(), decisions, durationsByTest);
             buildReportWriter.write(reportPath(), report);
             renderReport(report, applicability.index());
         } catch (RuntimeException e) {
             getLog().warn("[blastradius] internal error during selection computation — falling back to running "
                     + "the full suite unfiltered rather than risk a crashed build or an unsound selection", e);
             int totalCount = discoverProjectTests().size();
-            BuildReport report = BuildReport.forFallback(IndexApplicability.Status.INTERNAL_ERROR, totalCount);
+            BuildReport report = BuildReport.forFallback(
+                    IndexApplicability.Status.INTERNAL_ERROR, totalCount, changes.changedFiles());
             buildReportWriter.write(reportPath(), report);
             renderReport(report, null);
         }
@@ -305,6 +316,25 @@ public final class SelectMojo extends AbstractMojo {
 
     private Path reportPath() {
         return project.getBasedir().toPath().resolve(".blastradius/last-build-report.json");
+    }
+
+    private Path timingHistoryPath() {
+        return project.getBasedir().toPath().resolve(".blastradius/test-timings.json");
+    }
+
+    /**
+     * Maven resolves its execution listener dynamically for every lifecycle event, so chaining
+     * here lets the already-planned Surefire/Failsafe executions persist timings without asking
+     * adopters to configure a second goal. The wrapper forwards every existing listener event.
+     */
+    private void registerTimingRecorder() {
+        ExecutionListener existing = session.getRequest().getExecutionListener();
+        if (existing instanceof TimingHistoryRecorder) {
+            return;
+        }
+        session.getRequest().setExecutionListener(new TimingHistoryRecorder(
+                existing == null ? new AbstractExecutionListener() : existing,
+                timingHistoryStore, surefireReportReader, getLog()::warn));
     }
 
     /**
