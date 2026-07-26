@@ -2,6 +2,7 @@ package io.github.baokhang83.blastradius.core.index;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -26,5 +27,17 @@ class CommitIndexKeyTest {
     @Test
     void rejectsAnAbbreviatedCommit() {
         assertThrows(IllegalArgumentException.class, () -> CommitIndexKey.forCommit(".blastradius/index.json", "0123456"));
+    }
+
+    @Test
+    void extractsOnlyACommitKeyForTheConfiguredIndexPath() {
+        assertEquals(
+                COMMIT,
+                CommitIndexKey.commitFromKey(
+                                ".blastradius/index.json", ".blastradius/" + COMMIT + "/index.json")
+                        .orElseThrow());
+        assertTrue(CommitIndexKey.commitFromKey(".blastradius/index.json", ".blastradius/" + COMMIT + "/other.json")
+                .isEmpty());
+        assertTrue(CommitIndexKey.commitFromKey(".blastradius/index.json", ".blastradius/index.json").isEmpty());
     }
 }

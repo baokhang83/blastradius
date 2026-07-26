@@ -35,4 +35,15 @@ public final class CurrentChangesResolver {
                 comparison.baseReferenceBuild(),
                 changedFiles);
     }
+
+    /** Recomputes the changed files from a validated stale index anchor through the current HEAD. */
+    public CurrentChanges resolveFromAnchor(Path projectDir, CurrentChanges changes, String anchorCommit) {
+        return new CurrentChanges(
+                changes.baseReference(),
+                changes.resolvedBaseCommit(),
+                java.util.Optional.of(anchorCommit),
+                changes.currentCommit(),
+                false,
+                changedFileClassifier.classify(projectDir, anchorCommit, changes.currentCommit()));
+    }
 }

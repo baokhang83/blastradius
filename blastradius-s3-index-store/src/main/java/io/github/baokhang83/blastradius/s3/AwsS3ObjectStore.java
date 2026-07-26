@@ -3,6 +3,7 @@ package io.github.baokhang83.blastradius.s3;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Optional;
+import java.util.List;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -10,6 +11,7 @@ import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -43,6 +45,20 @@ final class AwsS3ObjectStore implements S3ObjectStore {
             throw unavailable("read", key, e);
         } catch (SdkException e) {
             throw unavailable("read", key, e);
+        }
+    }
+
+    @Override
+    public List<String> keys(String prefix) {
+        try {
+            return client.listObjectsV2Paginator(ListObjectsV2Request.builder().bucket(bucket).prefix(prefix).build())
+                    .stream()
+                    .flatMap(response -> response.contents().stream())
+                    .map(object -> object.key())
+                    .sorted()
+                    .toList();
+        } catch (SdkException e) {
+            throw unavailable("list", prefix, e);
         }
     }
 

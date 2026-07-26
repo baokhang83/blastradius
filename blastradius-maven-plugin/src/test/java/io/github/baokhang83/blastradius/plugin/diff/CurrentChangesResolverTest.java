@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.baokhang83.blastradius.core.git.FileKind;
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import java.nio.file.Path;
+import java.util.List;
 import org.eclipse.jgit.api.Git;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -84,5 +85,25 @@ class CurrentChangesResolverTest {
         assertEquals(branchPoint, changes.comparisonBaseCommit().orElseThrow());
         assertEquals(1, changes.changedFiles().size());
         assertEquals("com.example.FeatureOnly", changes.changedFiles().get(0).changedClassName());
+    }
+
+    @Test
+    void widensAnExistingComparisonToAReachableStaleAnchor(@TempDir Path projectDir) {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        String staleAnchor = fixture.commit("initial");
+        fixture.writeClass("com.example.Intervening", "package com.example; class Intervening {}");
+        String currentBase = fixture.commit("intervening main change");
+        fixture.writeClass("com.example.FeatureOnly", "package com.example; class FeatureOnly {}");
+        fixture.commit("feature change");
+
+        CurrentChanges initiallyResolved = resolver.resolve(projectDir, currentBase);
+        CurrentChanges widened = resolver.resolveFromAnchor(projectDir, initiallyResolved, staleAnchor);
+
+        assertEquals(staleAnchor, widened.comparisonBaseCommit().orElseThrow());
+        assertEquals(initiallyResolved.currentCommit(), widened.currentCommit());
+        assertFalse(widened.isBaseRefBuild());
+        assertEquals(
+                List.of("com.example.FeatureOnly", "com.example.Intervening"),
+                widened.changedFiles().stream().map(change -> change.changedClassName()).sorted().toList());
     }
 }
