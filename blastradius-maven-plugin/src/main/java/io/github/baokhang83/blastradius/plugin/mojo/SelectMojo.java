@@ -153,13 +153,20 @@ public final class SelectMojo extends AbstractMojo {
             } catch (IllegalStateException e) {
                 throw new MojoExecutionException("invalid configuration: " + e.getMessage(), e);
             }
-            IndexApplicability applicability = changes.comparisonBaseCommit()
+            CurrentChanges initialChanges = changes;
+            IndexApplicability applicability = initialChanges.comparisonBaseCommit()
                     .map(comparisonBase -> indexApplicabilityResolver.resolve(
                             indexStore,
                             CommitIndexKey.forCommit(indexPathKey, comparisonBase),
+                            indexPathKey,
                             comparisonBase,
+                            initialChanges.currentCommit(),
                             reactorRoot))
                     .orElseGet(IndexApplicability::mergeBaseUnavailable);
+            if (applicability.status() == IndexApplicability.Status.STALE_BASELINE) {
+                changes = currentChangesResolver.resolveFromAnchor(
+                        reactorRoot, changes, applicability.index().anchorCommit());
+            }
 
             BuildReport.Mode resolvedMode = determineMode(changes, applicability, mode);
             Map<TestIdentity, Long> durationsByTest = timingHistoryStore.load(timingHistoryPath()).durationsByTest();
@@ -211,7 +218,8 @@ public final class SelectMojo extends AbstractMojo {
         if (changes.isBaseRefBuild() || "track".equalsIgnoreCase(explicitMode)) {
             return BuildReport.Mode.TRACK;
         }
-        if (applicability.status() == IndexApplicability.Status.APPLICABLE) {
+        if (applicability.status() == IndexApplicability.Status.APPLICABLE
+                || applicability.status() == IndexApplicability.Status.STALE_BASELINE) {
             return BuildReport.Mode.SELECT;
         }
         return BuildReport.Mode.FALLBACK;

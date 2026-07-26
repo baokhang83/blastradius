@@ -35,6 +35,28 @@ class FileIndexStoreTest {
     }
 
     @Test
+    void listsOnlyKeysBelowTheRequestedPrefixInStableOrder() {
+        IndexStore<StoredIndex> store = new FileIndexStore<>(rootDirectory, StoredIndex.class);
+        store.put(".blastradius/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/index.json", new StoredIndex("b", List.of()));
+        store.put(".blastradius/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/index.json", new StoredIndex("a", List.of()));
+        store.put("other/index.json", new StoredIndex("other", List.of()));
+
+        assertEquals(
+                List.of(
+                        ".blastradius/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/index.json",
+                        ".blastradius/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/index.json"),
+                store.keys(".blastradius"));
+    }
+
+    @Test
+    void listsFromTheStoreRootWhenThePrefixIsEmpty() {
+        IndexStore<StoredIndex> store = new FileIndexStore<>(rootDirectory, StoredIndex.class);
+        store.put("index.json", new StoredIndex("root", List.of()));
+
+        assertEquals(List.of("index.json"), store.keys(""));
+    }
+
+    @Test
     void rejectsKeyThatEscapesConfiguredRoot() {
         IndexStore<StoredIndex> store = new FileIndexStore<>(rootDirectory, StoredIndex.class);
 

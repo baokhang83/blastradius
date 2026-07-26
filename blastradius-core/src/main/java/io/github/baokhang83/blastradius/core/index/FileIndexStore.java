@@ -5,7 +5,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /** A JSON-backed {@link IndexStore} whose keys are constrained to one project directory. */
 public final class FileIndexStore<T> implements IndexStore<T> {
@@ -33,6 +35,24 @@ public final class FileIndexStore<T> implements IndexStore<T> {
             return Optional.of(value);
         } catch (IOException e) {
             throw new UncheckedIOException("failed to read dependency index from " + indexFile, e);
+        }
+    }
+
+    @Override
+    public List<String> keys(String prefix) {
+        Path prefixDirectory = prefix == null || prefix.isBlank() ? rootDirectory : resolveKey(prefix);
+        if (Files.notExists(prefixDirectory)) {
+            return List.of();
+        }
+        try (Stream<Path> paths = Files.walk(prefixDirectory)) {
+            return paths.filter(Files::isRegularFile)
+                    .map(rootDirectory::relativize)
+                    .map(Path::toString)
+                    .map(path -> path.replace('\\', '/'))
+                    .sorted()
+                    .toList();
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to list dependency indexes below " + prefix, e);
         }
     }
 

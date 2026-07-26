@@ -1,8 +1,8 @@
 {
-  "feature": "self-host-blastradius-test-selection-in-ci",
-  "branch": "feature/self-host-blastradius-test-selection-in-ci",
+  "feature": "use-a-reachable-stale-dependency-index-as-a-conservative-tes",
+  "branch": "feature/use-a-reachable-stale-dependency-index-as-a-conservative-tes",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/self-host-blastradius-test-selection-in-ci/sessions/self-host-the-maven-reactor-in-ci.md",
-  "base_ref": "main",
+  "last_session": "docs/fluencyloop/features/use-a-reachable-stale-dependency-index-as-a-conservative-tes/sessions/specify-conservative-stale-baseline-selection.md",
+  "base_ref": "origin/main",
   "updated": "2026-07-26"
 }

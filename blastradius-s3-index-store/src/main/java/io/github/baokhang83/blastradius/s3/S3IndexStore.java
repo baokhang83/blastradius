@@ -7,6 +7,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.List;
 
 /** A JSON-backed {@link IndexStore} whose values live under an S3 object-key prefix. */
 public final class S3IndexStore<T> implements IndexStore<T>, AutoCloseable {
@@ -25,6 +26,12 @@ public final class S3IndexStore<T> implements IndexStore<T>, AutoCloseable {
     @Override
     public Optional<T> get(String key) {
         return objects.get(objectKey(key)).map(this::deserialize);
+    }
+
+    @Override
+    public List<String> keys(String prefix) {
+        String objectPrefix = objectPrefix(prefix);
+        return objects.keys(objectPrefix).stream().map(this::relativeKey).toList();
     }
 
     @Override
@@ -67,6 +74,24 @@ public final class S3IndexStore<T> implements IndexStore<T>, AutoCloseable {
         } catch (InvalidPathException e) {
             throw new IllegalArgumentException("invalid index key: " + key, e);
         }
+    }
+
+    private String objectPrefix(String relativePrefix) {
+        if (relativePrefix == null || relativePrefix.isBlank()) {
+            return prefix;
+        }
+        return objectKey(relativePrefix);
+    }
+
+    private String relativeKey(String objectKey) {
+        if (prefix.isEmpty()) {
+            return objectKey;
+        }
+        String prefixWithSeparator = prefix + "/";
+        if (!objectKey.startsWith(prefixWithSeparator)) {
+            throw new IllegalArgumentException("S3 object key is outside the configured prefix: " + objectKey);
+        }
+        return objectKey.substring(prefixWithSeparator.length());
     }
 
     private static String normalizePrefix(String prefix) {
