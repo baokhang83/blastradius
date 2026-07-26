@@ -1,7 +1,30 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { renderSelectionSummary } = require('./render-summary.cjs');
+const { combineSelectionReports, renderSelectionSummary } = require('./render-summary.cjs');
+
+test('combines the module reports for a reactor-wide summary', () => {
+  assert.deepEqual(combineSelectionReports([
+    {
+      selectedCount: 2,
+      totalCount: 5,
+      estimatedTimeSavedMillis: 1200,
+      reasonCounts: { DEPENDENCY_MATCH: 2, NO_MATCH: 3 },
+    },
+    {
+      selectedCount: 1,
+      totalCount: 4,
+      estimatedTimeSavedMillis: 800,
+      reasonCounts: { NEW_OR_MODIFIED_TEST: 1, NO_MATCH: 3 },
+    },
+  ]), {
+    selectedCount: 3,
+    totalCount: 9,
+    skippedCount: 6,
+    estimatedTimeSavedMillis: 2000,
+    reasonCounts: { DEPENDENCY_MATCH: 2, NO_MATCH: 6, NEW_OR_MODIFIED_TEST: 1 },
+  });
+});
 
 test('renders the selection result, timing estimate, and non-zero reasons', () => {
   const rendered = renderSelectionSummary({

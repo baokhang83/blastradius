@@ -46,6 +46,42 @@ function formatDuration(milliseconds) {
   return minutes === 0 ? `~${remainderSeconds}s` : `~${minutes}m ${remainderSeconds}s`;
 }
 
+function combineSelectionReports(reports) {
+  if (!Array.isArray(reports) || reports.length === 0) {
+    throw new Error('reports must be a non-empty array');
+  }
+
+  const reasonCountTotals = {};
+  let selectedCount = 0;
+  let totalCount = 0;
+  let estimatedTimeSavedMillis = 0;
+  let hasIncompleteEstimate = false;
+
+  for (const report of reports) {
+    selectedCount += readCount(report, 'selectedCount', true);
+    totalCount += readCount(report, 'totalCount', true);
+    const estimate = report.estimatedTimeSavedMillis;
+    if (estimate === undefined || estimate === null) {
+      hasIncompleteEstimate = true;
+    } else if (!Number.isSafeInteger(estimate) || estimate < 0) {
+      throw new Error('estimatedTimeSavedMillis must be a non-negative integer or null');
+    } else {
+      estimatedTimeSavedMillis += estimate;
+    }
+    for (const [reason, count] of reasonCounts(report)) {
+      reasonCountTotals[reason] = (reasonCountTotals[reason] ?? 0) + count;
+    }
+  }
+
+  return {
+    selectedCount,
+    totalCount,
+    skippedCount: totalCount - selectedCount,
+    estimatedTimeSavedMillis: hasIncompleteEstimate ? null : estimatedTimeSavedMillis,
+    reasonCounts: reasonCountTotals,
+  };
+}
+
 function renderSelectionSummary(report) {
   if (typeof report !== 'object' || report === null || Array.isArray(report)) {
     throw new Error('report must be an object');
@@ -87,4 +123,4 @@ function renderSelectionSummary(report) {
   return `${lines.join('\n')}\n`;
 }
 
-module.exports = { COMMENT_MARKER, renderSelectionSummary };
+module.exports = { COMMENT_MARKER, combineSelectionReports, renderSelectionSummary };

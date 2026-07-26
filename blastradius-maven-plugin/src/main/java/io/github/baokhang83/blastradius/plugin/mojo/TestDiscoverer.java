@@ -28,9 +28,11 @@ import org.junit.platform.launcher.core.LauncherFactory;
  */
 public final class TestDiscoverer {
 
+    private static final String BLASTRADIUS_PACKAGE = "io.github.baokhang83.blastradius.";
+
     public Set<TestIdentity> discoverAllTests(Path testClassesDir, List<String> testClasspathElements) {
         URL[] urls = testClasspathElements.stream().map(TestDiscoverer::toUrl).toArray(URL[]::new);
-        ClassLoader discoveryClassLoader = new URLClassLoader(urls, Thread.currentThread().getContextClassLoader());
+        ClassLoader discoveryClassLoader = new ProjectFirstClassLoader(urls, Thread.currentThread().getContextClassLoader());
 
         ClassLoader previous = Thread.currentThread().getContextClassLoader();
         Thread.currentThread().setContextClassLoader(discoveryClassLoader);
@@ -73,6 +75,38 @@ public final class TestDiscoverer {
             return Path.of(path).toUri().toURL();
         } catch (MalformedURLException e) {
             throw new IllegalArgumentException("invalid classpath element: " + path, e);
+        }
+    }
+
+    /**
+     * The packaged plugin shades Blastradius classes, which is normally isolated behind Maven's
+     * plugin realm. Self-hosting intentionally runs against a project with the same package, so
+     * discovery must prefer that project's compiled classes rather than the shaded copies.
+     */
+    static final class ProjectFirstClassLoader extends URLClassLoader {
+
+        ProjectFirstClassLoader(URL[] urls, ClassLoader parent) {
+            super(urls, parent);
+        }
+
+        @Override
+        protected synchronized Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+            if (!name.startsWith(BLASTRADIUS_PACKAGE)) {
+                return super.loadClass(name, resolve);
+            }
+
+            Class<?> loaded = findLoadedClass(name);
+            if (loaded == null) {
+                try {
+                    loaded = findClass(name);
+                } catch (ClassNotFoundException ignored) {
+                    loaded = super.loadClass(name, false);
+                }
+            }
+            if (resolve) {
+                resolveClass(loaded);
+            }
+            return loaded;
         }
     }
 }

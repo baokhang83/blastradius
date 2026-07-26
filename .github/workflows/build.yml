@@ -29,9 +29,44 @@ jobs:
       - uses: stCarolas/setup-maven@v5
         with:
           maven-version: 3.9.6
-      - run: mvn -B --no-transfer-progress clean verify
+      - name: Restore Blastradius index
+        id: blastradius-index
+        uses: actions/cache/restore@v4
+        with:
+          path: .blastradius
+          key: blastradius-index-${{ runner.os }}-jdk${{ matrix.java }}-${{ github.sha }}
+          restore-keys: |
+            blastradius-index-${{ runner.os }}-jdk${{ matrix.java }}-
+      - name: Bootstrap Blastradius plugin
+        run: |
+          mvn -B --no-transfer-progress -DskipTests -Dinvoker.skip=true -pl blastradius-maven-plugin -am package
+          mkdir -p target/self-host/META-INF/maven
+          cp blastradius-maven-plugin/target/blastradius-maven-plugin-0.1.0.jar target/blastradius-maven-plugin-0.1.0-selfhost.jar
+          unzip -p blastradius-maven-plugin/target/blastradius-maven-plugin-0.1.0.jar META-INF/maven/plugin.xml \
+            | perl -0pe 's{(<artifactId>blastradius-maven-plugin</artifactId>\s*<version>)0\.1\.0(</version>)}{$1 . "0.1.0-selfhost" . $2}e' \
+            > target/self-host/META-INF/maven/plugin.xml
+          (cd target/self-host && jar uf ../blastradius-maven-plugin-0.1.0-selfhost.jar META-INF/maven/plugin.xml)
+          mvn -B --no-transfer-progress org.apache.maven.plugins:maven-install-plugin:3.1.2:install-file \
+            -Dfile=target/blastradius-maven-plugin-0.1.0-selfhost.jar \
+            -DgroupId=io.github.baokhang83.blastradius \
+            -DartifactId=blastradius-maven-plugin \
+            -Dversion=0.1.0-selfhost \
+            -Dpackaging=maven-plugin \
+            -DgeneratePom=true
+      - run: mvn -B --no-transfer-progress -Pself-host-blastradius clean verify
+      - name: Save Blastradius index from main
+        if: ${{ github.ref == 'refs/heads/main' && success() && steps.blastradius-index.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .blastradius
+          key: blastradius-index-${{ runner.os }}-jdk${{ matrix.java }}-${{ github.sha }}
       - name: Publish Blastradius selection feedback
         if: ${{ always() }}
         uses: ./.github/actions/blastradius-selection-summary
         with:
+          report-paths: |
+            blastradius-core/.blastradius/last-build-report.json
+            blastradius-s3-index-store/.blastradius/last-build-report.json
+            blastradius-validator/.blastradius/last-build-report.json
+            blastradius-maven-plugin/.blastradius/last-build-report.json
           github-token: ${{ github.token }}
