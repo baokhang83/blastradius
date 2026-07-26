@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
@@ -78,4 +78,93 @@ jobs:
             blastradius-s3-index-store/.blastradius/last-build-report.json
             blastradius-validator/.blastradius/last-build-report.json
             blastradius-maven-plugin/.blastradius/last-build-report.json
+          comment: false
           github-token: ${{ github.token }}
+      - name: Upload Blastradius selection reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: blastradius-selection-report-jdk${{ matrix.java }}
+          path: |
+            blastradius-core/.blastradius/last-build-report.json
+            blastradius-s3-index-store/.blastradius/last-build-report.json
+            blastradius-validator/.blastradius/last-build-report.json
+            blastradius-maven-plugin/.blastradius/last-build-report.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 1
+
+  selection-feedback:
+    name: Publish Blastradius selection feedback
+    needs: verify
+    if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download Blastradius selection reports
+        uses: actions/download-artifact@v7
+        with:
+          pattern: blastradius-selection-report-jdk*
+          path: selection-reports
+      - name: Publish one selection comment for all JDKs
+        uses: actions/github-script@v8
+        env:
+          REPORT_ROOT: selection-reports
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const {
+              COMMENT_MARKER,
+              combineSelectionReports,
+              renderMatrixSelectionSummary,
+            } = require(path.join(process.env.GITHUB_WORKSPACE, '.github/actions/blastradius-selection-summary/render-summary.cjs'));
+            const requiredReportPaths = [
+              'blastradius-core/.blastradius/last-build-report.json',
+              'blastradius-s3-index-store/.blastradius/last-build-report.json',
+              'blastradius-validator/.blastradius/last-build-report.json',
+              'blastradius-maven-plugin/.blastradius/last-build-report.json',
+            ];
+            const reportRoot = path.join(process.env.GITHUB_WORKSPACE, process.env.REPORT_ROOT);
+            const reports = [];
+
+            if (fs.existsSync(reportRoot)) {
+              for (const entry of fs.readdirSync(reportRoot, { withFileTypes: true })) {
+                const match = /^blastradius-selection-report-jdk(\d+)$/.exec(entry.name);
+                if (!entry.isDirectory() || !match) continue;
+
+                const artifactRoot = path.join(reportRoot, entry.name);
+                const missingPaths = requiredReportPaths.filter((reportPath) => !fs.existsSync(path.join(artifactRoot, reportPath)));
+                if (missingPaths.length > 0) {
+                  core.warning(`JDK ${match[1]} did not produce all selection reports.`);
+                  continue;
+                }
+
+                try {
+                  const moduleReports = requiredReportPaths.map((reportPath) => JSON.parse(fs.readFileSync(path.join(artifactRoot, reportPath), 'utf8')));
+                  reports.push({ jdk: match[1], report: combineSelectionReports(moduleReports) });
+                } catch (error) {
+                  core.warning(`Could not read the JDK ${match[1]} selection reports: ${error.message}`);
+                }
+              }
+            }
+
+            const body = reports.length > 0
+              ? renderMatrixSelectionSummary(reports)
+              : `${COMMENT_MARKER}\n## Blastradius selection\n\nNo selection report was produced by this build.\n`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const priorComment = comments.find((comment) => comment.user.type === 'Bot' && comment.body?.includes(COMMENT_MARKER));
+
+            if (priorComment) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: priorComment.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
