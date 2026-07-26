@@ -51,6 +51,7 @@
         <module>blastradius-s3-index-store</module>
         <module>blastradius-validator</module>
         <module>blastradius-maven-plugin</module>
+        <module>coverage</module>
     </modules>
 
     <properties>
@@ -78,6 +79,7 @@
         <invoker.plugin.version>3.10.1</invoker.plugin.version>
         <aws.sdk.version>2.41.33</aws.sdk.version>
         <slf4j.version>2.0.18</slf4j.version>
+        <jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -128,6 +130,24 @@
                                 <dependencyConvergence />
                             </rules>
                         </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco-maven-plugin.version}</version>
+                <configuration>
+                    <includes>
+                        <include>io/github/baokhang83/blastradius/**</include>
+                    </includes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>
@@ -227,6 +247,7 @@
                                 <excludeArtifact>blastradius-parent</excludeArtifact>
                                 <excludeArtifact>blastradius-core</excludeArtifact>
                                 <excludeArtifact>blastradius-validator</excludeArtifact>
+                                <excludeArtifact>coverage</excludeArtifact>
                             </excludeArtifacts>
                         </configuration>
                     </plugin>

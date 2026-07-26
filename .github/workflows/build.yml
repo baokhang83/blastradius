@@ -60,6 +60,17 @@ jobs:
             -Dpackaging=maven-plugin \
             -DgeneratePom=true
       - run: mvn -B --no-transfer-progress -Pself-host-blastradius clean verify
+      - name: Generate JaCoCo badge
+        if: matrix.java == '21'
+        uses: cicirello/jacoco-badge-generator@v2
+        with:
+          jacoco-csv-file: coverage/target/site/jacoco-aggregate/jacoco.csv
+          badges-directory: coverage/target/site/jacoco-aggregate/badges
+      - name: Publish coverage report to GitHub Pages
+        if: matrix.java == '21' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: coverage/target/site/jacoco-aggregate
       - name: Save Blastradius index from main
         if: ${{ github.ref == 'refs/heads/main' && success() && steps.blastradius-index.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
