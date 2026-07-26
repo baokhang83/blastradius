@@ -107,6 +107,40 @@ chain; do not put access keys in build files. If no saved index can be restored 
 on a first build or cache miss — Blastradius safely runs the full suite instead. See the
 [Maven S3 configuration reference](blastradius-maven-plugin/README.md#shared-s3-index-store).
 
+### GitHub Actions cache example
+
+In the workflow that runs `blastradius:select`, put the restore step after checkout and before
+Maven. Save only successful `main` builds, after Maven, so pull requests always read a map made
+by the trusted base branch:
+
+```yaml
+steps:
+  - uses: actions/checkout@v7
+
+  - name: Restore Blastradius index
+    id: blastradius-index
+    uses: actions/cache/restore@v4
+    with:
+      path: .blastradius
+      key: blastradius-index-${{ runner.os }}-${{ github.sha }}
+      restore-keys: |
+        blastradius-index-${{ runner.os }}-
+
+  - run: mvn -B --no-transfer-progress verify
+
+  - name: Save Blastradius index from main
+    if: ${{ github.ref == 'refs/heads/main' && success() && steps.blastradius-index.outputs.cache-hit != 'true' }}
+    uses: actions/cache/save@v4
+    with:
+      path: .blastradius
+      key: blastradius-index-${{ runner.os }}-${{ github.sha }}
+```
+
+The key includes the commit SHA so a `main` build saves an immutable snapshot. A PR has a new
+SHA, so its exact lookup misses; `restore-keys` then restores the newest compatible
+`main` snapshot. Do not put credentials or other secrets under `.blastradius/` because GitHub
+Actions caches are readable by pull-request workflows.
+
 ```bash
 git clone https://github.com/baokhang83/blastradius.git
 cd blastradius
