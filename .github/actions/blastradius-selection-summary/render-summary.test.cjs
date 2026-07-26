@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { combineSelectionReports, renderSelectionSummary } = require('./render-summary.cjs');
+const { combineSelectionReports, renderMatrixSelectionSummary, renderSelectionSummary } = require('./render-summary.cjs');
 
 test('combines the module reports for a reactor-wide summary', () => {
   assert.deepEqual(combineSelectionReports([
@@ -66,4 +66,34 @@ test('rejects an invalid report rather than publishing misleading counts', () =>
     () => renderSelectionSummary({ selectedCount: 4, totalCount: 3 }),
     /selectedCount must not exceed totalCount/,
   );
+});
+
+test('renders one labelled row per JDK instead of combining matrix jobs', () => {
+  const rendered = renderMatrixSelectionSummary([
+    {
+      jdk: '25',
+      report: {
+        selectedCount: 12,
+        totalCount: 20,
+        skippedCount: 8,
+        estimatedTimeSavedMillis: null,
+        reasonCounts: { DEPENDENCY_MATCH: 12, NO_MATCH: 8 },
+      },
+    },
+    {
+      jdk: '21',
+      report: {
+        selectedCount: 10,
+        totalCount: 20,
+        skippedCount: 10,
+        estimatedTimeSavedMillis: 65000,
+        reasonCounts: { DEPENDENCY_MATCH: 10, NO_MATCH: 10 },
+      },
+    },
+  ]);
+
+  assert.match(rendered, /\| 21 \| 10\/20 \| 10 \| ~1m 5s \|/);
+  assert.match(rendered, /\| 25 \| 12\/20 \| 8 \| Timing history incomplete \|/);
+  assert.match(rendered, /#### JDK 21/);
+  assert.match(rendered, /#### JDK 25/);
 });

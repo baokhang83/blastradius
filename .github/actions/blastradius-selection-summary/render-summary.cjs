@@ -82,7 +82,7 @@ function combineSelectionReports(reports) {
   };
 }
 
-function renderSelectionSummary(report) {
+function selectionStats(report) {
   if (typeof report !== 'object' || report === null || Array.isArray(report)) {
     throw new Error('report must be an object');
   }
@@ -100,6 +100,18 @@ function renderSelectionSummary(report) {
     throw new Error('estimatedTimeSavedMillis must be a non-negative integer or null');
   }
 
+  return {
+    selectedCount,
+    totalCount,
+    skippedCount,
+    estimatedTimeSavedMillis: estimate ?? null,
+    reasons: reasonCounts(report),
+  };
+}
+
+function renderSelectionSummary(report) {
+  const { selectedCount, totalCount, skippedCount, estimatedTimeSavedMillis, reasons } = selectionStats(report);
+  const estimate = estimatedTimeSavedMillis;
   const savings = estimate === undefined || estimate === null ? null : formatDuration(estimate);
   const lines = [
     COMMENT_MARKER,
@@ -112,7 +124,6 @@ function renderSelectionSummary(report) {
 
   if (!savings) lines.push('', 'Timing history is incomplete, so no time-saved estimate is shown.');
 
-  const reasons = reasonCounts(report);
   if (reasons.length > 0) {
     lines.push('', '### Reasons', '');
     for (const [reason, count] of reasons.sort(([left], [right]) => left.localeCompare(right))) {
@@ -123,4 +134,45 @@ function renderSelectionSummary(report) {
   return `${lines.join('\n')}\n`;
 }
 
-module.exports = { COMMENT_MARKER, combineSelectionReports, renderSelectionSummary };
+function renderMatrixSelectionSummary(jdkReports) {
+  if (!Array.isArray(jdkReports) || jdkReports.length === 0) {
+    throw new Error('jdkReports must be a non-empty array');
+  }
+
+  const summaries = jdkReports.map(({ jdk, report }) => {
+    if (typeof jdk !== 'string' || !/^\d+$/.test(jdk)) {
+      throw new Error('jdk must be a numeric version string');
+    }
+    return { jdk, ...selectionStats(report) };
+  }).sort((left, right) => Number(left.jdk) - Number(right.jdk));
+
+  const lines = [
+    COMMENT_MARKER,
+    '## Blastradius selection',
+    '',
+    '| JDK | Ran | Skipped | Estimated time saved |',
+    '| --- | ---: | ---: | ---: |',
+  ];
+
+  for (const summary of summaries) {
+    const savings = summary.estimatedTimeSavedMillis === null
+      ? 'Timing history incomplete'
+      : formatDuration(summary.estimatedTimeSavedMillis);
+    lines.push(`| ${summary.jdk} | ${summary.selectedCount}/${summary.totalCount} | ${summary.skippedCount} | ${savings} |`);
+  }
+
+  const summariesWithReasons = summaries.filter((summary) => summary.reasons.length > 0);
+  if (summariesWithReasons.length > 0) {
+    lines.push('', '### Reasons');
+    for (const summary of summariesWithReasons) {
+      lines.push('', `#### JDK ${summary.jdk}`, '');
+      for (const [reason, count] of summary.reasons.sort(([left], [right]) => left.localeCompare(right))) {
+        lines.push(`- ${displayReason(reason)}: ${count}`);
+      }
+    }
+  }
+
+  return `${lines.join('\n')}\n`;
+}
+
+module.exports = { COMMENT_MARKER, combineSelectionReports, renderMatrixSelectionSummary, renderSelectionSummary };
