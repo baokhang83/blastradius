@@ -73,6 +73,10 @@ blastradius {
 }
 ```
 
+There is no separate Gradle `select` task. Applying the plugin configures every Java `Test`
+task, so run the normal `./gradlew test`: it tracks on `main` and selects the relevant tests on
+other branches when a saved index is available.
+
 For separate CI runners, first persist and restore `.blastradius/` with your CI cache. S3 is
 optional; configure the same shared S3 index store only when needed:
 
@@ -109,9 +113,9 @@ on a first build or cache miss — Blastradius safely runs the full suite instea
 
 ### GitHub Actions cache example
 
-In the workflow that runs `blastradius:select`, put the restore step after checkout and before
-Maven. Save only successful `main` builds, after Maven, so pull requests always read a map made
-by the trusted base branch:
+In the workflow that runs Blastradius-enabled tests, put the restore step after checkout and
+before `mvn verify` or `./gradlew test`. Save only successful `main` builds, after the test
+command, so pull requests always read a map made by the trusted base branch:
 
 ```yaml
 steps:
