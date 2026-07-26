@@ -151,7 +151,7 @@
                             </execution>
                         </executions>
                         <configuration>
-                            <baseRef>main</baseRef>
+                            <baseRef>origin/main</baseRef>
                         </configuration>
                     </plugin>
                 </plugins>

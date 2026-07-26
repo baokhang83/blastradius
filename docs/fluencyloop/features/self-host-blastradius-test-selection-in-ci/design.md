@@ -13,7 +13,7 @@ classDiagram
     +save main index cache
   }
   class SelfHostProfile {
-    +baseRef = main
+    +baseRef = origin/main
     +bind select in every module
   }
   class SelectMojo {
