@@ -8,6 +8,7 @@ import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
 import io.github.baokhang83.blastradius.plugin.index.IndexApplicability;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -49,5 +50,24 @@ class BuildReportPopulationTest {
 
         assertEquals(0, report.totalCount());
         assertEquals(0, report.selectedCount());
+    }
+
+    @Test
+    void normalizesSurefireMethodSignaturesBeforeEstimatingSkippedTestTime() {
+        TestIdentity pathInjection = new TestIdentity("com.example.PathTest", "writesToTempDirectory");
+        TestIdentity parameterized = new TestIdentity("com.example.ParameterizedTest", "handlesInput");
+        List<SelectionDecision> decisions = List.of(
+                SelectionDecision.noMatch(pathInjection),
+                SelectionDecision.noMatch(parameterized));
+        IndexApplicability applicability = IndexApplicability.applicable(
+                new DependencyIndex("abc123", "2026-07-09T10:00:00Z", List.of()));
+
+        BuildReport report = BuildReport.forSelect(applicability, List.of(), decisions, Map.of(
+                new TestIdentity("com.example.PathTest", "writesToTempDirectory(Path)"), 125L,
+                new TestIdentity("com.example.ParameterizedTest", "handlesInput(String)[1]"), 25L,
+                new TestIdentity("com.example.ParameterizedTest", "handlesInput(String)[2]"), 35L));
+
+        assertEquals(185L, report.estimatedTimeSavedMillis());
+        assertEquals(new TimingCoverage(2, 2), report.timingCoverage());
     }
 }
