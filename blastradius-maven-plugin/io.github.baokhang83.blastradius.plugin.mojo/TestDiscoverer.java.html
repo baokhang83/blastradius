@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>TestDiscoverer.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-maven-plugin</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.plugin.mojo</a> &gt; <span class="el_source">TestDiscoverer.java</span></div><h1>TestDiscoverer.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.plugin.mojo;
+
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import org.junit.platform.engine.discovery.DiscoverySelectors;
+import org.junit.platform.engine.support.descriptor.MethodSource;
+import org.junit.platform.launcher.Launcher;
+import org.junit.platform.launcher.LauncherDiscoveryRequest;
+import org.junit.platform.launcher.TestIdentifier;
+import org.junit.platform.launcher.TestPlan;
+import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
+import org.junit.platform.launcher.core.LauncherFactory;
+
+/**
+ * Discovers every test in the target project's compiled test classes via real JUnit
+ * Platform test discovery (not execution) — the same set Surefire would otherwise
+ * discover and run in full, needed to know what exists *before* narrowing it.
+ *
+ * &lt;p&gt;Runs against a classloader built from the target project's own test classpath
+ * (test-classes, main classes, and dependencies), not the plugin's own — a Maven Mojo's
+ * default classloader doesn't include the project it's running against.
+ */
+<span class="fc" id="L29">public final class TestDiscoverer {</span>
+
+    private static final String BLASTRADIUS_PACKAGE = &quot;io.github.baokhang83.blastradius.&quot;;
+
+    public Set&lt;TestIdentity&gt; discoverAllTests(Path testClassesDir, List&lt;String&gt; testClasspathElements) {
+<span class="fc" id="L34">        URL[] urls = testClasspathElements.stream().map(TestDiscoverer::toUrl).toArray(URL[]::new);</span>
+<span class="fc" id="L35">        ClassLoader discoveryClassLoader = new ProjectFirstClassLoader(urls, Thread.currentThread().getContextClassLoader());</span>
+
+<span class="fc" id="L37">        ClassLoader previous = Thread.currentThread().getContextClassLoader();</span>
+<span class="fc" id="L38">        Thread.currentThread().setContextClassLoader(discoveryClassLoader);</span>
+        try {
+<span class="fc" id="L40">            LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()</span>
+<span class="fc" id="L41">                    .selectors(DiscoverySelectors.selectClasspathRoots(Set.of(testClassesDir)))</span>
+<span class="fc" id="L42">                    .build();</span>
+<span class="fc" id="L43">            Launcher launcher = LauncherFactory.create();</span>
+<span class="fc" id="L44">            TestPlan testPlan = launcher.discover(request);</span>
+
+<span class="fc" id="L46">            Set&lt;TestIdentity&gt; result = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">            for (TestIdentifier root : testPlan.getRoots()) {</span>
+<span class="fc" id="L48">                collectTests(testPlan, root, result);</span>
+<span class="fc" id="L49">            }</span>
+<span class="fc" id="L50">            return result;</span>
+        } finally {
+<span class="fc" id="L52">            Thread.currentThread().setContextClassLoader(previous);</span>
+        }
+    }
+
+    private static void collectTests(TestPlan plan, TestIdentifier identifier, Set&lt;TestIdentity&gt; out) {
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if (identifier.isTest()) {</span>
+<span class="fc" id="L58">            out.add(toTestIdentity(identifier));</span>
+        }
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        for (TestIdentifier child : plan.getChildren(identifier)) {</span>
+<span class="fc" id="L61">            collectTests(plan, child, out);</span>
+<span class="fc" id="L62">        }</span>
+<span class="fc" id="L63">    }</span>
+
+    private static TestIdentity toTestIdentity(TestIdentifier identifier) {
+<span class="fc" id="L66">        return identifier.getSource()</span>
+<span class="fc" id="L67">                .filter(MethodSource.class::isInstance)</span>
+<span class="fc" id="L68">                .map(MethodSource.class::cast)</span>
+<span class="fc" id="L69">                .map(source -&gt; new TestIdentity(source.getClassName(), source.getMethodName()))</span>
+<span class="pc" id="L70">                .orElseGet(() -&gt; new TestIdentity(identifier.getLegacyReportingName(), null));</span>
+    }
+
+    private static URL toUrl(String path) {
+        try {
+<span class="fc" id="L75">            return Path.of(path).toUri().toURL();</span>
+<span class="nc" id="L76">        } catch (MalformedURLException e) {</span>
+<span class="nc" id="L77">            throw new IllegalArgumentException(&quot;invalid classpath element: &quot; + path, e);</span>
+        }
+    }
+
+    /**
+     * The packaged plugin shades Blastradius classes, which is normally isolated behind Maven's
+     * plugin realm. Self-hosting intentionally runs against a project with the same package, so
+     * discovery must prefer that project's compiled classes rather than the shaded copies.
+     */
+    static final class ProjectFirstClassLoader extends URLClassLoader {
+
+        ProjectFirstClassLoader(URL[] urls, ClassLoader parent) {
+<span class="fc" id="L89">            super(urls, parent);</span>
+<span class="fc" id="L90">        }</span>
+
+        @Override
+        protected synchronized Class&lt;?&gt; loadClass(String name, boolean resolve) throws ClassNotFoundException {
+<span class="fc bfc" id="L94" title="All 2 branches covered.">            if (!name.startsWith(BLASTRADIUS_PACKAGE)) {</span>
+<span class="fc" id="L95">                return super.loadClass(name, resolve);</span>
+            }
+
+<span class="fc" id="L98">            Class&lt;?&gt; loaded = findLoadedClass(name);</span>
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">            if (loaded == null) {</span>
+                try {
+<span class="fc" id="L101">                    loaded = findClass(name);</span>
+<span class="fc" id="L102">                } catch (ClassNotFoundException ignored) {</span>
+<span class="fc" id="L103">                    loaded = super.loadClass(name, false);</span>
+<span class="fc" id="L104">                }</span>
+            }
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">            if (resolve) {</span>
+<span class="nc" id="L107">                resolveClass(loaded);</span>
+            }
+<span class="fc" id="L109">            return loaded;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

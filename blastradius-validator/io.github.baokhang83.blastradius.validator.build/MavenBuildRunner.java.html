@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>MavenBuildRunner.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.build</a> &gt; <span class="el_source">MavenBuildRunner.java</span></div><h1>MavenBuildRunner.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.build;
+
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Invokes a target project's own {@code mvn test} as a subprocess — never reimplementing
+ * or second-guessing the project's real build (research.md #2) — optionally attaching
+ * the dependency-tracking agent via {@code -DargLine=-javaagent:...=&lt;outputFile&gt;}, which
+ * Surefire and Failsafe both honor without any pom.xml changes to the target project.
+ */
+<span class="fc" id="L18">public final class MavenBuildRunner {</span>
+
+    private static final long TIMEOUT_MINUTES = 5;
+
+    /**
+     * @param projectDir       the (already checked-out) working copy to build
+     * @param agentJar         path to this tool's own shaded jar, or {@code null} to run
+     *                         without attaching the tracking agent
+     * @param dependencyRecordOutputFile where the agent should write its recorded
+     *                         dependencies, or {@code null} if {@code agentJar} is null
+     */
+    public BuildResult run(Path projectDir, Path agentJar, Path dependencyRecordOutputFile) {
+<span class="fc" id="L30">        return execute(projectDir, command(null), agentJar, dependencyRecordOutputFile);</span>
+    }
+
+    /**
+     * Runs only the named test (via Surefire's {@code -Dtest=} selector), with no agent
+     * attached — used to confirm a failure isn't flaky (FR-013) without re-deriving
+     * dependencies, which the original full run already captured.
+     */
+    public BuildResult runSingleTest(Path projectDir, TestIdentity test) {
+<span class="pc bpc" id="L39" title="1 of 2 branches missed.">        String selector = test.methodName() == null</span>
+<span class="nc" id="L40">                ? test.className()</span>
+<span class="fc" id="L41">                : test.className() + &quot;#&quot; + test.methodName();</span>
+<span class="fc" id="L42">        return execute(projectDir, command(selector), null, null);</span>
+    }
+
+    private BuildResult execute(Path projectDir, String[] command, Path agentJar, Path dependencyRecordOutputFile) {
+        try {
+<span class="fc" id="L47">            ProcessBuilder pb = new ProcessBuilder(command)</span>
+<span class="fc" id="L48">                    .directory(projectDir.toFile())</span>
+<span class="fc" id="L49">                    .redirectErrorStream(true);</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">            if (agentJar != null) {</span>
+                // JAVA_TOOL_OPTIONS is read directly by every JVM launch (Maven's own
+                // process AND any forked Surefire test JVMs it spawns), independent of
+                // Maven's argLine property — unlike -DargLine, which real target
+                // projects routinely defeat, either by hardcoding a literal &lt;argLine&gt;
+                // (jsoup) or via a plugin like JaCoCo's prepare-agent goal overwriting
+                // the argLine property after our own override was set (Apache Commons).
+                // The parent Maven JVM also picks up the agent this way, but it never
+                // runs any JUnit test, so DependencyTrackingAgent's shutdown hook sees
+                // an empty record and skips writing rather than clobbering the real
+                // data the forked test JVM already wrote.
+<span class="fc" id="L61">                String agentOpt = &quot;-javaagent:&quot; + agentJar.toAbsolutePath() + &quot;=&quot;</span>
+<span class="fc" id="L62">                        + dependencyRecordOutputFile.toAbsolutePath();</span>
+<span class="pc" id="L63">                pb.environment().merge(&quot;JAVA_TOOL_OPTIONS&quot;, agentOpt, (existing, added) -&gt; existing + &quot; &quot; + added);</span>
+            }
+<span class="fc" id="L65">            Process process = pb.start();</span>
+<span class="fc" id="L66">            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);</span>
+<span class="fc" id="L67">            boolean finished = process.waitFor(TIMEOUT_MINUTES, TimeUnit.MINUTES);</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">            if (!finished) {</span>
+<span class="nc" id="L69">                process.destroyForcibly();</span>
+<span class="nc" id="L70">                throw new IllegalStateException(&quot;mvn test timed out against &quot; + projectDir);</span>
+            }
+<span class="fc" id="L72">            return new BuildResult(process.exitValue(), output);</span>
+<span class="nc" id="L73">        } catch (IOException e) {</span>
+<span class="nc" id="L74">            throw new UncheckedIOException(&quot;failed to invoke mvn test against &quot; + projectDir, e);</span>
+<span class="nc" id="L75">        } catch (InterruptedException e) {</span>
+<span class="nc" id="L76">            Thread.currentThread().interrupt();</span>
+<span class="nc" id="L77">            throw new IllegalStateException(&quot;interrupted while waiting for mvn test against &quot; + projectDir, e);</span>
+        }
+    }
+
+    private static String[] command(String testSelector) {
+        // `clean` is required, not cosmetic: CommitCheckout reuses one scratch working
+        // copy across every commit in the window, and `target/` is untracked — a
+        // previous commit's build artifacts (including surefire-reports) would
+        // otherwise silently survive a `git checkout` to a different commit.
+<span class="fc" id="L86">        List&lt;String&gt; args = new ArrayList&lt;&gt;(List.of(&quot;mvn&quot;, &quot;-B&quot;, &quot;--no-transfer-progress&quot;, &quot;clean&quot;, &quot;test&quot;));</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        if (testSelector != null) {</span>
+<span class="fc" id="L88">            args.add(&quot;-Dtest=&quot; + testSelector);</span>
+        }
+<span class="fc" id="L90">        return args.toArray(new String[0]);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

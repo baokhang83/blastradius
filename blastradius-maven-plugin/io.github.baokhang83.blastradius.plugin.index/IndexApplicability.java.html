@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IndexApplicability.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-maven-plugin</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.plugin.index</a> &gt; <span class="el_source">IndexApplicability.java</span></div><h1>IndexApplicability.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.plugin.index;
+
+/**
+ * Whether a persisted {@link DependencyIndex} can be used for the current build, computed
+ * fresh on every {@code blastradius:select} invocation (research.md #3). Only {@code
+ * APPLICABLE} carries a non-null {@link #index()}; every other status triggers fallback
+ * (FR-007) rather than guessing.
+ */
+<span class="fc" id="L9">public record IndexApplicability(Status status, DependencyIndex index) {</span>
+
+<span class="fc" id="L11">    public enum Status {</span>
+<span class="fc" id="L12">        APPLICABLE,</span>
+<span class="fc" id="L13">        MISSING,</span>
+<span class="fc" id="L14">        UNREADABLE,</span>
+<span class="fc" id="L15">        FORMAT_VERSION_MISMATCH,</span>
+<span class="fc" id="L16">        ANCHOR_UNREACHABLE,</span>
+<span class="fc" id="L17">        ANCHOR_MISMATCH,</span>
+<span class="fc" id="L18">        MERGE_BASE_UNAVAILABLE,</span>
+        /**
+         * Not a property of the index itself — set only when an otherwise-{@code
+         * APPLICABLE} index's {@code SELECT} computation hits an unexpected internal
+         * fault (tasks.md T050, spec.md's &quot;the plugin's own selection computation
+         * encounters an internal error&quot; Edge Case), so the build still falls back to a
+         * full, unfiltered run instead of crashing or silently skipping tests.
+         */
+<span class="fc" id="L26">        INTERNAL_ERROR</span>
+    }
+
+    public static IndexApplicability applicable(DependencyIndex index) {
+<span class="fc" id="L30">        return new IndexApplicability(Status.APPLICABLE, index);</span>
+    }
+
+    public static IndexApplicability missing() {
+<span class="fc" id="L34">        return new IndexApplicability(Status.MISSING, null);</span>
+    }
+
+    public static IndexApplicability unreadable() {
+<span class="fc" id="L38">        return new IndexApplicability(Status.UNREADABLE, null);</span>
+    }
+
+    public static IndexApplicability formatVersionMismatch() {
+<span class="fc" id="L42">        return new IndexApplicability(Status.FORMAT_VERSION_MISMATCH, null);</span>
+    }
+
+    public static IndexApplicability anchorUnreachable() {
+<span class="fc" id="L46">        return new IndexApplicability(Status.ANCHOR_UNREACHABLE, null);</span>
+    }
+
+    public static IndexApplicability anchorMismatch() {
+<span class="fc" id="L50">        return new IndexApplicability(Status.ANCHOR_MISMATCH, null);</span>
+    }
+
+    public static IndexApplicability mergeBaseUnavailable() {
+<span class="fc" id="L54">        return new IndexApplicability(Status.MERGE_BASE_UNAVAILABLE, null);</span>
+    }
+
+    public static IndexApplicability internalError() {
+<span class="nc" id="L58">        return new IndexApplicability(Status.INTERNAL_ERROR, null);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

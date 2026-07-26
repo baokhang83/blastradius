@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>DependencyIndex.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-maven-plugin</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.plugin.index</a> &gt; <span class="el_source">DependencyIndex.java</span></div><h1>DependencyIndex.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.plugin.index;
+
+import io.github.baokhang83.blastradius.core.index.DependencyIndexFormat;
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * The persisted, cacheable record a {@code TRACK} run produces and a {@code SELECT} run
+ * consumes (data-model.md). {@code testDependencies} is a flat list rather than a JSON
+ * object keyed by the compound {@link TestIdentity}, mirroring
+ * {@code blastradius-core}'s {@code DependencyRecord} — avoids a custom Jackson key
+ * (de)serializer for a compound key type.
+ *
+ * &lt;p&gt;Only class names are recorded, not the tracking agent's per-class bytecode
+ * checksums (data-model.md) — the proven {@code SelectionEngine}/{@code
+ * DependencyMatchSelector} logic only ever consumes class names.
+ */
+public record DependencyIndex(int formatVersion, String anchorCommit, String builtAt, List&lt;TestDependencyEntry&gt; testDependencies) {
+
+<span class="fc" id="L23">    public DependencyIndex {</span>
+<span class="fc" id="L24">        formatVersion = DependencyIndexFormat.migrateLegacyVersion(formatVersion);</span>
+<span class="fc" id="L25">    }</span>
+
+    public DependencyIndex(String anchorCommit, String builtAt, List&lt;TestDependencyEntry&gt; testDependencies) {
+<span class="fc" id="L28">        this(DependencyIndexFormat.CURRENT_VERSION, anchorCommit, builtAt, testDependencies);</span>
+<span class="fc" id="L29">    }</span>
+
+<span class="fc" id="L31">    public record TestDependencyEntry(TestIdentity test, Set&lt;String&gt; dependsOnClasses) {}</span>
+
+    /** {@code testDependencies}, reshaped into the map form the selection engine consumes. */
+    public Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependenciesByTest() {
+<span class="fc" id="L35">        return testDependencies.stream()</span>
+<span class="fc" id="L36">                .collect(Collectors.toUnmodifiableMap(TestDependencyEntry::test, TestDependencyEntry::dependsOnClasses));</span>
+    }
+
+    public boolean hasCurrentFormat() {
+<span class="fc" id="L40">        return DependencyIndexFormat.isCurrentVersion(formatVersion);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>DependencyTrackingAgent.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.tracking</a> &gt; <span class="el_source">DependencyTrackingAgent.java</span></div><h1>DependencyTrackingAgent.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.tracking;
+
+import java.lang.instrument.ClassFileTransformer;
+import java.lang.instrument.Instrumentation;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.ProtectionDomain;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+/**
+ * A {@code -javaagent} that observes every class loaded in the JVM it's attached to,
+ * attributes each load to the currently-executing test (via the injected supplier — in
+ * production, {@link TestBoundaryListener#currentTest()}), and records the class name with a
+ * SHA-256 checksum of the loaded bytecode. Bytecode is never modified — {@link #transform}
+ * always returns {@code null}. Classes loaded while no test is running (JVM/Surefire bootstrap,
+ * etc.) are not attributable to anything and are not recorded. Hidden classes are not class-loader
+ * definitions, so the listener uses the agent's loaded-class list at test boundaries to record
+ * their stable source name. The persisted selection index consumes class names only.
+ */
+public final class DependencyTrackingAgent implements ClassFileTransformer {
+
+    private static final String HIDDEN_CLASS_CHECKSUM = &quot;hidden-class-bytecode-unavailable&quot;;
+
+    /**
+     * Computing a checksum can initialize JDK security-provider classes. Those class loads call
+     * this transformer again, so they must not recursively trigger another checksum computation.
+     */
+<span class="fc" id="L34">    private static final ThreadLocal&lt;Boolean&gt; RECORDING_CLASS_LOAD = ThreadLocal.withInitial(() -&gt; false);</span>
+
+    /**
+     * Initialized while the agent class is loaded, before {@link #premain(String, Instrumentation)}
+     * registers the transformer. Security-provider initialization must never happen from within
+     * {@link #transform(ClassLoader, String, Class, ProtectionDomain, byte[])}.
+     */
+<span class="fc" id="L41">    private static final MessageDigest SHA_256 = initializeSha256();</span>
+<span class="fc" id="L42">    private static final char[] HEX_DIGITS = &quot;0123456789abcdef&quot;.toCharArray();</span>
+
+    private static volatile DependencyTrackingAgent installedAgent;
+    private static volatile Instrumentation instrumentation;
+
+    private final Supplier&lt;TestIdentity&gt; currentTestSupplier;
+<span class="fc" id="L48">    private final Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; checksumsByTest = new ConcurrentHashMap&lt;&gt;();</span>
+
+    public DependencyTrackingAgent() {
+<span class="nc" id="L51">        this(TestBoundaryListener::currentTest);</span>
+<span class="nc" id="L52">    }</span>
+
+    /** Visible for testing: inject a fake &quot;current test&quot; source instead of the real listener. */
+<span class="fc" id="L55">    DependencyTrackingAgent(Supplier&lt;TestIdentity&gt; currentTestSupplier) {</span>
+<span class="fc" id="L56">        this.currentTestSupplier = currentTestSupplier;</span>
+<span class="fc" id="L57">    }</span>
+
+    /**
+     * Entry point for {@code -javaagent:agent.jar=&lt;outputFilePathPrefix&gt;}. If an output
+     * path prefix is supplied, a shutdown hook writes the recorded dependencies to a
+     * file unique to this JVM ({@code &lt;prefix&gt;.&lt;pid&gt;}) when the JVM exits — necessary
+     * because the agent runs in a subprocess a parent process can only inspect after
+     * that subprocess has fully exited (research.md #1). {@link DependencyRecordReader}
+     * merges every sibling file back into one map once the whole build has finished.
+     *
+     * &lt;p&gt;Attachment is done via {@code JAVA_TOOL_OPTIONS} (see {@code MavenBuildRunner}),
+     * which every JVM launch picks up — including the outer {@code mvn} process itself,
+     * not just the forked Surefire JVM(s) that actually run tests, and — for target
+     * projects configured with {@code reuseForks=false} — every one of the many
+     * sequential per-test-class JVMs Surefire spawns. A per-JVM file (rather than one
+     * shared file with a read-merge-write on every shutdown) avoids a real race: Surefire
+     * does not wait for a fork's OS process to fully exit before starting the next one,
+     * so two sibling JVMs' shutdown hooks can genuinely overlap, and a shared file left
+     * only the last few writers' data intact once one hook's write raced another's read.
+     * A JVM that recorded no tests (e.g. the outer {@code mvn} process) writes nothing.
+     */
+    public static void premain(String agentArgs, Instrumentation inst) {
+<span class="nc" id="L79">        DependencyTrackingAgent agent = new DependencyTrackingAgent();</span>
+<span class="nc" id="L80">        installedAgent = agent;</span>
+<span class="nc" id="L81">        instrumentation = inst;</span>
+<span class="nc" id="L82">        inst.addTransformer(agent);</span>
+<span class="nc bnc" id="L83" title="All 4 branches missed.">        if (agentArgs != null &amp;&amp; !agentArgs.isBlank()) {</span>
+<span class="nc" id="L84">            Path outputFile = Path.of(agentArgs + &quot;.&quot; + ProcessHandle.current().pid());</span>
+<span class="nc" id="L85">            Runtime.getRuntime().addShutdownHook(new Thread(() -&gt; {</span>
+<span class="nc" id="L86">                Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; recorded = agent.recordedDependencies();</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">                if (!recorded.isEmpty()) {</span>
+<span class="nc" id="L88">                    new DependencyRecordWriter().write(outputFile, recorded);</span>
+                }
+<span class="nc" id="L90">            }));</span>
+        }
+<span class="nc" id="L92">    }</span>
+
+    @Override
+    public byte[] transform(ClassLoader loader, String className, Class&lt;?&gt; classBeingRedefined,
+            ProtectionDomain protectionDomain, byte[] classfileBuffer) {
+<span class="pc bpc" id="L97" title="2 of 6 branches missed.">        if (className == null || classfileBuffer == null || RECORDING_CLASS_LOAD.get()) {</span>
+<span class="fc" id="L98">            return null;</span>
+        }
+
+<span class="fc" id="L101">        TestIdentity currentTest = currentTestSupplier.get();</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        if (currentTest == null) {</span>
+<span class="fc" id="L103">            return null;</span>
+        }
+
+<span class="fc" id="L106">        RECORDING_CLASS_LOAD.set(true);</span>
+        try {
+<span class="fc" id="L108">            checksumsByTest</span>
+<span class="fc" id="L109">                    .computeIfAbsent(currentTest, ignored -&gt; new ConcurrentHashMap&lt;&gt;())</span>
+<span class="fc" id="L110">                    .put(className.replace('/', '.'), sha256Hex(classfileBuffer));</span>
+        } finally {
+<span class="fc" id="L112">            RECORDING_CLASS_LOAD.remove();</span>
+        }
+<span class="fc" id="L114">        return null;</span>
+    }
+
+    /**
+     * Records that a test executed even if it never causes a class-load event while it is active.
+     *
+     * &lt;p&gt;An empty dependency map is meaningful: it is a baseline for an existing test, not an
+     * absent baseline for a newly added test. Selection must preserve that distinction or it
+     * conservatively re-runs every test whose dependencies happened to be loaded before the test
+     * began.
+     */
+    static void recordTestStarted(TestIdentity test) {
+<span class="fc" id="L126">        DependencyTrackingAgent currentAgent = installedAgent;</span>
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">        if (currentAgent != null) {</span>
+<span class="nc" id="L128">            currentAgent.recordTestExecution(test);</span>
+        }
+<span class="fc" id="L130">    }</span>
+
+    void recordTestExecution(TestIdentity test) {
+<span class="fc" id="L133">        checksumsByTest.computeIfAbsent(test, ignored -&gt; new ConcurrentHashMap&lt;&gt;());</span>
+<span class="fc" id="L134">    }</span>
+
+    /** An immutable snapshot of {@code test -&gt; {className -&gt; tracking token}} recorded so far. */
+    public Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; recordedDependencies() {
+<span class="fc" id="L138">        return checksumsByTest.entrySet().stream()</span>
+<span class="fc" id="L139">                .collect(java.util.stream.Collectors.toUnmodifiableMap(</span>
+<span class="fc" id="L140">                        Map.Entry::getKey, e -&gt; Map.copyOf(e.getValue())));</span>
+    }
+
+    static Set&lt;Class&lt;?&gt;&gt; loadedClasses() {
+<span class="fc" id="L144">        Instrumentation currentInstrumentation = instrumentation;</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">        if (currentInstrumentation == null) {</span>
+<span class="fc" id="L146">            return Set.of();</span>
+        }
+<span class="nc" id="L148">        return Arrays.stream(currentInstrumentation.getAllLoadedClasses())</span>
+<span class="nc" id="L149">                .&lt;Class&lt;?&gt;&gt;map(loadedClass -&gt; loadedClass)</span>
+<span class="nc" id="L150">                .collect(Collectors.toUnmodifiableSet());</span>
+    }
+
+    static void recordHiddenClassesLoadedSince(TestIdentity test, Set&lt;Class&lt;?&gt;&gt; classesAtTestStart) {
+<span class="fc" id="L154">        DependencyTrackingAgent currentAgent = installedAgent;</span>
+<span class="fc" id="L155">        Instrumentation currentInstrumentation = instrumentation;</span>
+<span class="pc bpc" id="L156" title="3 of 4 branches missed.">        if (currentAgent != null &amp;&amp; currentInstrumentation != null) {</span>
+<span class="nc" id="L157">            currentAgent.recordNewHiddenClasses(test, classesAtTestStart, currentInstrumentation.getAllLoadedClasses());</span>
+        }
+<span class="fc" id="L159">    }</span>
+
+    void recordNewHiddenClasses(TestIdentity test, Set&lt;Class&lt;?&gt;&gt; classesAtTestStart, Class&lt;?&gt;[] allLoadedClasses) {
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">        Set&lt;Class&lt;?&gt;&gt; baseline = classesAtTestStart == null ? Set.of() : classesAtTestStart;</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">        for (Class&lt;?&gt; loadedClass : allLoadedClasses) {</span>
+<span class="pc bpc" id="L164" title="2 of 4 branches missed.">            if (loadedClass.isHidden() &amp;&amp; !baseline.contains(loadedClass)) {</span>
+<span class="fc" id="L165">                String sourceClassName = sourceClassName(loadedClass);</span>
+<span class="pc bpc" id="L166" title="1 of 2 branches missed.">                if (sourceClassName != null) {</span>
+<span class="fc" id="L167">                    checksumsByTest</span>
+<span class="fc" id="L168">                            .computeIfAbsent(test, ignored -&gt; new ConcurrentHashMap&lt;&gt;())</span>
+<span class="fc" id="L169">                            .putIfAbsent(sourceClassName, HIDDEN_CLASS_CHECKSUM);</span>
+                }
+            }
+        }
+<span class="fc" id="L173">    }</span>
+
+    private static String sha256Hex(byte[] bytes) {
+        byte[] hash;
+<span class="fc" id="L177">        synchronized (SHA_256) {</span>
+<span class="fc" id="L178">            hash = SHA_256.digest(bytes);</span>
+<span class="fc" id="L179">        }</span>
+<span class="fc" id="L180">        StringBuilder sb = new StringBuilder(hash.length * 2);</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">        for (byte b : hash) {</span>
+<span class="fc" id="L182">            int unsigned = Byte.toUnsignedInt(b);</span>
+<span class="fc" id="L183">            sb.append(HEX_DIGITS[unsigned &gt;&gt;&gt; 4]);</span>
+<span class="fc" id="L184">            sb.append(HEX_DIGITS[unsigned &amp; 0x0f]);</span>
+        }
+<span class="fc" id="L186">        return sb.toString();</span>
+    }
+
+    private static MessageDigest initializeSha256() {
+        try {
+<span class="fc" id="L191">            return MessageDigest.getInstance(&quot;SHA-256&quot;);</span>
+<span class="nc" id="L192">        } catch (NoSuchAlgorithmException e) {</span>
+<span class="nc" id="L193">            throw new IllegalStateException(&quot;SHA-256 is a required JDK algorithm&quot;, e);</span>
+        }
+    }
+
+    private static String sourceClassName(Class&lt;?&gt; hiddenClass) {
+<span class="fc" id="L198">        String hiddenName = hiddenClass.getName();</span>
+<span class="fc" id="L199">        int suffixSeparator = hiddenName.lastIndexOf('/');</span>
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">        return suffixSeparator &gt; 0 ? hiddenName.substring(0, suffixSeparator) : null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

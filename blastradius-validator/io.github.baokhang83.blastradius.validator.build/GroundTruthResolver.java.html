@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GroundTruthResolver.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.build</a> &gt; <span class="el_source">GroundTruthResolver.java</span></div><h1>GroundTruthResolver.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.build;
+
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
+/**
+ * Runs a target project's full suite once (optionally with the tracking agent attached),
+ * then re-runs each failed test once to confirm it isn't flaky (FR-013), producing a
+ * {@link GroundTruthResult} per test with outcome {@code PASSED}, {@code CONFIRMED_FAILED},
+ * or {@code FLAKY}.
+ *
+ * &lt;p&gt;Scans for {@code surefire-reports}/{@code failsafe-reports} directories anywhere
+ * under the project root, not just at the root itself, so multi-module reactors (FR-011)
+ * are handled without special-casing.
+ */
+public final class GroundTruthResolver {
+
+    private final MavenBuildRunner buildRunner;
+    private final SurefireReportParser reportParser;
+
+    public GroundTruthResolver() {
+<span class="fc" id="L30">        this(new MavenBuildRunner(), new SurefireReportParser());</span>
+<span class="fc" id="L31">    }</span>
+
+<span class="fc" id="L33">    GroundTruthResolver(MavenBuildRunner buildRunner, SurefireReportParser reportParser) {</span>
+<span class="fc" id="L34">        this.buildRunner = buildRunner;</span>
+<span class="fc" id="L35">        this.reportParser = reportParser;</span>
+<span class="fc" id="L36">    }</span>
+
+    public List&lt;GroundTruthResult&gt; resolve(Path projectDir, Path agentJar, Path dependencyRecordOutputFile) {
+<span class="fc" id="L39">        buildRunner.run(projectDir, agentJar, dependencyRecordOutputFile);</span>
+<span class="fc" id="L40">        Map&lt;TestIdentity, Boolean&gt; initialResults = parseAllReports(projectDir);</span>
+
+<span class="fc" id="L42">        List&lt;GroundTruthResult&gt; results = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        for (Map.Entry&lt;TestIdentity, Boolean&gt; entry : initialResults.entrySet()) {</span>
+<span class="fc" id="L44">            TestIdentity test = entry.getKey();</span>
+<span class="fc" id="L45">            boolean passed = entry.getValue();</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">            if (passed) {</span>
+<span class="fc" id="L47">                results.add(new GroundTruthResult(test, Outcome.PASSED));</span>
+<span class="fc" id="L48">                continue;</span>
+            }
+<span class="fc" id="L50">            results.add(new GroundTruthResult(test, confirmFailure(projectDir, test)));</span>
+<span class="fc" id="L51">        }</span>
+<span class="fc" id="L52">        return results;</span>
+    }
+
+    private Outcome confirmFailure(Path projectDir, TestIdentity test) {
+<span class="fc" id="L56">        buildRunner.runSingleTest(projectDir, test);</span>
+<span class="fc" id="L57">        Boolean confirmedPassed = parseAllReports(projectDir).get(test);</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        return Boolean.TRUE.equals(confirmedPassed) ? Outcome.FLAKY : Outcome.CONFIRMED_FAILED;</span>
+    }
+
+    private Map&lt;TestIdentity, Boolean&gt; parseAllReports(Path projectDir) {
+<span class="fc" id="L62">        Map&lt;TestIdentity, Boolean&gt; merged = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        for (Path reportsDir : findReportsDirectories(projectDir)) {</span>
+<span class="fc" id="L64">            merged.putAll(reportParser.parse(reportsDir));</span>
+<span class="fc" id="L65">        }</span>
+<span class="fc" id="L66">        return merged;</span>
+    }
+
+    private static List&lt;Path&gt; findReportsDirectories(Path projectDir) {
+<span class="fc" id="L70">        try (Stream&lt;Path&gt; stream = Files.walk(projectDir)) {</span>
+<span class="fc" id="L71">            return stream</span>
+<span class="fc" id="L72">                    .filter(Files::isDirectory)</span>
+<span class="fc" id="L73">                    .filter(p -&gt; {</span>
+<span class="fc" id="L74">                        String name = p.getFileName().toString();</span>
+<span class="pc bpc" id="L75" title="1 of 4 branches missed.">                        return name.equals(&quot;surefire-reports&quot;) || name.equals(&quot;failsafe-reports&quot;);</span>
+                    })
+<span class="fc" id="L77">                    .toList();</span>
+<span class="nc" id="L78">        } catch (IOException e) {</span>
+<span class="nc" id="L79">            throw new UncheckedIOException(&quot;failed to scan for test reports under &quot; + projectDir, e);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

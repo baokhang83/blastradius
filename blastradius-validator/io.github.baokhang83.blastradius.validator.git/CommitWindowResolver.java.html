@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>CommitWindowResolver.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.git</a> &gt; <span class="el_source">CommitWindowResolver.java</span></div><h1>CommitWindowResolver.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.git;
+
+import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevWalk;
+
+/**
+ * Resolves a fixed, operator-configurable window of the most recent consecutive commit
+ * pairs on a target project's default branch (FR-012). Only the ordered (base, head) SHA
+ * pairs are resolved here; {@code changedFiles} classification is a separate concern
+ * (see {@link ChangedFileClassifier}) applied later in the pipeline.
+ */
+<span class="fc" id="L20">public final class CommitWindowResolver {</span>
+
+    /**
+     * @param repoPath   local working copy with full git history
+     * @param windowSize number of most-recent commit pairs to resolve; a window of N
+     *                   requires N+1 commits and yields N pairs. Returns fewer pairs if
+     *                   the repository's history is shorter than requested.
+     * @return pairs ordered oldest-to-newest (chronological replay order)
+     */
+    public List&lt;CommitPair&gt; resolveWindow(Path repoPath, int windowSize) {
+<span class="fc" id="L30">        try (Git git = Git.open(repoPath.toFile())) {</span>
+<span class="fc" id="L31">            Repository repo = git.getRepository();</span>
+<span class="fc" id="L32">            ObjectId head = repo.resolve(&quot;HEAD&quot;);</span>
+<span class="pc bpc" id="L33" title="1 of 2 branches missed.">            if (head == null) {</span>
+<span class="nc" id="L34">                return List.of();</span>
+            }
+
+<span class="fc" id="L37">            List&lt;RevCommit&gt; newestFirst = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L38">            try (RevWalk walk = new RevWalk(repo)) {</span>
+<span class="fc" id="L39">                RevCommit start = walk.parseCommit(head);</span>
+<span class="fc" id="L40">                walk.markStart(start);</span>
+<span class="fc" id="L41">                int limit = windowSize + 1;</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">                for (RevCommit commit : walk) {</span>
+<span class="fc" id="L43">                    newestFirst.add(commit);</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">                    if (newestFirst.size() &gt;= limit) {</span>
+<span class="fc" id="L45">                        break;</span>
+                    }
+<span class="fc" id="L47">                }</span>
+            }
+
+<span class="fc" id="L50">            List&lt;RevCommit&gt; oldestFirst = new ArrayList&lt;&gt;(newestFirst);</span>
+<span class="fc" id="L51">            Collections.reverse(oldestFirst);</span>
+
+<span class="fc" id="L53">            List&lt;CommitPair&gt; pairs = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">            for (int i = 0; i &lt; oldestFirst.size() - 1; i++) {</span>
+<span class="fc" id="L55">                String base = oldestFirst.get(i).getName();</span>
+<span class="fc" id="L56">                String headSha = oldestFirst.get(i + 1).getName();</span>
+<span class="fc" id="L57">                pairs.add(CommitPair.analyzed(base, headSha, List.of()));</span>
+            }
+<span class="fc" id="L59">            return pairs;</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        } catch (Exception e) {</span>
+<span class="nc" id="L61">            throw new IllegalStateException(&quot;failed to resolve commit window for &quot; + repoPath, e);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

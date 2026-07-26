@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>DependencyRecordReader.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.tracking</a> &gt; <span class="el_source">DependencyRecordReader.java</span></div><h1>DependencyRecordReader.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.tracking;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/** Reads back what {@link DependencyRecordWriter} persisted. */
+<span class="fc" id="L16">public final class DependencyRecordReader {</span>
+
+<span class="fc" id="L18">    private final ObjectMapper mapper = new ObjectMapper();</span>
+
+    public Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; read(Path inputFile) {
+        try {
+<span class="fc" id="L22">            List&lt;DependencyRecord&gt; records =</span>
+<span class="fc" id="L23">                    mapper.readValue(inputFile.toFile(), new TypeReference&lt;List&lt;DependencyRecord&gt;&gt;() {});</span>
+<span class="fc" id="L24">            return records.stream()</span>
+<span class="fc" id="L25">                    .collect(Collectors.toUnmodifiableMap(DependencyRecord::test, DependencyRecord::dependencies));</span>
+<span class="nc" id="L26">        } catch (IOException e) {</span>
+<span class="nc" id="L27">            throw new UncheckedIOException(&quot;failed to read dependency record from &quot; + inputFile, e);</span>
+        }
+    }
+
+    /**
+     * Reads and merges every {@code &lt;baseOutputFile&gt;.&lt;pid&gt;} sibling file that
+     * {@link DependencyTrackingAgent} wrote — one per JVM that had the agent attached
+     * (see {@code DependencyTrackingAgent#premain}). A build with multiple forked test
+     * JVMs (e.g. a target project configured with {@code reuseForks=false}) produces one
+     * such file per fork; this merges them all into a single map, as if it had all been
+     * recorded by one JVM.
+     */
+    public Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; readAll(Path baseOutputFile) {
+<span class="fc" id="L40">        Path parent = baseOutputFile.toAbsolutePath().getParent();</span>
+<span class="fc" id="L41">        String prefix = baseOutputFile.getFileName().toString() + &quot;.&quot;;</span>
+<span class="fc" id="L42">        Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; merged = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L43">        boolean foundAny = false;</span>
+<span class="fc" id="L44">        try (DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(parent, prefix + &quot;*&quot;)) {</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">            for (Path siblingFile : stream) {</span>
+<span class="fc" id="L46">                foundAny = true;</span>
+<span class="fc" id="L47">                read(siblingFile).forEach((test, classes) -&gt; merged.merge(test, classes, (oldClasses, newClasses) -&gt; {</span>
+<span class="nc" id="L48">                    Map&lt;String, String&gt; combined = new HashMap&lt;&gt;(oldClasses);</span>
+<span class="nc" id="L49">                    combined.putAll(newClasses);</span>
+<span class="nc" id="L50">                    return combined;</span>
+                }));
+<span class="fc" id="L52">            }</span>
+<span class="nc" id="L53">        } catch (IOException e) {</span>
+<span class="nc" id="L54">            throw new UncheckedIOException(&quot;failed to list dependency record files matching &quot; + prefix + &quot;* in &quot;</span>
+                    + parent, e);
+<span class="fc" id="L56">        }</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">        if (!foundAny) {</span>
+<span class="nc" id="L58">            throw new UncheckedIOException(</span>
+                    &quot;failed to read dependency record from &quot; + baseOutputFile,
+                    new IOException(&quot;no files matching &quot; + prefix + &quot;* found in &quot; + parent));
+        }
+<span class="fc" id="L62">        return Map.copyOf(merged);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

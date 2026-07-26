@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>TestBoundaryListener.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.tracking</a> &gt; <span class="el_source">TestBoundaryListener.java</span></div><h1>TestBoundaryListener.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.tracking;
+
+import java.util.Set;
+import org.junit.platform.engine.TestExecutionResult;
+import org.junit.platform.engine.support.descriptor.MethodSource;
+import org.junit.platform.launcher.TestExecutionListener;
+import org.junit.platform.launcher.TestIdentifier;
+
+/**
+ * A JUnit 5 {@link TestExecutionListener} that marks the currently-executing test via a
+ * {@link InheritableThreadLocal}, so {@link DependencyTrackingAgent}'s class-load observations can
+ * be attributed to the test that triggered them, including classes first loaded by a child thread.
+ *
+ * &lt;p&gt;Tests must await child-thread work before they finish. The identity is copied when a child
+ * thread is created, so work that outlives its test cannot be attributed reliably. Tests executing
+ * in parallel remain outside this listener's supported model.
+ */
+<span class="fc" id="L18">public final class TestBoundaryListener implements TestExecutionListener {</span>
+
+<span class="fc" id="L20">    private static final InheritableThreadLocal&lt;TestIdentity&gt; CURRENT_TEST = new InheritableThreadLocal&lt;&gt;();</span>
+<span class="fc" id="L21">    private static final ThreadLocal&lt;Set&lt;Class&lt;?&gt;&gt;&gt; CLASSES_AT_TEST_START = new ThreadLocal&lt;&gt;();</span>
+
+    /** The test currently executing on this thread, or {@code null} if none. */
+    public static TestIdentity currentTest() {
+<span class="fc" id="L25">        return CURRENT_TEST.get();</span>
+    }
+
+    @Override
+    public void executionStarted(TestIdentifier testIdentifier) {
+<span class="fc bfc" id="L30" title="All 2 branches covered.">        if (testIdentifier.isTest()) {</span>
+<span class="fc" id="L31">            TestIdentity test = toTestIdentity(testIdentifier);</span>
+            // Register before publishing this identity to the agent. Computing the record's
+            // generated hash code may load JVM support classes; while no test is current those
+            // loads are intentionally ignored instead of recursively recording themselves.
+<span class="fc" id="L35">            DependencyTrackingAgent.recordTestStarted(test);</span>
+<span class="fc" id="L36">            CURRENT_TEST.set(test);</span>
+<span class="fc" id="L37">            CLASSES_AT_TEST_START.set(DependencyTrackingAgent.loadedClasses());</span>
+        }
+<span class="fc" id="L39">    }</span>
+
+    @Override
+    public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult testExecutionResult) {
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        if (testIdentifier.isTest()) {</span>
+<span class="fc" id="L44">            TestIdentity currentTest = CURRENT_TEST.get();</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">            if (currentTest != null) {</span>
+<span class="fc" id="L46">                DependencyTrackingAgent.recordHiddenClassesLoadedSince(</span>
+<span class="fc" id="L47">                        currentTest, CLASSES_AT_TEST_START.get());</span>
+            }
+<span class="fc" id="L49">            CURRENT_TEST.remove();</span>
+<span class="fc" id="L50">            CLASSES_AT_TEST_START.remove();</span>
+        }
+<span class="fc" id="L52">    }</span>
+
+    private static TestIdentity toTestIdentity(TestIdentifier testIdentifier) {
+<span class="fc" id="L55">        return testIdentifier.getSource()</span>
+<span class="fc" id="L56">                .filter(MethodSource.class::isInstance)</span>
+<span class="fc" id="L57">                .map(MethodSource.class::cast)</span>
+<span class="fc" id="L58">                .map(source -&gt; new TestIdentity(source.getClassName(), source.getMethodName()))</span>
+<span class="pc" id="L59">                .orElseGet(() -&gt; new TestIdentity(testIdentifier.getLegacyReportingName(), null));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

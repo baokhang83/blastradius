@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>MergeBaseResolver.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.git</a> &gt; <span class="el_source">MergeBaseResolver.java</span></div><h1>MergeBaseResolver.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.git;
+
+import java.nio.file.Path;
+import java.util.Optional;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.revwalk.filter.RevFilter;
+
+/** Resolves a build's HEAD, configured target, and their Git merge base. */
+<span class="fc" id="L13">public final class MergeBaseResolver {</span>
+
+    public GitComparison resolve(Path repositoryDirectory, String baseReference) {
+<span class="fc" id="L16">        try (Git git = Git.open(repositoryDirectory.toFile())) {</span>
+<span class="fc" id="L17">            Repository repository = git.getRepository();</span>
+<span class="fc" id="L18">            ObjectId baseId = repository.resolve(baseReference);</span>
+<span class="fc" id="L19">            ObjectId headId = repository.resolve(&quot;HEAD&quot;);</span>
+<span class="pc bpc" id="L20" title="1 of 2 branches missed.">            if (baseId == null) {</span>
+<span class="nc" id="L21">                throw new IllegalStateException(</span>
+                        &quot;base reference \&quot;&quot; + baseReference + &quot;\&quot; does not resolve to a commit in &quot; + repositoryDirectory);
+            }
+<span class="pc bpc" id="L24" title="1 of 2 branches missed.">            if (headId == null) {</span>
+<span class="nc" id="L25">                throw new IllegalStateException(&quot;HEAD does not resolve to a commit in &quot; + repositoryDirectory);</span>
+            }
+
+<span class="fc bfc" id="L28" title="All 2 branches covered.">            Optional&lt;String&gt; comparisonBase = headId.equals(baseId)</span>
+<span class="fc" id="L29">                    ? Optional.of(baseId.getName())</span>
+<span class="fc" id="L30">                    : findMergeBase(repository, headId, baseId);</span>
+<span class="fc" id="L31">            return new GitComparison(headId.getName(), baseId.getName(), comparisonBase);</span>
+<span class="nc" id="L32">        } catch (IllegalStateException e) {</span>
+<span class="nc" id="L33">            throw e;</span>
+<span class="nc" id="L34">        } catch (Exception e) {</span>
+<span class="nc" id="L35">            throw new IllegalStateException(&quot;failed to open git repository at &quot; + repositoryDirectory, e);</span>
+        }
+    }
+
+    private static Optional&lt;String&gt; findMergeBase(Repository repository, ObjectId headId, ObjectId baseId)
+            throws java.io.IOException {
+<span class="fc" id="L41">        try (RevWalk walk = new RevWalk(repository)) {</span>
+<span class="fc" id="L42">            walk.setRevFilter(RevFilter.MERGE_BASE);</span>
+<span class="fc" id="L43">            walk.markStart(walk.parseCommit(headId));</span>
+<span class="fc" id="L44">            walk.markStart(walk.parseCommit(baseId));</span>
+<span class="fc" id="L45">            RevCommit mergeBase = walk.next();</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">            return mergeBase == null ? Optional.empty() : Optional.of(mergeBase.getName());</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

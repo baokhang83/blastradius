@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ChangedFileClassifier.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.git</a> &gt; <span class="el_source">ChangedFileClassifier.java</span></div><h1>ChangedFileClassifier.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.git;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.diff.DiffEntry;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectReader;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.treewalk.CanonicalTreeParser;
+import java.util.regex.Pattern;
+
+/**
+ * Diffs a commit pair and classifies each changed file as {@link FileKind#JAVA_SOURCE}
+ * (subject to dependency-match selection) or {@link FileKind#NON_SOURCE} (subject to the
+ * conservative fallback rule, per FR-006). Java and conventional Kotlin source class names are
+ * derived from standard Maven source layouts, which also makes multi-module reactors
+ * module-agnostic here (research.md #5). Kotlin files with an {@code inline fun} on either side
+ * of a diff deliberately fall back: the compiler copies their body into callers, so no stable
+ * class-load dependency can prove every affected test was selected.
+ */
+<span class="fc" id="L29">public final class ChangedFileClassifier {</span>
+
+    private static final String MAIN_JAVA_MARKER = &quot;src/main/java/&quot;;
+    private static final String TEST_JAVA_MARKER = &quot;src/test/java/&quot;;
+    private static final String MAIN_KOTLIN_MARKER = &quot;src/main/kotlin/&quot;;
+    private static final String TEST_KOTLIN_MARKER = &quot;src/test/kotlin/&quot;;
+<span class="fc" id="L35">    private static final Pattern INLINE_FUNCTION = Pattern.compile(&quot;\\binline\\b(?:\\s+[A-Za-z]+)*\\s+fun\\b&quot;);</span>
+
+    public List&lt;ChangedFile&gt; classify(Path repoPath, String baseCommit, String headCommit) {
+<span class="fc" id="L38">        try (Git git = Git.open(repoPath.toFile())) {</span>
+<span class="fc" id="L39">            Repository repo = git.getRepository();</span>
+<span class="fc" id="L40">            ObjectId baseId = repo.resolve(baseCommit);</span>
+<span class="fc" id="L41">            ObjectId headId = repo.resolve(headCommit);</span>
+
+<span class="fc" id="L43">            try (RevWalk walk = new RevWalk(repo); ObjectReader reader = repo.newObjectReader()) {</span>
+<span class="fc" id="L44">                RevCommit base = walk.parseCommit(baseId);</span>
+<span class="fc" id="L45">                RevCommit head = walk.parseCommit(headId);</span>
+
+<span class="fc" id="L47">                CanonicalTreeParser oldTree = new CanonicalTreeParser();</span>
+<span class="fc" id="L48">                oldTree.reset(reader, base.getTree());</span>
+<span class="fc" id="L49">                CanonicalTreeParser newTree = new CanonicalTreeParser();</span>
+<span class="fc" id="L50">                newTree.reset(reader, head.getTree());</span>
+
+<span class="fc" id="L52">                List&lt;DiffEntry&gt; entries = git.diff().setOldTree(oldTree).setNewTree(newTree).call();</span>
+
+<span class="fc" id="L54">                List&lt;ChangedFile&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">                for (DiffEntry entry : entries) {</span>
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">                    String path = entry.getChangeType() == DiffEntry.ChangeType.DELETE</span>
+<span class="nc" id="L57">                            ? entry.getOldPath()</span>
+<span class="fc" id="L58">                            : entry.getNewPath();</span>
+<span class="fc" id="L59">                    result.add(classifyEntry(path, entry, reader));</span>
+<span class="fc" id="L60">                }</span>
+<span class="fc" id="L61">                return result;</span>
+            }
+<span class="nc" id="L63">        } catch (Exception e) {</span>
+<span class="nc" id="L64">            throw new IllegalStateException(</span>
+                    &quot;failed to classify changes between &quot; + baseCommit + &quot; and &quot; + headCommit, e);
+        }
+    }
+
+    private static ChangedFile classifyEntry(String path, DiffEntry entry, ObjectReader reader) throws IOException {
+<span class="fc bfc" id="L70" title="All 4 branches covered.">        if (path.endsWith(&quot;.kt&quot;) &amp;&amp; containsInlineFunction(entry, reader)) {</span>
+<span class="fc" id="L71">            return new ChangedFile(path, FileKind.NON_SOURCE, null);</span>
+        }
+<span class="fc" id="L73">        String className = classNameFromPath(path);</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">        if (className != null) {</span>
+<span class="fc" id="L75">            return new ChangedFile(path, FileKind.JAVA_SOURCE, className);</span>
+        }
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (isInert(path)) {</span>
+<span class="fc" id="L78">            return new ChangedFile(path, FileKind.INERT, null);</span>
+        }
+<span class="fc" id="L80">        return new ChangedFile(path, FileKind.NON_SOURCE, null);</span>
+    }
+
+    private static boolean containsInlineFunction(DiffEntry entry, ObjectReader reader) throws IOException {
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">        return sourceContainsInlineFunction(entry.getOldId().toObjectId(), reader)</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">                || sourceContainsInlineFunction(entry.getNewId().toObjectId(), reader);</span>
+    }
+
+    private static boolean sourceContainsInlineFunction(ObjectId sourceId, ObjectReader reader) throws IOException {
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        if (ObjectId.zeroId().equals(sourceId)) {</span>
+<span class="fc" id="L90">            return false;</span>
+        }
+<span class="fc" id="L92">        String source = new String(reader.open(sourceId).getBytes(), StandardCharsets.UTF_8);</span>
+<span class="fc" id="L93">        return INLINE_FUNCTION.matcher(source).find();</span>
+    }
+
+    // Documentation and media extensions that cannot affect a test outcome.
+<span class="fc" id="L97">    private static final Set&lt;String&gt; INERT_EXTENSIONS = Set.of(</span>
+            &quot;.md&quot;, &quot;.markdown&quot;, &quot;.adoc&quot;, &quot;.rst&quot;,
+            &quot;.png&quot;, &quot;.jpg&quot;, &quot;.jpeg&quot;, &quot;.gif&quot;, &quot;.svg&quot;, &quot;.ico&quot;, &quot;.webp&quot;);
+
+    // Root-style documentation files, matched with or without an extension (README, README.md, …).
+<span class="fc" id="L102">    private static final Set&lt;String&gt; INERT_DOC_STEMS = Set.of(</span>
+            &quot;README&quot;, &quot;LICENSE&quot;, &quot;NOTICE&quot;, &quot;AUTHORS&quot;, &quot;CHANGELOG&quot;, &quot;CONTRIBUTING&quot;,
+            &quot;CODE_OF_CONDUCT&quot;, &quot;SECURITY&quot;);
+
+    // Exact VCS/editor metadata filenames.
+<span class="fc" id="L107">    private static final Set&lt;String&gt; INERT_METADATA_FILES = Set.of(</span>
+            &quot;.gitignore&quot;, &quot;.gitattributes&quot;, &quot;.mailmap&quot;, &quot;.editorconfig&quot;);
+
+    /**
+     * True when a changed path provably cannot affect any test outcome (Constitution §III),
+     * so it selects no tests instead of triggering the conservative fallback.
+     *
+     * &lt;p&gt;This is an allowlist, never a blocklist — anything not matched stays {@code NON_SOURCE}.
+     * Nothing under a {@code resources/} directory is ever inert: it may be test data a test
+     * loads, which class-load tracking cannot observe, so it must fall back.
+     */
+    private static boolean isInert(String path) {
+<span class="pc bpc" id="L119" title="1 of 4 branches missed.">        if (path.startsWith(&quot;resources/&quot;) || path.contains(&quot;/resources/&quot;)) {</span>
+<span class="fc" id="L120">            return false;</span>
+        }
+<span class="pc bpc" id="L122" title="2 of 6 branches missed.">        if (path.startsWith(&quot;.github/&quot;) || path.startsWith(&quot;.idea/&quot;) || path.startsWith(&quot;.vscode/&quot;)</span>
+<span class="pc bpc" id="L123" title="1 of 4 branches missed.">                || path.startsWith(&quot;docs/&quot;) || path.contains(&quot;/docs/&quot;)) {</span>
+<span class="fc" id="L124">            return true;</span>
+        }
+<span class="fc" id="L126">        String fileName = path.substring(path.lastIndexOf('/') + 1);</span>
+<span class="pc bpc" id="L127" title="2 of 4 branches missed.">        if (INERT_METADATA_FILES.contains(fileName) || fileName.endsWith(&quot;.iml&quot;)) {</span>
+<span class="nc" id="L128">            return true;</span>
+        }
+<span class="fc bfc" id="L130" title="All 2 branches covered.">        for (String stem : INERT_DOC_STEMS) {</span>
+<span class="pc bpc" id="L131" title="1 of 4 branches missed.">            if (fileName.equals(stem) || fileName.startsWith(stem + &quot;.&quot;)) {</span>
+<span class="fc" id="L132">                return true;</span>
+            }
+<span class="fc" id="L134">        }</span>
+<span class="fc" id="L135">        String lower = fileName.toLowerCase(Locale.ROOT);</span>
+<span class="fc" id="L136">        return INERT_EXTENSIONS.stream().anyMatch(lower::endsWith);</span>
+    }
+
+    private static String classNameFromPath(String path) {
+<span class="fc" id="L140">        String marker = null;</span>
+        String extension;
+<span class="pc bpc" id="L142" title="1 of 4 branches missed.">        if (path.contains(MAIN_JAVA_MARKER) &amp;&amp; path.endsWith(&quot;.java&quot;)) {</span>
+<span class="fc" id="L143">            marker = MAIN_JAVA_MARKER;</span>
+<span class="fc" id="L144">            extension = &quot;.java&quot;;</span>
+<span class="pc bpc" id="L145" title="1 of 4 branches missed.">        } else if (path.contains(TEST_JAVA_MARKER) &amp;&amp; path.endsWith(&quot;.java&quot;)) {</span>
+<span class="fc" id="L146">            marker = TEST_JAVA_MARKER;</span>
+<span class="fc" id="L147">            extension = &quot;.java&quot;;</span>
+<span class="pc bpc" id="L148" title="1 of 4 branches missed.">        } else if (path.contains(MAIN_KOTLIN_MARKER) &amp;&amp; path.endsWith(&quot;.kt&quot;)) {</span>
+<span class="fc" id="L149">            marker = MAIN_KOTLIN_MARKER;</span>
+<span class="fc" id="L150">            extension = &quot;.kt&quot;;</span>
+<span class="pc bpc" id="L151" title="3 of 4 branches missed.">        } else if (path.contains(TEST_KOTLIN_MARKER) &amp;&amp; path.endsWith(&quot;.kt&quot;)) {</span>
+<span class="nc" id="L152">            marker = TEST_KOTLIN_MARKER;</span>
+<span class="nc" id="L153">            extension = &quot;.kt&quot;;</span>
+        } else {
+<span class="fc" id="L155">            return null;</span>
+        }
+<span class="fc" id="L157">        String relative = path.substring(path.indexOf(marker) + marker.length());</span>
+<span class="fc" id="L158">        String withoutExtension = relative.substring(0, relative.length() - extension.length());</span>
+<span class="fc" id="L159">        return withoutExtension.replace('/', '.');</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

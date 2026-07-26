@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ConsoleSummaryRenderer.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-maven-plugin</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.plugin.report</a> &gt; <span class="el_source">ConsoleSummaryRenderer.java</span></div><h1>ConsoleSummaryRenderer.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.plugin.report;
+
+import io.github.baokhang83.blastradius.core.selection.SelectionReason;
+import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
+import io.github.baokhang83.blastradius.plugin.index.IndexApplicability;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Renders a {@link BuildReport} as the {@code [blastradius] ...} console lines
+ * contracts/mojo-and-index-contract.md's &quot;Console summary&quot; section specifies — a rendering
+ * of the JSON report, never a second source of truth (FR-008, FR-009).
+ */
+<span class="fc" id="L14">public final class ConsoleSummaryRenderer {</span>
+
+    /**
+     * @param usedIndex the index this build actually used, only meaningful (and only
+     *                   passed non-null) in {@code SELECT} mode — {@code TRACK} is building
+     *                   a fresh one, {@code FALLBACK} used none
+     */
+    public List&lt;String&gt; render(BuildReport report, DependencyIndex usedIndex) {
+<span class="fc" id="L22">        List&lt;String&gt; lines = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L23">        lines.add(&quot;[blastradius] &quot; + headerLine(report, usedIndex));</span>
+
+<span class="fc" id="L25">        int skipped = report.totalCount() - report.selectedCount();</span>
+<span class="pc bpc" id="L26" title="1 of 2 branches missed.">        double skippedPercent = report.totalCount() == 0 ? 0.0 : 100.0 * skipped / report.totalCount();</span>
+<span class="fc" id="L27">        lines.add(String.format(&quot;[blastradius] %d / %d tests selected (%.1f%% skipped)&quot;,</span>
+<span class="fc" id="L28">                report.selectedCount(), report.totalCount(), skippedPercent));</span>
+
+<span class="fc bfc" id="L30" title="All 2 branches covered.">        if (report.mode() == BuildReport.Mode.SELECT) {</span>
+<span class="fc" id="L31">            long dependencyMatched = countReason(report, SelectionReason.DEPENDENCY_MATCH);</span>
+<span class="fc" id="L32">            long newOrModified = countReason(report, SelectionReason.NEW_OR_MODIFIED_TEST);</span>
+<span class="fc" id="L33">            long fallback = countReason(report, SelectionReason.FALLBACK_NON_SOURCE_CHANGE);</span>
+<span class="fc" id="L34">            lines.add(String.format(&quot;[blastradius]   dependency-matched: %d, new-or-modified: %d, fallback: %d&quot;,</span>
+<span class="fc" id="L35">                    dependencyMatched, newOrModified, fallback));</span>
+<span class="fc" id="L36">            lines.add(&quot;[blastradius] Skipped test detail: run with -Dblastradius.explain=true for the full per-test reasoning&quot;);</span>
+        }
+<span class="fc" id="L38">        return lines;</span>
+    }
+
+    private static String headerLine(BuildReport report, DependencyIndex usedIndex) {
+<span class="fc bfc" id="L42" title="All 3 branches covered.">        return switch (report.mode()) {</span>
+<span class="fc" id="L43">            case SELECT -&gt; &quot;SELECT — index built from &quot; + shortSha(usedIndex.anchorCommit()) + &quot; (&quot; + usedIndex.builtAt() + &quot;)&quot;;</span>
+<span class="fc" id="L44">            case TRACK -&gt; &quot;TRACK — building a fresh index&quot;;</span>
+<span class="fc" id="L45">            case FALLBACK -&gt; &quot;FALLBACK — &quot; + fallbackReason(report.indexApplicability());</span>
+        };
+    }
+
+    private static String fallbackReason(IndexApplicability.Status status) {
+<span class="pc bpc" id="L50" title="6 of 8 branches missed.">        return switch (status) {</span>
+<span class="nc" id="L51">            case MISSING -&gt; &quot;no persisted index found (MISSING)&quot;;</span>
+<span class="nc" id="L52">            case UNREADABLE -&gt; &quot;persisted index could not be read (UNREADABLE)&quot;;</span>
+<span class="fc" id="L53">            case FORMAT_VERSION_MISMATCH -&gt; &quot;persisted index uses an unsupported format version (FORMAT_VERSION_MISMATCH)&quot;;</span>
+<span class="fc" id="L54">            case ANCHOR_UNREACHABLE -&gt; &quot;persisted index's anchor commit is no longer reachable (ANCHOR_UNREACHABLE)&quot;;</span>
+<span class="nc" id="L55">            case ANCHOR_MISMATCH -&gt; &quot;persisted index does not match the resolved comparison base (ANCHOR_MISMATCH)&quot;;</span>
+<span class="nc" id="L56">            case MERGE_BASE_UNAVAILABLE -&gt; &quot;Git could not establish a common comparison base (MERGE_BASE_UNAVAILABLE)&quot;;</span>
+<span class="nc" id="L57">            case INTERNAL_ERROR -&gt; &quot;an internal error occurred during selection computation (INTERNAL_ERROR)&quot;;</span>
+<span class="nc" id="L58">            case APPLICABLE -&gt; throw new IllegalStateException(&quot;FALLBACK mode never has an APPLICABLE index&quot;);</span>
+        };
+    }
+
+    private static String shortSha(String sha) {
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">        return sha.length() &gt; 7 ? sha.substring(0, 7) : sha;</span>
+    }
+
+    private static long countReason(BuildReport report, SelectionReason reason) {
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        return report.decisions().stream().filter(d -&gt; d.reason() == reason).count();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

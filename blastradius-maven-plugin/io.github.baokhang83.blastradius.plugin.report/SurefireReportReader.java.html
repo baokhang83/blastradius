@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>SurefireReportReader.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-maven-plugin</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.plugin.report</a> &gt; <span class="el_source">SurefireReportReader.java</span></div><h1>SurefireReportReader.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.plugin.report;
+
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
+import org.w3c.dom.Element;
+
+/** Reads per-test duration data from Surefire/Failsafe's standard JUnit XML reports. */
+<span class="fc" id="L15">public final class SurefireReportReader {</span>
+
+    public Map&lt;TestIdentity, Long&gt; read(Path reportsDirectory) {
+<span class="pc bpc" id="L18" title="1 of 2 branches missed.">        if (!Files.isDirectory(reportsDirectory)) {</span>
+<span class="nc" id="L19">            return Map.of();</span>
+        }
+<span class="fc" id="L21">        Map&lt;TestIdentity, Long&gt; timings = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L22">        try (var files = Files.list(reportsDirectory)) {</span>
+<span class="fc" id="L23">            files.filter(path -&gt; path.getFileName().toString().startsWith(&quot;TEST-&quot;))</span>
+<span class="fc" id="L24">                    .filter(path -&gt; path.getFileName().toString().endsWith(&quot;.xml&quot;))</span>
+<span class="fc" id="L25">                    .sorted()</span>
+<span class="fc" id="L26">                    .forEach(path -&gt; readFile(path, timings));</span>
+<span class="nc" id="L27">        } catch (IOException e) {</span>
+<span class="nc" id="L28">            throw new UncheckedIOException(&quot;failed to list test reports in &quot; + reportsDirectory, e);</span>
+<span class="fc" id="L29">        }</span>
+<span class="fc" id="L30">        return Map.copyOf(timings);</span>
+    }
+
+    private static void readFile(Path report, Map&lt;TestIdentity, Long&gt; timings) {
+        try {
+<span class="fc" id="L35">            var factory = DocumentBuilderFactory.newInstance();</span>
+<span class="fc" id="L36">            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);</span>
+<span class="fc" id="L37">            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, &quot;&quot;);</span>
+<span class="fc" id="L38">            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, &quot;&quot;);</span>
+<span class="fc" id="L39">            var document = factory.newDocumentBuilder().parse(report.toFile());</span>
+<span class="fc" id="L40">            var testCases = document.getElementsByTagName(&quot;testcase&quot;);</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">            for (int i = 0; i &lt; testCases.getLength(); i++) {</span>
+<span class="fc" id="L42">                Element testCase = (Element) testCases.item(i);</span>
+<span class="fc" id="L43">                String className = testCase.getAttribute(&quot;classname&quot;);</span>
+<span class="fc" id="L44">                String methodName = testCase.getAttribute(&quot;name&quot;);</span>
+<span class="pc bpc" id="L45" title="2 of 4 branches missed.">                if (className.isBlank() || methodName.isBlank()) {</span>
+<span class="nc" id="L46">                    continue;</span>
+                }
+<span class="fc" id="L48">                timings.put(new TestIdentity(className, methodName), milliseconds(testCase.getAttribute(&quot;time&quot;)));</span>
+            }
+<span class="nc" id="L50">        } catch (Exception e) {</span>
+<span class="nc" id="L51">            throw new IllegalArgumentException(&quot;failed to parse test report &quot; + report, e);</span>
+<span class="fc" id="L52">        }</span>
+<span class="fc" id="L53">    }</span>
+
+    private static long milliseconds(String seconds) {
+        try {
+<span class="fc" id="L57">            return Math.round(Double.parseDouble(seconds) * 1_000);</span>
+<span class="nc" id="L58">        } catch (NumberFormatException e) {</span>
+<span class="nc" id="L59">            throw new IllegalArgumentException(&quot;invalid test duration: &quot; + seconds, e);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

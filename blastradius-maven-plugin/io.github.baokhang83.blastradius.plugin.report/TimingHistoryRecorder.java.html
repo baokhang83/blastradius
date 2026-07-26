@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>TimingHistoryRecorder.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-maven-plugin</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.plugin.report</a> &gt; <span class="el_source">TimingHistoryRecorder.java</span></div><h1>TimingHistoryRecorder.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.plugin.report;
+
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.function.Consumer;
+import org.apache.maven.execution.ExecutionEvent;
+import org.apache.maven.execution.ExecutionListener;
+
+/**
+ * Chains Maven's session listener and stores standard test-report timings when Surefire or
+ * Failsafe completes. Recording is observational: a timing-cache problem cannot fail a build.
+ */
+public final class TimingHistoryRecorder implements ExecutionListener {
+
+    private final ExecutionListener delegate;
+    private final TestTimingHistoryStore store;
+    private final SurefireReportReader reader;
+    private final Consumer&lt;String&gt; warning;
+
+    public TimingHistoryRecorder(ExecutionListener delegate, TestTimingHistoryStore store,
+<span class="fc" id="L23">            SurefireReportReader reader, Consumer&lt;String&gt; warning) {</span>
+<span class="fc" id="L24">        this.delegate = delegate;</span>
+<span class="fc" id="L25">        this.store = store;</span>
+<span class="fc" id="L26">        this.reader = reader;</span>
+<span class="fc" id="L27">        this.warning = warning;</span>
+<span class="fc" id="L28">    }</span>
+
+<span class="nc" id="L30">    @Override public void projectDiscoveryStarted(ExecutionEvent event) { delegate.projectDiscoveryStarted(event); }</span>
+<span class="nc" id="L31">    @Override public void sessionStarted(ExecutionEvent event) { delegate.sessionStarted(event); }</span>
+<span class="nc" id="L32">    @Override public void sessionEnded(ExecutionEvent event) { delegate.sessionEnded(event); }</span>
+<span class="nc" id="L33">    @Override public void projectSkipped(ExecutionEvent event) { delegate.projectSkipped(event); }</span>
+<span class="nc" id="L34">    @Override public void projectStarted(ExecutionEvent event) { delegate.projectStarted(event); }</span>
+<span class="nc" id="L35">    @Override public void projectSucceeded(ExecutionEvent event) { delegate.projectSucceeded(event); }</span>
+<span class="nc" id="L36">    @Override public void projectFailed(ExecutionEvent event) { delegate.projectFailed(event); }</span>
+<span class="nc" id="L37">    @Override public void mojoSkipped(ExecutionEvent event) { delegate.mojoSkipped(event); }</span>
+<span class="nc" id="L38">    @Override public void mojoStarted(ExecutionEvent event) { delegate.mojoStarted(event); }</span>
+
+    @Override
+    public void mojoSucceeded(ExecutionEvent event) {
+<span class="fc" id="L42">        delegate.mojoSucceeded(event);</span>
+<span class="fc" id="L43">        record(event);</span>
+<span class="fc" id="L44">    }</span>
+
+    @Override
+    public void mojoFailed(ExecutionEvent event) {
+<span class="nc" id="L48">        delegate.mojoFailed(event);</span>
+<span class="nc" id="L49">        record(event);</span>
+<span class="nc" id="L50">    }</span>
+
+<span class="nc" id="L52">    @Override public void forkStarted(ExecutionEvent event) { delegate.forkStarted(event); }</span>
+<span class="nc" id="L53">    @Override public void forkSucceeded(ExecutionEvent event) { delegate.forkSucceeded(event); }</span>
+<span class="nc" id="L54">    @Override public void forkFailed(ExecutionEvent event) { delegate.forkFailed(event); }</span>
+<span class="nc" id="L55">    @Override public void forkedProjectStarted(ExecutionEvent event) { delegate.forkedProjectStarted(event); }</span>
+<span class="nc" id="L56">    @Override public void forkedProjectSucceeded(ExecutionEvent event) { delegate.forkedProjectSucceeded(event); }</span>
+<span class="nc" id="L57">    @Override public void forkedProjectFailed(ExecutionEvent event) { delegate.forkedProjectFailed(event); }</span>
+
+    private synchronized void record(ExecutionEvent event) {
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">        if (!isTestEngine(event)) {</span>
+<span class="nc" id="L61">            return;</span>
+        }
+        try {
+<span class="fc" id="L64">            Path buildDir = Path.of(event.getProject().getBuild().getDirectory());</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">            String reportsDirectory = &quot;maven-failsafe-plugin&quot;.equals(event.getMojoExecution().getArtifactId())</span>
+<span class="pc" id="L66">                    ? &quot;failsafe-reports&quot; : &quot;surefire-reports&quot;;</span>
+<span class="fc" id="L67">            Map&lt;TestIdentity, Long&gt; observed = reader.read(buildDir.resolve(reportsDirectory));</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">            if (observed.isEmpty()) {</span>
+<span class="nc" id="L69">                return;</span>
+            }
+<span class="fc" id="L71">            Path historyFile = event.getProject().getBasedir().toPath().resolve(&quot;.blastradius/test-timings.json&quot;);</span>
+<span class="fc" id="L72">            Map&lt;TestIdentity, Long&gt; merged = new LinkedHashMap&lt;&gt;(store.load(historyFile).durationsByTest());</span>
+<span class="fc" id="L73">            merged.putAll(observed);</span>
+<span class="fc" id="L74">            store.save(historyFile, TestTimingHistory.from(merged));</span>
+<span class="nc" id="L75">        } catch (RuntimeException e) {</span>
+<span class="nc" id="L76">            warning.accept(&quot;[blastradius] could not record test timings: &quot; + e.getMessage());</span>
+<span class="fc" id="L77">        }</span>
+<span class="fc" id="L78">    }</span>
+
+    private static boolean isTestEngine(ExecutionEvent event) {
+<span class="fc" id="L81">        String artifactId = event.getMojoExecution().getArtifactId();</span>
+<span class="pc bpc" id="L82" title="3 of 4 branches missed.">        return &quot;maven-surefire-plugin&quot;.equals(artifactId) || &quot;maven-failsafe-plugin&quot;.equals(artifactId);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

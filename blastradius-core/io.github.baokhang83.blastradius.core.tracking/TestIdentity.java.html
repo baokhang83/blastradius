@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>TestIdentity.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.tracking</a> &gt; <span class="el_source">TestIdentity.java</span></div><h1>TestIdentity.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.tracking;
+
+import java.util.Objects;
+
+/**
+ * A stable identity for one test, used to correlate selection decisions with
+ * ground-truth results across a commit pair.
+ *
+ * @param className  fully-qualified test class name
+ * @param methodName test method name, or {@code null} for class-level identity
+ */
+public record TestIdentity(String className, String methodName) {
+
+<span class="fc" id="L14">    public TestIdentity {</span>
+<span class="fc" id="L15">        Objects.requireNonNull(className, &quot;className&quot;);</span>
+<span class="fc" id="L16">    }</span>
+
+    /**
+     * The identity to use when looking up this test's tracked baseline dependencies.
+     *
+     * &lt;p&gt;For a {@code @ParameterizedTest} (or similar), Surefire's XML reports record
+     * each invocation under a distinct name like {@code methodName(paramType)[1]}, while
+     * the live JUnit 5 {@code TestExecutionListener} used during dependency tracking
+     * reports the same underlying method's plain name for every invocation. Both are
+     * correct for their own purpose (ground truth needs per-invocation pass/fail; the
+     * agent naturally collapses to one dependency set per method) — but a lookup that
+     * mixes the two would treat every parameterized invocation as having no baseline at
+     * all. This is safe (falls back to always-selected) but destroys any real savings
+     * signal for a project that uses parameterized tests. Stripping the trailing
+     * {@code (...)}/{@code [...]} segments here lets a lookup key built from ground
+     * truth find the baseline the tracking agent actually recorded.
+     *
+     * &lt;p&gt;Not used for ground-truth pass/fail comparison ({@code WouldMissComparator}),
+     * which must stay per-invocation — collapsing that would risk masking a real
+     * failing invocation behind a passing sibling.
+     */
+    public TestIdentity baselineKey() {
+<span class="fc bfc" id="L38" title="All 2 branches covered.">        if (methodName == null) {</span>
+<span class="fc" id="L39">            return this;</span>
+        }
+<span class="fc" id="L41">        String normalized = methodName.replaceAll(&quot;\\(.*\\)&quot;, &quot;&quot;).replaceAll(&quot;\\[.*\\]&quot;, &quot;&quot;);</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        return normalized.equals(methodName) ? this : new TestIdentity(className, normalized);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

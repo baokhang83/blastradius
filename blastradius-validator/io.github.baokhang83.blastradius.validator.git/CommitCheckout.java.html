@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>CommitCheckout.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.git</a> &gt; <span class="el_source">CommitCheckout.java</span></div><h1>CommitCheckout.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.git;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
+import org.eclipse.jgit.api.Git;
+
+/**
+ * Materializes historical commits of a target project into an isolated scratch working
+ * copy, without ever mutating the target repository's HEAD, current branch, or working
+ * tree (plan.md's non-destructive-checkout constraint).
+ *
+ * &lt;p&gt;Implementation: the target repo is cloned once into a disposable scratch directory;
+ * subsequent {@link #checkoutCommit(String)} calls check out different commits &lt;em&gt;within
+ * that scratch clone&lt;/em&gt;, which is safe to mutate repeatedly since it is never the
+ * caller's real repository.
+ */
+public final class CommitCheckout implements AutoCloseable {
+
+    private final Git scratchGit;
+    private final Path scratchDir;
+
+<span class="fc" id="L24">    private CommitCheckout(Git scratchGit, Path scratchDir) {</span>
+<span class="fc" id="L25">        this.scratchGit = scratchGit;</span>
+<span class="fc" id="L26">        this.scratchDir = scratchDir;</span>
+<span class="fc" id="L27">    }</span>
+
+    /**
+     * Clones {@code targetRepoPath} once into a fresh subdirectory under
+     * {@code scratchParentDir}. The target repository is only ever read from.
+     */
+    public static CommitCheckout forTargetProject(Path targetRepoPath, Path scratchParentDir) {
+        try {
+<span class="fc" id="L35">            Path scratchDir = Files.createTempDirectory(scratchParentDir, &quot;blastradius-checkout-&quot;);</span>
+<span class="fc" id="L36">            Git clone = Git.cloneRepository()</span>
+<span class="fc" id="L37">                    .setURI(targetRepoPath.toUri().toString())</span>
+<span class="fc" id="L38">                    .setDirectory(scratchDir.toFile())</span>
+<span class="fc" id="L39">                    .call();</span>
+<span class="fc" id="L40">            return new CommitCheckout(clone, scratchDir);</span>
+<span class="nc" id="L41">        } catch (Exception e) {</span>
+<span class="nc" id="L42">            throw new IllegalStateException(&quot;failed to create scratch clone of &quot; + targetRepoPath, e);</span>
+        }
+    }
+
+    /**
+     * Checks out {@code commitSha} within the scratch clone (detached HEAD) and returns
+     * the working directory now reflecting that commit's tree.
+     *
+     * &lt;p&gt;Also deletes any {@code target/} directory left over from a previous
+     * checkout's build, rather than relying on the next {@code mvn clean test}
+     * invocation to do it. A commit whose {@code pom.xml} fails to resolve (e.g. an
+     * unpublished SNAPSHOT parent — a real case found running against jackson-databind)
+     * fails during Maven's project-model-building phase, before the {@code clean} goal
+     * ever runs, letting a stale {@code target/surefire-reports/TEST-*.xml} from the
+     * prior commit survive. {@code BuildFailureDetector} can only see whether *any*
+     * {@code TEST-*.xml} exists, not whether it's fresh, so a stale one fools it into
+     * treating a genuine build failure as if it had run tests — this cleanup (not
+     * relying on the target project's own `clean` goal succeeding) closes that gap
+     * directly at the source.
+     */
+    public Path checkoutCommit(String commitSha) {
+        try {
+<span class="fc" id="L64">            scratchGit.checkout().setName(commitSha).call();</span>
+<span class="fc" id="L65">            deleteRecursively(scratchDir.resolve(&quot;target&quot;));</span>
+<span class="fc" id="L66">            return scratchDir;</span>
+<span class="nc" id="L67">        } catch (Exception e) {</span>
+<span class="nc" id="L68">            throw new IllegalStateException(&quot;failed to checkout commit &quot; + commitSha, e);</span>
+        }
+    }
+
+    /** Closes the scratch clone and deletes its directory. The target repo is untouched. */
+    @Override
+    public void close() {
+<span class="fc" id="L75">        scratchGit.close();</span>
+<span class="fc" id="L76">        deleteRecursively(scratchDir);</span>
+<span class="fc" id="L77">    }</span>
+
+    private static void deleteRecursively(Path dir) {
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (Files.notExists(dir)) {</span>
+<span class="fc" id="L81">            return;</span>
+        }
+<span class="fc" id="L83">        try (var stream = Files.walk(dir)) {</span>
+<span class="fc" id="L84">            stream.sorted(Comparator.reverseOrder()).forEach(p -&gt; {</span>
+                try {
+<span class="fc" id="L86">                    Files.delete(p);</span>
+<span class="nc" id="L87">                } catch (IOException ignored) {</span>
+                    // best-effort scratch cleanup
+<span class="fc" id="L89">                }</span>
+<span class="fc" id="L90">            });</span>
+<span class="nc" id="L91">        } catch (IOException ignored) {</span>
+            // best-effort scratch cleanup
+<span class="fc" id="L93">        }</span>
+<span class="fc" id="L94">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

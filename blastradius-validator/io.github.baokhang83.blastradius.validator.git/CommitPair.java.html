@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>CommitPair.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.git</a> &gt; <span class="el_source">CommitPair.java</span></div><h1>CommitPair.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.git;
+
+import io.github.baokhang83.blastradius.core.git.ChangedFile;
+import java.util.List;
+import java.util.Objects;
+
+/**
+ * A before/after pair of consecutive commits within the analyzed range.
+ *
+ * @param baseCommit      the earlier commit's SHA
+ * @param headCommit      the later commit's SHA; ground truth is captured here
+ * @param changedFiles    files that differ between base and head
+ * @param status          {@link PairStatus#ANALYZED} or {@link PairStatus#EXCLUDED} (FR-009)
+ * @param exclusionReason present only when {@code status = EXCLUDED}
+ */
+public record CommitPair(
+        String baseCommit,
+        String headCommit,
+        List&lt;ChangedFile&gt; changedFiles,
+        PairStatus status,
+        String exclusionReason) {
+
+<span class="fc" id="L23">    public CommitPair {</span>
+<span class="fc" id="L24">        Objects.requireNonNull(baseCommit, &quot;baseCommit&quot;);</span>
+<span class="fc" id="L25">        Objects.requireNonNull(headCommit, &quot;headCommit&quot;);</span>
+<span class="fc" id="L26">        Objects.requireNonNull(changedFiles, &quot;changedFiles&quot;);</span>
+<span class="fc" id="L27">        Objects.requireNonNull(status, &quot;status&quot;);</span>
+<span class="fc" id="L28">        changedFiles = List.copyOf(changedFiles);</span>
+<span class="fc" id="L29">    }</span>
+
+    /** The common case: a pair that was successfully analyzed. */
+    public static CommitPair analyzed(String baseCommit, String headCommit, List&lt;ChangedFile&gt; changedFiles) {
+<span class="fc" id="L33">        return new CommitPair(baseCommit, headCommit, changedFiles, PairStatus.ANALYZED, null);</span>
+    }
+
+    /** A pair that could not be built/tested (FR-009); carries no changed files. */
+    public static CommitPair excluded(String baseCommit, String headCommit, String reason) {
+<span class="fc" id="L38">        Objects.requireNonNull(reason, &quot;reason&quot;);</span>
+<span class="fc" id="L39">        return new CommitPair(baseCommit, headCommit, List.of(), PairStatus.EXCLUDED, reason);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

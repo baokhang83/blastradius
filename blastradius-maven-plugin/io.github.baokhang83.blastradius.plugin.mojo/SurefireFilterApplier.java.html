@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>SurefireFilterApplier.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-maven-plugin</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.plugin.mojo</a> &gt; <span class="el_source">SurefireFilterApplier.java</span></div><h1>SurefireFilterApplier.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.plugin.mojo;
+
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.maven.project.MavenProject;
+
+/**
+ * Narrows the project's effective Surefire/Failsafe test selection to a specific set of
+ * tests — Surefire's own {@code test} parameter is already bound to the {@code test}
+ * Maven property by convention (the same property {@code -Dtest=} sets on the command
+ * line), so setting it here, before the {@code test} phase runs, has the same effect
+ * without needing a command-line override (research.md #1: a plain test-selection
+ * filter, unrelated to the {@code argLine}/javaagent mechanism).
+ */
+<span class="fc" id="L16">public final class SurefireFilterApplier {</span>
+
+    public void apply(MavenProject project, Set&lt;TestIdentity&gt; selectedTests) {
+<span class="fc bfc" id="L19" title="All 2 branches covered.">        if (selectedTests.isEmpty()) {</span>
+            // Surefire interprets an empty `test` property as no filter and runs every test.
+            // `skipTests` is the explicit Maven switch for a genuinely empty selection.
+<span class="fc" id="L22">            project.getProperties().remove(&quot;test&quot;);</span>
+<span class="fc" id="L23">            project.getProperties().setProperty(&quot;skipTests&quot;, &quot;true&quot;);</span>
+<span class="fc" id="L24">            return;</span>
+        }
+<span class="fc" id="L26">        String filter = selectedTests.stream()</span>
+<span class="fc" id="L27">                .map(SurefireFilterApplier::toSurefirePattern)</span>
+<span class="fc" id="L28">                .collect(Collectors.joining(&quot;,&quot;));</span>
+<span class="fc" id="L29">        project.getProperties().setProperty(&quot;test&quot;, filter);</span>
+<span class="fc" id="L30">    }</span>
+
+    private static String toSurefirePattern(TestIdentity test) {
+<span class="fc bfc" id="L33" title="All 2 branches covered.">        return test.methodName() == null ? test.className() : test.className() + &quot;#&quot; + test.methodName();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

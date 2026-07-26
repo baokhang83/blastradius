@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>FileIndexStore.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.index</a> &gt; <span class="el_source">FileIndexStore.java</span></div><h1>FileIndexStore.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.index;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Optional;
+
+/** A JSON-backed {@link IndexStore} whose keys are constrained to one project directory. */
+public final class FileIndexStore&lt;T&gt; implements IndexStore&lt;T&gt; {
+
+    private final Path rootDirectory;
+    private final Class&lt;T&gt; valueType;
+<span class="fc" id="L15">    private final ObjectMapper mapper = new ObjectMapper();</span>
+
+<span class="fc" id="L17">    public FileIndexStore(Path rootDirectory, Class&lt;T&gt; valueType) {</span>
+<span class="fc" id="L18">        this.rootDirectory = rootDirectory.toAbsolutePath().normalize();</span>
+<span class="fc" id="L19">        this.valueType = valueType;</span>
+<span class="fc" id="L20">    }</span>
+
+    @Override
+    public Optional&lt;T&gt; get(String key) {
+<span class="fc" id="L24">        Path indexFile = resolveKey(key);</span>
+<span class="fc bfc" id="L25" title="All 2 branches covered.">        if (Files.notExists(indexFile)) {</span>
+<span class="fc" id="L26">            return Optional.empty();</span>
+        }
+        try {
+<span class="fc" id="L29">            T value = mapper.readValue(indexFile.toFile(), valueType);</span>
+<span class="pc bpc" id="L30" title="1 of 2 branches missed.">            if (value == null) {</span>
+<span class="nc" id="L31">                throw new IOException(&quot;index value must not be null: &quot; + indexFile);</span>
+            }
+<span class="fc" id="L33">            return Optional.of(value);</span>
+<span class="fc" id="L34">        } catch (IOException e) {</span>
+<span class="fc" id="L35">            throw new UncheckedIOException(&quot;failed to read dependency index from &quot; + indexFile, e);</span>
+        }
+    }
+
+    @Override
+    public void put(String key, T value) {
+<span class="fc" id="L41">        Path indexFile = resolveKey(key);</span>
+        try {
+<span class="fc" id="L43">            Path parent = indexFile.getParent();</span>
+<span class="pc bpc" id="L44" title="1 of 2 branches missed.">            if (parent != null) {</span>
+<span class="fc" id="L45">                Files.createDirectories(parent);</span>
+            }
+<span class="fc" id="L47">            mapper.writeValue(indexFile.toFile(), value);</span>
+<span class="nc" id="L48">        } catch (IOException e) {</span>
+<span class="nc" id="L49">            throw new UncheckedIOException(&quot;failed to write dependency index to &quot; + indexFile, e);</span>
+<span class="fc" id="L50">        }</span>
+<span class="fc" id="L51">    }</span>
+
+    private Path resolveKey(String key) {
+<span class="pc bpc" id="L54" title="2 of 4 branches missed.">        if (key == null || key.isBlank()) {</span>
+<span class="nc" id="L55">            throw new IllegalArgumentException(&quot;index key must not be blank&quot;);</span>
+        }
+<span class="fc" id="L57">        Path keyPath = Path.of(key);</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        if (keyPath.isAbsolute()) {</span>
+<span class="fc" id="L59">            throw new IllegalArgumentException(&quot;index key must be relative to the configured root: &quot; + key);</span>
+        }
+<span class="fc" id="L61">        Path indexFile = rootDirectory.resolve(keyPath).normalize();</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        if (!indexFile.startsWith(rootDirectory)) {</span>
+<span class="fc" id="L63">            throw new IllegalArgumentException(&quot;index key resolves outside the configured root: &quot; + key);</span>
+        }
+<span class="fc" id="L65">        return indexFile;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

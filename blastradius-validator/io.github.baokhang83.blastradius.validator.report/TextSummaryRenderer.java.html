@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>TextSummaryRenderer.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.report</a> &gt; <span class="el_source">TextSummaryRenderer.java</span></div><h1>TextSummaryRenderer.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.report;
+
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import io.github.baokhang83.blastradius.validator.verdict.FlakyFailure;
+import io.github.baokhang83.blastradius.validator.verdict.WouldMissCase;
+
+/**
+ * Renders an {@link AnalysisReport} as a human-readable plain-text summary. Purely a
+ * rendering of the JSON report — not a second source of truth (contract note); every
+ * would-miss case is rendered individually, never summarized away.
+ */
+<span class="fc" id="L12">public final class TextSummaryRenderer {</span>
+
+    public String render(AnalysisReport report) {
+<span class="fc" id="L15">        StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L16">        sb.append(&quot;Verdict: &quot;).append(report.verdict()).append('\n');</span>
+<span class="fc" id="L17">        sb.append(&quot;Analyzed: &quot;).append(report.analyzedCommitPairs().size()).append(&quot; commit pair(s)&quot;);</span>
+<span class="pc bpc" id="L18" title="1 of 2 branches missed.">        if (!report.excludedCommitPairs().isEmpty()) {</span>
+<span class="nc" id="L19">            sb.append(&quot; (&quot;).append(report.excludedCommitPairs().size())</span>
+<span class="nc" id="L20">                    .append(&quot; excluded — see report for reasons)&quot;);</span>
+        }
+<span class="fc" id="L22">        sb.append('\n');</span>
+<span class="fc" id="L23">        sb.append(&quot;Would-miss cases: &quot;).append(report.wouldMissCases().size()).append('\n');</span>
+
+<span class="fc bfc" id="L25" title="All 2 branches covered.">        for (WouldMissCase miss : report.wouldMissCases()) {</span>
+<span class="fc" id="L26">            sb.append(&quot;  - commit &quot;).append(miss.commitPair().baseCommit())</span>
+<span class="fc" id="L27">                    .append(&quot;..&quot;).append(miss.commitPair().headCommit())</span>
+<span class="fc" id="L28">                    .append(&quot;: &quot;).append(testLabel(miss.test())).append('\n');</span>
+<span class="fc" id="L29">            sb.append(&quot;    changed: &quot;).append(String.join(&quot;, &quot;, miss.changedClasses())).append('\n');</span>
+<span class="fc" id="L30">            sb.append(&quot;    not selected: &quot;).append(miss.selectionReason()).append('\n');</span>
+<span class="fc" id="L31">        }</span>
+
+<span class="fc" id="L33">        SavingsSummary savings = report.savingsSummary();</span>
+<span class="fc" id="L34">        sb.append('\n');</span>
+<span class="fc" id="L35">        sb.append(&quot;Savings: &quot;).append(savings.totalSelected()).append(&quot; / &quot;)</span>
+<span class="fc" id="L36">                .append(savings.totalTestExecutions()).append(&quot; test executions selected&quot;)</span>
+<span class="fc" id="L37">                .append(String.format(&quot; (%.1f%% skipped)%n&quot;, savings.proportionSkipped() * 100));</span>
+<span class="fc" id="L38">        sb.append(&quot;  - dependency-matched: &quot;).append(savings.dependencyMatchedSelections()).append('\n');</span>
+<span class="fc" id="L39">        sb.append(&quot;  - fallback-driven: &quot;).append(savings.fallbackDrivenSelections()).append('\n');</span>
+<span class="fc" id="L40">        sb.append(&quot;  - new-or-modified: &quot;).append(savings.newOrModifiedTestSelections()).append('\n');</span>
+
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        if (!report.flakyFailures().isEmpty()) {</span>
+<span class="nc" id="L43">            sb.append(&quot;Flaky failures observed: &quot;).append(report.flakyFailures().size())</span>
+<span class="nc" id="L44">                    .append(&quot; (excluded from verdict)\n&quot;);</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">            for (FlakyFailure flaky : report.flakyFailures()) {</span>
+<span class="nc" id="L46">                sb.append(&quot;  - commit &quot;).append(flaky.commitPair().baseCommit())</span>
+<span class="nc" id="L47">                        .append(&quot;..&quot;).append(flaky.commitPair().headCommit())</span>
+<span class="nc" id="L48">                        .append(&quot;: &quot;).append(testLabel(flaky.test())).append('\n');</span>
+<span class="nc" id="L49">            }</span>
+        }
+
+<span class="fc" id="L52">        return sb.toString();</span>
+    }
+
+    private static String testLabel(TestIdentity test) {
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">        return test.methodName() == null ? test.className() : test.className() + &quot;#&quot; + test.methodName();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
