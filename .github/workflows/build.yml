@@ -33,7 +33,10 @@ jobs:
         id: blastradius-index
         uses: actions/cache/restore@v4
         with:
-          path: .blastradius
+          path: |
+            .blastradius
+            **/.blastradius
+            !**/target/**/.blastradius
           key: blastradius-index-v2-${{ runner.os }}-jdk${{ matrix.java }}-${{ github.sha }}
           restore-keys: |
             blastradius-index-v2-${{ runner.os }}-jdk${{ matrix.java }}-
@@ -61,7 +64,10 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' && success() && steps.blastradius-index.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
-          path: .blastradius
+          path: |
+            .blastradius
+            **/.blastradius
+            !**/target/**/.blastradius
           key: blastradius-index-v2-${{ runner.os }}-jdk${{ matrix.java }}-${{ github.sha }}
       - name: Publish Blastradius selection feedback
         if: ${{ always() }}
