@@ -6,6 +6,9 @@ import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDependencyEntry;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -23,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 public final class TrackRunner {
 
     private static final long TIMEOUT_MINUTES = 20;
+    private static final int FAILURE_OUTPUT_TAIL_BYTES = 12 * 1024;
 
     private final DependencyRecordReader recordReader = new DependencyRecordReader();
 
@@ -89,7 +93,8 @@ public final class TrackRunner {
             }
             if (process.exitValue() != 0) {
                 throw new IllegalStateException("track run failed against " + projectDir + " with exit code "
-                        + process.exitValue() + "; refusing to persist a partial dependency index");
+                        + process.exitValue() + "; refusing to persist a partial dependency index.\n"
+                        + "Last output from the tracking build:\n" + readOutputTail(outputFile));
             }
         } catch (IOException e) {
             throw new UncheckedIOException("failed to invoke mvn test against " + projectDir, e);
@@ -102,6 +107,21 @@ public final class TrackRunner {
             } catch (IOException ignored) {
                 // Best-effort cleanup; a stray temp log is not worth failing the build over.
             }
+        }
+    }
+
+    private static String readOutputTail(Path outputFile) {
+        try (SeekableByteChannel channel = Files.newByteChannel(outputFile)) {
+            long size = channel.size();
+            int length = (int) Math.min(size, FAILURE_OUTPUT_TAIL_BYTES);
+            channel.position(Math.max(0, size - length));
+            ByteBuffer buffer = ByteBuffer.allocate(length);
+            while (buffer.hasRemaining() && channel.read(buffer) != -1) {
+                // Continue until the requested tail is fully read or the file ends.
+            }
+            return StandardCharsets.UTF_8.decode(buffer.flip()).toString();
+        } catch (IOException e) {
+            return "(could not read tracking build output: " + e.getMessage() + ")";
         }
     }
 }

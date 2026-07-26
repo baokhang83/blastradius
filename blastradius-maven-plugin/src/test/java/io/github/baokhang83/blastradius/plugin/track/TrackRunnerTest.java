@@ -98,7 +98,10 @@ class TrackRunnerTest {
                 """);
         String anchorCommit = fixture.commit("initial");
 
-        assertThrows(IllegalStateException.class, () -> trackRunner.track(projectDir, agentJar, anchorCommit));
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class, () -> trackRunner.track(projectDir, agentJar, anchorCommit));
+        assertTrue(exception.getMessage().contains("intentional"),
+                "expected the tracking subprocess output in the failure diagnostic: " + exception.getMessage());
     }
 
     private static Path findOwnAgentJar() throws IOException {
