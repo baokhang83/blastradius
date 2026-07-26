@@ -92,7 +92,7 @@ public final class SelectMojo extends AbstractMojo {
      * this guard the subprocess's own {@code execute()} would resolve {@code TRACK} again
      * (same commit, same {@code baseRef}) and fork another subprocess, recursing without
      * bound. The tracking data comes entirely from the {@code -javaagent} attached via
-     * {@code JAVA_TOOL_OPTIONS}, not from this goal, so skipping is safe and correct.
+     * Surefire's {@code argLine}, not from this goal, so skipping is safe and correct.
      */
     @Parameter(property = "blastradius.trackChild", defaultValue = "false")
     private boolean trackChild;

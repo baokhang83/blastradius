@@ -16,6 +16,13 @@ import org.apache.maven.project.MavenProject;
 public final class SurefireFilterApplier {
 
     public void apply(MavenProject project, Set<TestIdentity> selectedTests) {
+        if (selectedTests.isEmpty()) {
+            // Surefire interprets an empty `test` property as no filter and runs every test.
+            // `skipTests` is the explicit Maven switch for a genuinely empty selection.
+            project.getProperties().remove("test");
+            project.getProperties().setProperty("skipTests", "true");
+            return;
+        }
         String filter = selectedTests.stream()
                 .map(SurefireFilterApplier::toSurefirePattern)
                 .collect(Collectors.joining(","));
