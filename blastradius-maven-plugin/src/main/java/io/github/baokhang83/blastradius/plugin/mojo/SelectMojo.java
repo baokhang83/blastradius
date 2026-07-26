@@ -232,13 +232,22 @@ public final class SelectMojo extends AbstractMojo {
         String indexKey = CommitIndexKey.forCommit(indexPathKey, changes.currentCommit());
         DependencyIndex freshIndex;
         if (ReactorTrackingGate.claim(session.getUserProperties(), reactorRoot.toAbsolutePath().toString(), changes.currentCommit())) {
-            Path agentJar = locateCoreAgentJar();
-            freshIndex = trackRunner.track(reactorRoot, agentJar, changes.currentCommit());
-            indexStore.put(indexKey, freshIndex);
+            try {
+                Path agentJar = locateCoreAgentJar();
+                freshIndex = trackRunner.track(reactorRoot, agentJar, changes.currentCommit());
+                indexStore.put(indexKey, freshIndex);
+            } catch (MojoExecutionException | RuntimeException e) {
+                getLog().warn("[blastradius] tracking failed; discarding its incomplete dependency data and "
+                        + "falling back to the full suite", e);
+                runFallback(changes, IndexApplicability.internalError());
+                return;
+            }
         } else {
             freshIndex = indexStore.get(indexKey).orElse(null);
             if (freshIndex == null) {
-                throw new MojoExecutionException("the reactor tracking index was not available after another module claimed TRACK");
+                getLog().warn("[blastradius] no reactor tracking index was produced; falling back to the full suite");
+                runFallback(changes, IndexApplicability.internalError());
+                return;
             }
         }
 
