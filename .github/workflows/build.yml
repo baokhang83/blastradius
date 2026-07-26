@@ -31,7 +31,7 @@ jobs:
           maven-version: 3.9.6
       - name: Restore Blastradius index
         id: blastradius-index
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             .blastradius
@@ -73,7 +73,7 @@ jobs:
           folder: coverage/target/site/jacoco-aggregate
       - name: Save Blastradius index from main
         if: ${{ github.ref == 'refs/heads/main' && success() && steps.blastradius-index.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: |
             .blastradius
