@@ -53,7 +53,7 @@ sequenceDiagram
   Mojo->>Runner: TRACK needed
   Runner->>Fork: mvn test with agent in argLine
   Fork->>Agent: start test, then transform classes
-  Agent->>Agent: preserve empty baseline; guard checksum recursion
+  Agent->>Agent: preserve empty baseline, guard checksum recursion
   alt tracking succeeds
     Runner-->>Mojo: complete dependency index
     Mojo->>Cache: persist commit-keyed index
