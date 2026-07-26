@@ -34,9 +34,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .blastradius
-          key: blastradius-index-${{ runner.os }}-jdk${{ matrix.java }}-${{ github.sha }}
+          key: blastradius-index-v2-${{ runner.os }}-jdk${{ matrix.java }}-${{ github.sha }}
           restore-keys: |
-            blastradius-index-${{ runner.os }}-jdk${{ matrix.java }}-
+            blastradius-index-v2-${{ runner.os }}-jdk${{ matrix.java }}-
       - name: Bootstrap Blastradius plugin
         run: |
           RELEASE_VERSION="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"
@@ -62,7 +62,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .blastradius
-          key: blastradius-index-${{ runner.os }}-jdk${{ matrix.java }}-${{ github.sha }}
+          key: blastradius-index-v2-${{ runner.os }}-jdk${{ matrix.java }}-${{ github.sha }}
       - name: Publish Blastradius selection feedback
         if: ${{ always() }}
         uses: ./.github/actions/blastradius-selection-summary

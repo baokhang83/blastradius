@@ -1,6 +1,7 @@
 package io.github.baokhang83.blastradius.plugin.mojo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
@@ -38,5 +39,16 @@ class SurefireFilterApplierTest {
         applier.apply(project, Set.of(classLevel));
 
         assertEquals("com.example.FooTest", project.getProperties().getProperty("test"));
+    }
+
+    @Test
+    void anEmptySelectionSkipsSurefireInsteadOfSettingAnEmptyTestFilter() {
+        MavenProject project = new MavenProject(new Model());
+        project.getProperties().setProperty("test", "previous.filter");
+
+        applier.apply(project, Set.of());
+
+        assertEquals("true", project.getProperties().getProperty("skipTests"));
+        assertNull(project.getProperties().getProperty("test"));
     }
 }

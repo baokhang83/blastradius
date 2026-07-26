@@ -14,8 +14,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Forks the target project's own {@code mvn test} as an independent subprocess, agent
- * attached via {@code JAVA_TOOL_OPTIONS}, to (re)build a {@link DependencyIndex} —
+ * Forks the target project's own {@code mvn test} as an independent subprocess, with the agent
+ * attached to Surefire via {@code argLine}, to (re)build a {@link DependencyIndex} —
  * reusing {@code blastradius-core}'s proven tracking mechanism unchanged (unique-file-
  * per-JVM, merge-on-read, {@code TestIdentity.baselineKey()} normalization). Deliberately
  * never instruments the live, currently-running build being gated (research.md #1).
@@ -35,15 +35,19 @@ public final class TrackRunner {
         }
 
         String agentOption = "-javaagent:" + agentJar.toAbsolutePath() + "=" + outputFile.toAbsolutePath();
+        String existingArgLine = System.getProperty("argLine");
+        String trackedArgLine = existingArgLine == null || existingArgLine.isBlank()
+                ? agentOption
+                : agentOption + " " + existingArgLine;
         // -Dblastradius.trackChild=true: this subprocess runs against the same pom that
         // binds this very goal, so without the flag its own SelectMojo execution would
         // resolve TRACK again (same commit, same baseRef) and recurse without bound — see
         // SelectMojo.trackChild's javadoc.
         ProcessBuilder processBuilder = new ProcessBuilder(
-                "mvn", "-B", "--no-transfer-progress", "-Dblastradius.trackChild=true", "clean", "test")
+                "mvn", "-B", "--no-transfer-progress", "-Dblastradius.trackChild=true",
+                "-DargLine=" + trackedArgLine, "clean", "test")
                 .directory(projectDir.toFile())
                 .redirectErrorStream(true);
-        processBuilder.environment().merge("JAVA_TOOL_OPTIONS", agentOption, (existing, added) -> existing + " " + added);
 
         runToCompletion(processBuilder, projectDir);
 
@@ -83,11 +87,10 @@ public final class TrackRunner {
                 throw new IllegalStateException(
                         "track run timed out against " + projectDir + " after " + TIMEOUT_MINUTES + "m");
             }
-            // A nonzero exit here typically means some tests failed, not that the build
-            // itself is broken — the agent still wrote whatever it observed regardless of
-            // pass/fail, so that data remains valid to track. A genuine build failure
-            // (e.g. a compile error) instead surfaces naturally: no dependency record file
-            // is ever produced, and DependencyRecordReader.readAll fails loudly for it.
+            if (process.exitValue() != 0) {
+                throw new IllegalStateException("track run failed against " + projectDir + " with exit code "
+                        + process.exitValue() + "; refusing to persist a partial dependency index");
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("failed to invoke mvn test against " + projectDir, e);
         } catch (InterruptedException e) {
