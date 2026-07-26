@@ -59,6 +59,7 @@ public final class BlastradiusPlugin implements Plugin<Project> {
             test.doFirst(new ApplySelectionAction(
                     repositoryDirectory.toFile(), indexPathKey, comparisonBase, gitState.headCommit(), indexStore));
         }
+        
     }
 
     private static void configureTracking(Test test, Path repositoryDirectory, String indexPathKey, String anchorCommit, ConfiguredIndexStore indexStore) {
