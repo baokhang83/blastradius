@@ -5,12 +5,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /** Derives a stable, root-relative index key for one full Git commit ID. */
 public final class CommitIndexKey {
 
-<span class="fc" id="L13">    private static final Pattern FULL_COMMIT_ID = Pattern.compile(&quot;[0-9a-fA-F]{40}&quot;);</span>
+<span class="fc" id="L14">    private static final Pattern FULL_COMMIT_ID = Pattern.compile(&quot;[0-9a-fA-F]{40}&quot;);</span>
 
     private CommitIndexKey() {}
 
@@ -22,31 +23,48 @@ public final class CommitIndexKey {
      * @return a slash-separated, root-relative key for that commit
      */
     public static String forCommit(String indexPathKey, String commit) {
-<span class="pc bpc" id="L25" title="1 of 4 branches missed.">        if (commit == null || !FULL_COMMIT_ID.matcher(commit).matches()) {</span>
-<span class="fc" id="L26">            throw new IllegalArgumentException(&quot;commit must be a full Git object ID: &quot; + commit);</span>
+<span class="pc bpc" id="L26" title="1 of 4 branches missed.">        if (commit == null || !FULL_COMMIT_ID.matcher(commit).matches()) {</span>
+<span class="fc" id="L27">            throw new IllegalArgumentException(&quot;commit must be a full Git object ID: &quot; + commit);</span>
         }
-<span class="fc" id="L28">        Path indexPath = relativeIndexPath(indexPathKey);</span>
-<span class="fc" id="L29">        List&lt;String&gt; parts = new ArrayList&lt;&gt;();</span>
-<span class="pc bpc" id="L30" title="1 of 4 branches missed.">        for (Path part : indexPath.getParent() == null ? List.&lt;Path&gt;of() : indexPath.getParent()) {</span>
-<span class="fc" id="L31">            parts.add(part.toString());</span>
-<span class="fc" id="L32">        }</span>
-<span class="fc" id="L33">        parts.add(commit.toLowerCase(Locale.ROOT));</span>
-<span class="fc" id="L34">        parts.add(indexPath.getFileName().toString());</span>
-<span class="fc" id="L35">        return String.join(&quot;/&quot;, parts);</span>
+<span class="fc" id="L29">        Path indexPath = relativeIndexPath(indexPathKey);</span>
+<span class="fc" id="L30">        List&lt;String&gt; parts = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L31" title="1 of 4 branches missed.">        for (Path part : indexPath.getParent() == null ? List.&lt;Path&gt;of() : indexPath.getParent()) {</span>
+<span class="fc" id="L32">            parts.add(part.toString());</span>
+<span class="fc" id="L33">        }</span>
+<span class="fc" id="L34">        parts.add(commit.toLowerCase(Locale.ROOT));</span>
+<span class="fc" id="L35">        parts.add(indexPath.getFileName().toString());</span>
+<span class="fc" id="L36">        return String.join(&quot;/&quot;, parts);</span>
+    }
+
+    /** Extracts the commit segment when {@code indexKey} has this index path's commit-keyed shape. */
+    public static Optional&lt;String&gt; commitFromKey(String indexPathKey, String indexKey) {
+<span class="fc" id="L41">        Path indexPath = relativeIndexPath(indexPathKey);</span>
+<span class="fc" id="L42">        Path keyPath = relativeIndexPath(indexKey);</span>
+<span class="fc" id="L43">        Path indexParent = indexPath.getParent();</span>
+<span class="fc" id="L44">        Path keyParent = keyPath.getParent();</span>
+<span class="pc bpc" id="L45" title="1 of 4 branches missed.">        if (keyParent == null || !keyPath.getFileName().equals(indexPath.getFileName())) {</span>
+<span class="fc" id="L46">            return Optional.empty();</span>
+        }
+<span class="fc" id="L48">        Path keyGrandparent = keyParent.getParent();</span>
+<span class="pc bpc" id="L49" title="3 of 6 branches missed.">        if (indexParent == null ? keyGrandparent != null : !indexParent.equals(keyGrandparent)) {</span>
+<span class="fc" id="L50">            return Optional.empty();</span>
+        }
+<span class="fc" id="L52">        String commit = keyParent.getFileName().toString();</span>
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">        return FULL_COMMIT_ID.matcher(commit).matches() ? Optional.of(commit.toLowerCase(Locale.ROOT)) : Optional.empty();</span>
     }
 
     private static Path relativeIndexPath(String indexPathKey) {
-<span class="pc bpc" id="L39" title="2 of 4 branches missed.">        if (indexPathKey == null || indexPathKey.isBlank()) {</span>
-<span class="nc" id="L40">            throw new IllegalArgumentException(&quot;index path key must not be blank&quot;);</span>
+<span class="pc bpc" id="L57" title="2 of 4 branches missed.">        if (indexPathKey == null || indexPathKey.isBlank()) {</span>
+<span class="nc" id="L58">            throw new IllegalArgumentException(&quot;index path key must not be blank&quot;);</span>
         }
         try {
-<span class="fc" id="L43">            Path normalized = Path.of(indexPathKey).normalize();</span>
-<span class="pc bpc" id="L44" title="3 of 6 branches missed.">            if (normalized.isAbsolute() || normalized.getNameCount() == 0 || normalized.startsWith(&quot;..&quot;)) {</span>
-<span class="nc" id="L45">                throw new IllegalArgumentException(&quot;index path key must stay below its configured root: &quot; + indexPathKey);</span>
+<span class="fc" id="L61">            Path normalized = Path.of(indexPathKey).normalize();</span>
+<span class="pc bpc" id="L62" title="3 of 6 branches missed.">            if (normalized.isAbsolute() || normalized.getNameCount() == 0 || normalized.startsWith(&quot;..&quot;)) {</span>
+<span class="nc" id="L63">                throw new IllegalArgumentException(&quot;index path key must stay below its configured root: &quot; + indexPathKey);</span>
             }
-<span class="fc" id="L47">            return normalized;</span>
-<span class="nc" id="L48">        } catch (InvalidPathException e) {</span>
-<span class="nc" id="L49">            throw new IllegalArgumentException(&quot;invalid index path key: &quot; + indexPathKey, e);</span>
+<span class="fc" id="L65">            return normalized;</span>
+<span class="nc" id="L66">        } catch (InvalidPathException e) {</span>
+<span class="nc" id="L67">            throw new IllegalArgumentException(&quot;invalid index path key: &quot; + indexPathKey, e);</span>
         }
     }
 }

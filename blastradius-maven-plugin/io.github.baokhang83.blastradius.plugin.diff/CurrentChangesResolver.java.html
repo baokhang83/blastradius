@@ -35,5 +35,16 @@ import java.util.List;
 <span class="fc" id="L35">                comparison.baseReferenceBuild(),</span>
                 changedFiles);
     }
+
+    /** Recomputes the changed files from a validated stale index anchor through the current HEAD. */
+    public CurrentChanges resolveFromAnchor(Path projectDir, CurrentChanges changes, String anchorCommit) {
+<span class="fc" id="L41">        return new CurrentChanges(</span>
+<span class="fc" id="L42">                changes.baseReference(),</span>
+<span class="fc" id="L43">                changes.resolvedBaseCommit(),</span>
+<span class="fc" id="L44">                java.util.Optional.of(anchorCommit),</span>
+<span class="fc" id="L45">                changes.currentCommit(),</span>
+                false,
+<span class="fc" id="L47">                changedFileClassifier.classify(projectDir, anchorCommit, changes.currentCommit()));</span>
+    }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

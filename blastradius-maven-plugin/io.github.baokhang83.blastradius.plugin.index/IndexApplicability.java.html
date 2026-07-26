@@ -10,12 +10,13 @@
 
 <span class="fc" id="L11">    public enum Status {</span>
 <span class="fc" id="L12">        APPLICABLE,</span>
-<span class="fc" id="L13">        MISSING,</span>
-<span class="fc" id="L14">        UNREADABLE,</span>
-<span class="fc" id="L15">        FORMAT_VERSION_MISMATCH,</span>
-<span class="fc" id="L16">        ANCHOR_UNREACHABLE,</span>
-<span class="fc" id="L17">        ANCHOR_MISMATCH,</span>
-<span class="fc" id="L18">        MERGE_BASE_UNAVAILABLE,</span>
+<span class="fc" id="L13">        STALE_BASELINE,</span>
+<span class="fc" id="L14">        MISSING,</span>
+<span class="fc" id="L15">        UNREADABLE,</span>
+<span class="fc" id="L16">        FORMAT_VERSION_MISMATCH,</span>
+<span class="fc" id="L17">        ANCHOR_UNREACHABLE,</span>
+<span class="fc" id="L18">        ANCHOR_MISMATCH,</span>
+<span class="fc" id="L19">        MERGE_BASE_UNAVAILABLE,</span>
         /**
          * Not a property of the index itself — set only when an otherwise-{@code
          * APPLICABLE} index's {@code SELECT} computation hits an unexpected internal
@@ -23,39 +24,43 @@
          * encounters an internal error&quot; Edge Case), so the build still falls back to a
          * full, unfiltered run instead of crashing or silently skipping tests.
          */
-<span class="fc" id="L26">        INTERNAL_ERROR</span>
+<span class="fc" id="L27">        INTERNAL_ERROR</span>
     }
 
     public static IndexApplicability applicable(DependencyIndex index) {
-<span class="fc" id="L30">        return new IndexApplicability(Status.APPLICABLE, index);</span>
+<span class="fc" id="L31">        return new IndexApplicability(Status.APPLICABLE, index);</span>
+    }
+
+    public static IndexApplicability staleBaseline(DependencyIndex index) {
+<span class="fc" id="L35">        return new IndexApplicability(Status.STALE_BASELINE, index);</span>
     }
 
     public static IndexApplicability missing() {
-<span class="fc" id="L34">        return new IndexApplicability(Status.MISSING, null);</span>
+<span class="fc" id="L39">        return new IndexApplicability(Status.MISSING, null);</span>
     }
 
     public static IndexApplicability unreadable() {
-<span class="fc" id="L38">        return new IndexApplicability(Status.UNREADABLE, null);</span>
+<span class="fc" id="L43">        return new IndexApplicability(Status.UNREADABLE, null);</span>
     }
 
     public static IndexApplicability formatVersionMismatch() {
-<span class="fc" id="L42">        return new IndexApplicability(Status.FORMAT_VERSION_MISMATCH, null);</span>
+<span class="fc" id="L47">        return new IndexApplicability(Status.FORMAT_VERSION_MISMATCH, null);</span>
     }
 
     public static IndexApplicability anchorUnreachable() {
-<span class="fc" id="L46">        return new IndexApplicability(Status.ANCHOR_UNREACHABLE, null);</span>
+<span class="fc" id="L51">        return new IndexApplicability(Status.ANCHOR_UNREACHABLE, null);</span>
     }
 
     public static IndexApplicability anchorMismatch() {
-<span class="fc" id="L50">        return new IndexApplicability(Status.ANCHOR_MISMATCH, null);</span>
+<span class="fc" id="L55">        return new IndexApplicability(Status.ANCHOR_MISMATCH, null);</span>
     }
 
     public static IndexApplicability mergeBaseUnavailable() {
-<span class="fc" id="L54">        return new IndexApplicability(Status.MERGE_BASE_UNAVAILABLE, null);</span>
+<span class="fc" id="L59">        return new IndexApplicability(Status.MERGE_BASE_UNAVAILABLE, null);</span>
     }
 
     public static IndexApplicability internalError() {
-<span class="nc" id="L58">        return new IndexApplicability(Status.INTERNAL_ERROR, null);</span>
+<span class="nc" id="L63">        return new IndexApplicability(Status.INTERNAL_ERROR, null);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
