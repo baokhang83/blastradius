@@ -181,6 +181,81 @@ keys in the POM. For MinIO or another S3-compatible service, add `s3Endpoint`; i
 still required for request signing. A missing, unreadable, unauthorized, or malformed remote
 index remains a safe `FALLBACK` that runs the full suite.
 
+#### S3 credentials
+
+The plugin explicitly uses the AWS SDK's `DefaultCredentialsProvider`. It therefore accepts,
+without any Blastradius-specific secret configuration, AWS Java system properties, environment
+variables, GitHub Actions OIDC credentials, a local `~/.aws/config` / `~/.aws/credentials`
+profile, and ECS or EC2 instance-role credentials. The first complete source in that standard
+chain wins.
+
+For GitHub Actions, use OIDC and a short-lived IAM role rather than long-lived access keys. Add
+GitHub's `https://token.actions.githubusercontent.com` OIDC provider to the AWS account with
+audience `sts.amazonaws.com`, then create a role trusted by the repository's `main` branch:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {
+      "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com"
+    },
+    "Action": "sts:AssumeRoleWithWebIdentity",
+    "Condition": {
+      "StringEquals": {
+        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+        "token.actions.githubusercontent.com:sub": "repo:<OWNER>/<REPOSITORY>:ref:refs/heads/main"
+      }
+    }
+  }]
+}
+```
+
+For repositories using GitHub's immutable OIDC subjects, use the subject format shown in
+GitHub's OIDC settings instead: `repo:<OWNER>@<OWNER_ID>/<REPOSITORY>@<REPOSITORY_ID>:ref:refs/heads/main`.
+
+Attach a permissions policy scoped to the index prefix. Blastradius reads and writes known object
+keys, so it does **not** need to list the bucket:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:GetObject", "s3:PutObject"],
+    "Resource": "arn:aws:s3:::<BUCKET>/<PREFIX>/*"
+  }]
+}
+```
+
+A PR needs only `s3:GetObject`; give it a separate read-only role if it is allowed to read the
+shared store. Do not grant either role to untrusted fork pull requests — let those builds fall
+back to the full suite instead.
+
+In a trusted `main` workflow, configure the role before Maven:
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+
+steps:
+  - uses: actions/checkout@v7
+  - name: Configure AWS credentials
+    uses: aws-actions/configure-aws-credentials@v6.1.0
+    with:
+      role-to-assume: arn:aws:iam::<ACCOUNT_ID>:role/blastradius-index-writer
+      aws-region: eu-central-1
+  - run: mvn -B --no-transfer-progress verify
+```
+
+The action exports the temporary AWS environment variables that the plugin reads. For local
+development, use `aws configure sso` (or an equivalent profile) and set `AWS_PROFILE` before
+running Maven. If OIDC is unavailable, store `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and
+for temporary credentials `AWS_SESSION_TOKEN`, as CI secrets and expose them only to trusted
+jobs. Never place those values in the POM, Gradle build file, repository, or cache.
+
 ## What you'll see in the Maven output
 
 **`TRACK`** — a base-branch build, building/refreshing the index:
