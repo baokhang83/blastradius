@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.baokhang83.blastradius</groupId>
+        <artifactId>blastradius-parent</artifactId>
+        <version>0.3.0</version>
+    </parent>
+
+    <artifactId>coverage</artifactId>
+    <name>coverage</name>
+    <description>Aggregates JaCoCo coverage across the other modules into one report. No product code.</description>
+
+    <!--
+        report-aggregate reads the exec data of THIS module's dependencies, so every measured
+        module is listed here. Built last (after all of them) so their jacoco.exec files already
+        exist.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>io.github.baokhang83.blastradius</groupId>
+            <artifactId>blastradius-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.baokhang83.blastradius</groupId>
+            <artifactId>blastradius-s3-index-store</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.baokhang83.blastradius</groupId>
+            <artifactId>blastradius-validator</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.baokhang83.blastradius</groupId>
+            <artifactId>blastradius-maven-plugin</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>report-aggregate</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report-aggregate</goal>
+                        </goals>
+                        <configuration>
+                            <!-- CSV is what the badge generator reads; HTML for humans. -->
+                            <formats>
+                                <format>HTML</format>
+                                <format>CSV</format>
+                            </formats>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
