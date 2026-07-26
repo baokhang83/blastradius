@@ -33,6 +33,14 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
      */
     private static final ThreadLocal<Boolean> RECORDING_CLASS_LOAD = ThreadLocal.withInitial(() -> false);
 
+    /**
+     * Initialized while the agent class is loaded, before {@link #premain(String, Instrumentation)}
+     * registers the transformer. Security-provider initialization must never happen from within
+     * {@link #transform(ClassLoader, String, Class, ProtectionDomain, byte[])}.
+     */
+    private static final MessageDigest SHA_256 = initializeSha256();
+    private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
+
     private static volatile DependencyTrackingAgent installedAgent;
     private static volatile Instrumentation instrumentation;
 
@@ -165,13 +173,22 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
     }
 
     private static String sha256Hex(byte[] bytes) {
+        byte[] hash;
+        synchronized (SHA_256) {
+            hash = SHA_256.digest(bytes);
+        }
+        StringBuilder sb = new StringBuilder(hash.length * 2);
+        for (byte b : hash) {
+            int unsigned = Byte.toUnsignedInt(b);
+            sb.append(HEX_DIGITS[unsigned >>> 4]);
+            sb.append(HEX_DIGITS[unsigned & 0x0f]);
+        }
+        return sb.toString();
+    }
+
+    private static MessageDigest initializeSha256() {
         try {
-            byte[] hash = MessageDigest.getInstance("SHA-256").digest(bytes);
-            StringBuilder sb = new StringBuilder(hash.length * 2);
-            for (byte b : hash) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
+            return MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 is a required JDK algorithm", e);
         }
