@@ -19,6 +19,7 @@ fail, only how many tests get the chance to.
 - [Install](#install)
 - [Generated goal reference](#generated-goal-reference)
 - [Configuration reference](#configuration-reference)
+- [GitHub Actions feedback](#github-actions-feedback)
 - [What you'll see in the Maven output](#what-youll-see-in-the-maven-output)
 - [The files it writes](#the-files-it-writes)
 - [Multi-module reactors](#multi-module-reactors)
@@ -120,6 +121,32 @@ module's own goal execution resolves the same commit-keyed path.
   restored between CI runs the same way you already cache `~/.m2` — it has to survive
   between the trunk job that wrote it and the PR job that reads it, or every PR build stays
   in `FALLBACK` forever (see below).
+
+### GitHub Actions feedback
+
+After the Maven command that runs `blastradius:select`, add the composite action below. It
+always adds the result to the run's job summary. On same-repository pull requests it also
+updates one Blastradius comment by default, so repeated CI runs do not add noise.
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+
+steps:
+  - run: mvn -B --no-transfer-progress verify
+  - name: Publish Blastradius selection feedback
+    if: ${{ always() }}
+    uses: baokhang83/blastradius/.github/actions/blastradius-selection-summary@main
+    with:
+      github-token: ${{ github.token }}
+```
+
+The action reads `.blastradius/last-build-report.json` by default. A missing, incomplete,
+or unreadable report produces a neutral job-summary entry and never changes the Maven job's
+result. Forked pull requests receive the job summary but intentionally do not receive a
+comment, because their workflow token must not be granted write access. To keep the job
+summary while disabling comments, set `comment: 'false'`.
 
 ### Shared S3 index store
 

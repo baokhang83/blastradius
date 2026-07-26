@@ -1,8 +1,8 @@
 {
-  "feature": "json-selection-report-31",
-  "branch": "feature/json-selection-report-31",
+  "feature": "github-actions-job-summary-and-pr-comment-33",
+  "branch": "feature/github-actions-job-summary-and-pr-comment-33",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/json-selection-report-31/sessions/capture-completed-test-timings-without-changing-selection-be.md",
+  "last_session": "docs/fluencyloop/features/github-actions-job-summary-and-pr-comment-33/sessions/publish-selection-feedback-in-github-actions.md",
   "base_ref": "main",
   "updated": "2026-07-26"
 }
