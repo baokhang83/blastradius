@@ -50,8 +50,8 @@ class TrackRunnerTest {
     }
 
     @Test
-    void tracksDownstreamModuleTestsWhenUsingTheShadedPluginAsTheAgent(@TempDir Path projectDir) throws Exception {
-        Path pluginJar = findOwnPluginJar();
+    void tracksDownstreamModuleTests(@TempDir Path projectDir) throws Exception {
+        Path agentJar = findOwnAgentJar();
         FixtureProjectBuilder fixture = FixtureProjectBuilder.twoModuleReactor(projectDir);
         fixture.writeClassInModule("moduleA", "com.example.a.Foo",
                 "package com.example.a; public class Foo { public int value() { return 42; } }");
@@ -73,7 +73,7 @@ class TrackRunnerTest {
                 """);
         String anchorCommit = fixture.commit("initial");
 
-        DependencyIndex index = trackRunner.track(projectDir, pluginJar, anchorCommit);
+        DependencyIndex index = trackRunner.track(projectDir, agentJar, anchorCommit);
 
         TestIdentity consumerTest = new TestIdentity("com.example.b.ConsumerTest", "checksValue");
         assertTrue(index.testDependenciesByTest().containsKey(consumerTest),
@@ -113,17 +113,6 @@ class TrackRunnerTest {
                     .orElseThrow(() -> new IllegalStateException(
                             "blastradius-core agent jar not found in ../blastradius-core/target — "
                                     + "expected the process-test-classes-phase jar execution to have produced it"));
-        }
-    }
-
-    private static Path findOwnPluginJar() throws IOException {
-        try (var stream = Files.list(Path.of("target"))) {
-            return stream
-                    .filter(p -> p.getFileName().toString().matches("blastradius-maven-plugin-.*\\.jar"))
-                    .filter(p -> !p.getFileName().toString().contains("sources"))
-                    .filter(p -> !p.getFileName().toString().contains("javadoc"))
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("shaded blastradius plugin jar not found in target"));
         }
     }
 }
