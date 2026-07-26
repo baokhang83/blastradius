@@ -27,6 +27,12 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
 
     private static final String HIDDEN_CLASS_CHECKSUM = "hidden-class-bytecode-unavailable";
 
+    /**
+     * Computing a checksum can initialize JDK security-provider classes. Those class loads call
+     * this transformer again, so they must not recursively trigger another checksum computation.
+     */
+    private static final ThreadLocal<Boolean> RECORDING_CLASS_LOAD = ThreadLocal.withInitial(() -> false);
+
     private static volatile DependencyTrackingAgent installedAgent;
     private static volatile Instrumentation instrumentation;
 
@@ -80,13 +86,22 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
     @Override
     public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined,
             ProtectionDomain protectionDomain, byte[] classfileBuffer) {
-        if (className != null) {
-            TestIdentity currentTest = currentTestSupplier.get();
-            if (currentTest != null) {
-                checksumsByTest
-                        .computeIfAbsent(currentTest, ignored -> new ConcurrentHashMap<>())
-                        .put(className.replace('/', '.'), sha256Hex(classfileBuffer));
-            }
+        if (className == null || classfileBuffer == null || RECORDING_CLASS_LOAD.get()) {
+            return null;
+        }
+
+        TestIdentity currentTest = currentTestSupplier.get();
+        if (currentTest == null) {
+            return null;
+        }
+
+        RECORDING_CLASS_LOAD.set(true);
+        try {
+            checksumsByTest
+                    .computeIfAbsent(currentTest, ignored -> new ConcurrentHashMap<>())
+                    .put(className.replace('/', '.'), sha256Hex(classfileBuffer));
+        } finally {
+            RECORDING_CLASS_LOAD.remove();
         }
         return null;
     }
