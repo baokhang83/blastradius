@@ -60,6 +60,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.deploy.skip>true</maven.deploy.skip>
         <central.skip.publishing>true</central.skip.publishing>
+        <blastradius.self.host.version>0.1.0-selfhost</blastradius.self.host.version>
 
         <jgit.version>7.7.0.202606012155-r</jgit.version>
         <jackson.version>2.17.1</jackson.version>
@@ -134,6 +135,28 @@
     </build>
 
     <profiles>
+        <profile>
+            <id>self-host-blastradius</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>io.github.baokhang83.blastradius</groupId>
+                        <artifactId>blastradius-maven-plugin</artifactId>
+                        <version>${blastradius.self.host.version}</version>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>select</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <baseRef>main</baseRef>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <profile>
             <id>release</id>
             <build>

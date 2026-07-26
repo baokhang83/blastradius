@@ -6,6 +6,10 @@ inputs:
     description: Path to the JSON report emitted by blastradius:select.
     required: false
     default: .blastradius/last-build-report.json
+  report-paths:
+    description: Newline-separated report paths to combine for a multi-module build.
+    required: false
+    default: ''
   comment:
     description: Whether to update the pull-request comment for same-repository pull requests.
     required: false
@@ -24,13 +28,18 @@ runs:
       uses: actions/github-script@v8
       env:
         REPORT_PATH: ${{ inputs.report-path }}
+        REPORT_PATHS: ${{ inputs.report-paths }}
       with:
         github-token: ${{ inputs.github-token }}
         script: |
           const fs = require('fs');
           const path = require('path');
-          const { renderSelectionSummary } = require(path.join(process.env.GITHUB_ACTION_PATH, 'render-summary.cjs'));
-          const reportPath = process.env.REPORT_PATH;
+          const { combineSelectionReports, renderSelectionSummary } = require(path.join(process.env.GITHUB_ACTION_PATH, 'render-summary.cjs'));
+          const reportPaths = process.env.REPORT_PATHS
+            .split(/\r?\n/)
+            .map((reportPath) => reportPath.trim())
+            .filter(Boolean);
+          if (reportPaths.length === 0) reportPaths.push(process.env.REPORT_PATH);
 
           async function writeNeutralSummary(message) {
             await core.summary
@@ -39,14 +48,16 @@ runs:
               .write();
           }
 
-          if (!fs.existsSync(reportPath)) {
+          const missingReportPaths = reportPaths.filter((reportPath) => !fs.existsSync(reportPath));
+          if (missingReportPaths.length > 0) {
             await writeNeutralSummary('No selection report was produced by this build.');
             core.setOutput('report-found', 'false');
             return;
           }
 
           try {
-            const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+            const reports = reportPaths.map((reportPath) => JSON.parse(fs.readFileSync(reportPath, 'utf8')));
+            const report = combineSelectionReports(reports);
             const body = renderSelectionSummary(report);
             const bodyPath = path.join(process.env.RUNNER_TEMP, 'blastradius-selection-summary.md');
             fs.writeFileSync(bodyPath, body);

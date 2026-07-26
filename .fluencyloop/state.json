@@ -1,8 +1,8 @@
 {
-  "feature": "github-actions-job-summary-and-pr-comment-33",
-  "branch": "feature/github-actions-job-summary-and-pr-comment-33",
+  "feature": "self-host-blastradius-test-selection-in-ci",
+  "branch": "feature/self-host-blastradius-test-selection-in-ci",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/github-actions-job-summary-and-pr-comment-33/sessions/publish-selection-feedback-in-github-actions.md",
+  "last_session": "docs/fluencyloop/features/self-host-blastradius-test-selection-in-ci/sessions/self-host-the-maven-reactor-in-ci.md",
   "base_ref": "main",
   "updated": "2026-07-26"
 }

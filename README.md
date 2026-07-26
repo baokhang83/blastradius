@@ -145,6 +145,14 @@ SHA, so its exact lookup misses; `restore-keys` then restores the newest compati
 `main` snapshot. Do not put credentials or other secrets under `.blastradius/` because GitHub
 Actions caches are readable by pull-request workflows.
 
+### This repository's CI
+
+This repository self-hosts Blastradius in its own Maven workflow: CI first builds and installs
+the plugin from the checkout, then runs the normal reactor with an internal CI-only Maven
+profile. Successful `main` runs refresh the cached index; pull requests restore it and use the
+same plugin code under review to select tests. The bootstrap and multi-module reporting mechanics
+are intentionally kept in the workflow and feature design, not the adoption quick start above.
+
 ```bash
 git clone https://github.com/baokhang83/blastradius.git
 cd blastradius

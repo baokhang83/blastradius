@@ -1,6 +1,8 @@
 package io.github.baokhang83.blastradius.plugin.mojo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.baokhang83.blastradius.plugin.diff.CurrentChanges;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
@@ -11,6 +13,12 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class SelectMojoModeRoutingTest {
+
+    @Test
+    void skipsAggregatorOnlyProjects() {
+        assertTrue(SelectMojo.isAggregatorOnlyProject("pom"));
+        assertFalse(SelectMojo.isAggregatorOnlyProject("jar"));
+    }
 
     private static final CurrentChanges BASE_REF_BUILD =
             new CurrentChanges("main", "abc123", Optional.of("abc123"), "abc123", true, List.of());

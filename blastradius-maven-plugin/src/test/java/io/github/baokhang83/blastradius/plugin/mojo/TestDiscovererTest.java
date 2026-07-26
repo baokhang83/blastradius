@@ -3,6 +3,7 @@ package io.github.baokhang83.blastradius.plugin.mojo;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import java.net.URL;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
@@ -30,5 +31,16 @@ class TestDiscovererTest {
                 "writtenIndexRoundTripsThroughAFile");
         assertTrue(discovered.contains(knownTest),
                 "expected to discover " + knownTest + " among " + discovered.size() + " discovered tests");
+    }
+
+    @Test
+    void prefersSelfHostedProjectClassesOverThePluginsShadedCopies() throws Exception {
+        URL projectClasses = Path.of("target", "classes").toAbsolutePath().toUri().toURL();
+        try (TestDiscoverer.ProjectFirstClassLoader loader = new TestDiscoverer.ProjectFirstClassLoader(
+                new URL[] {projectClasses}, getClass().getClassLoader())) {
+            Class<?> loaded = loader.loadClass(TestDiscoverer.class.getName());
+
+            assertTrue(loaded.getClassLoader() == loader);
+        }
     }
 }

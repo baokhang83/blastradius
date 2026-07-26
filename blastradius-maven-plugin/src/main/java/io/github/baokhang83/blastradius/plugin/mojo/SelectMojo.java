@@ -124,6 +124,10 @@ public final class SelectMojo extends AbstractMojo {
                     + "collecting dependency data; the ambient gated build's own Surefire execution is untouched)");
             return;
         }
+        if (isAggregatorOnlyProject(project.getPackaging())) {
+            getLog().info("[blastradius] skipping select goal for aggregator-only project " + project.getArtifactId());
+            return;
+        }
 
         // Anchored at the reactor root (not project.getBasedir()), which for a
         // multi-module reactor differs per module: the git repository only exists at the
@@ -213,6 +217,10 @@ public final class SelectMojo extends AbstractMojo {
         return BuildReport.Mode.FALLBACK;
     }
 
+    static boolean isAggregatorOnlyProject(String packaging) {
+        return "pom".equals(packaging);
+    }
+
     /**
      * The current build IS the base reference — its own Surefire execution runs
      * completely full and unfiltered, and separately, a subprocess {@code mvn test} (agent
@@ -221,9 +229,18 @@ public final class SelectMojo extends AbstractMojo {
      */
     private void runTrack(CurrentChanges changes, IndexApplicability applicability, Path reactorRoot,
             IndexStore<DependencyIndex> indexStore, String indexPathKey) throws MojoExecutionException {
-        Path agentJar = locateCoreAgentJar();
-        DependencyIndex freshIndex = trackRunner.track(reactorRoot, agentJar, changes.currentCommit());
-        indexStore.put(CommitIndexKey.forCommit(indexPathKey, changes.currentCommit()), freshIndex);
+        String indexKey = CommitIndexKey.forCommit(indexPathKey, changes.currentCommit());
+        DependencyIndex freshIndex;
+        if (ReactorTrackingGate.claim(session.getUserProperties(), reactorRoot.toAbsolutePath().toString(), changes.currentCommit())) {
+            Path agentJar = locateCoreAgentJar();
+            freshIndex = trackRunner.track(reactorRoot, agentJar, changes.currentCommit());
+            indexStore.put(indexKey, freshIndex);
+        } else {
+            freshIndex = indexStore.get(indexKey).orElse(null);
+            if (freshIndex == null) {
+                throw new MojoExecutionException("the reactor tracking index was not available after another module claimed TRACK");
+            }
+        }
 
         int totalCount = discoverProjectTests().size();
         BuildReport report = BuildReport.forTrack(applicability.status(), totalCount, freshIndex, changes.changedFiles());
