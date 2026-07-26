@@ -36,7 +36,7 @@ no heuristics, no opaque score.
 <plugin>
   <groupId>io.github.baokhang83.blastradius</groupId>
   <artifactId>blastradius-maven-plugin</artifactId>
-  <version>0.1.0</version>
+  <version>0.3.0</version>
   <executions>
     <execution>
       <phase>process-test-classes</phase>
@@ -65,7 +65,7 @@ store is a better fit for your runners:
 
 ```groovy
 plugins {
-  id 'io.github.baokhang83.blastradius' version '0.1.0'
+  id 'io.github.baokhang83.blastradius' version '0.3.0'
 }
 
 blastradius {

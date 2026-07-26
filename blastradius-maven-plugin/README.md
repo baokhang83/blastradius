@@ -63,7 +63,7 @@ Requires a Maven/JUnit 5 project and a resolvable repository for the plugin arti
 <plugin>
   <groupId>io.github.baokhang83.blastradius</groupId>
   <artifactId>blastradius-maven-plugin</artifactId>
-  <version>0.1.0</version>
+  <version>0.3.0</version>
   <executions>
     <execution>
       <phase>process-test-classes</phase>
@@ -261,7 +261,7 @@ jobs. Never place those values in the POM, Gradle build file, repository, or cac
 **`TRACK`** — a base-branch build, building/refreshing the index:
 
 ```
-[INFO] --- blastradius:0.1.0:select (default) @ your-project ---
+[INFO] --- blastradius:0.3.0:select (default) @ your-project ---
 [INFO] [blastradius] TRACK — building a fresh index
 [INFO] [blastradius] 2 / 2 tests selected (0.0% skipped)
 ```
@@ -272,7 +272,7 @@ computes a selection at all, it just reports how big the suite it ran full was.
 **`SELECT`** — a PR build, narrowed by a real index:
 
 ```
-[INFO] --- blastradius:0.1.0:select (default) @ your-project ---
+[INFO] --- blastradius:0.3.0:select (default) @ your-project ---
 [INFO] [blastradius] SELECT — index built from 4e02156 (2026-07-10T03:03:04Z)
 [INFO] [blastradius] 1 / 2 tests selected (50.0% skipped)
 [INFO] [blastradius]   dependency-matched: 1, new-or-modified: 0, fallback: 0
@@ -289,7 +289,7 @@ Add `-Dblastradius.explain=true` for the per-test breakdown that line is pointin
 **`FALLBACK`** — no usable index, running safe:
 
 ```
-[INFO] --- blastradius:0.1.0:select (default) @ your-project ---
+[INFO] --- blastradius:0.3.0:select (default) @ your-project ---
 [INFO] [blastradius] FALLBACK — no persisted index found (MISSING)
 [INFO] [blastradius] 2 / 2 tests selected (0.0% skipped)
 ```

@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.3.0] - 2026-07-26
+
+### Added
+
+- Self-hosted Blastradius test selection in this repository's GitHub Actions workflow,
+  including main-branch index caching and multi-module pull-request feedback.
+
+### Fixed
+
+- Maven reactor tracking now runs once per session, skips aggregator-only projects, and avoids
+  shaded-class collisions while discovering self-hosted tests.
+
 ## [0.1.0] - 2026-07-19
 
 ### Added
