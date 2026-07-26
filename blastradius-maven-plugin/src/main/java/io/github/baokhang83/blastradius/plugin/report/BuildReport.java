@@ -8,6 +8,7 @@ import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
 import io.github.baokhang83.blastradius.plugin.index.IndexApplicability;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -107,11 +108,19 @@ public record BuildReport(
         Objects.requireNonNull(changedFiles, "changedFiles");
         Objects.requireNonNull(decisions, "decisions");
         Objects.requireNonNull(durationsByTest, "durationsByTest");
+        Map<TestIdentity, Long> durationsByBaselineTest = durationsByTest.entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        entry -> entry.getKey().baselineKey(),
+                        Map.Entry::getValue,
+                        Long::sum,
+                        HashMap::new));
         int selectedCount = (int) decisions.stream().filter(SelectionDecision::selected).count();
         List<SelectionDecision> skipped = decisions.stream().filter(decision -> !decision.selected()).toList();
-        int recordedSkippedTests = (int) skipped.stream().filter(decision -> durationsByTest.containsKey(decision.test())).count();
+        int recordedSkippedTests = (int) skipped.stream()
+                .filter(decision -> durationsByBaselineTest.containsKey(decision.test().baselineKey()))
+                .count();
         Long estimatedTimeSavedMillis = recordedSkippedTests == skipped.size()
-                ? skipped.stream().mapToLong(decision -> durationsByTest.get(decision.test())).sum()
+                ? skipped.stream().mapToLong(decision -> durationsByBaselineTest.get(decision.test().baselineKey())).sum()
                 : null;
         return new BuildReport(Mode.SELECT, applicability.status(), decisions, selectedCount, decisions.size(), null,
                 changedFiles, estimatedTimeSavedMillis, new TimingCoverage(recordedSkippedTests, skipped.size()));
