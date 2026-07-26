@@ -116,11 +116,23 @@ module's own goal execution resolves the same commit-keyed path.
 
 ### CI setup
 
-- **Trunk/post-merge job**: run as normal — no extra flags needed, `TRACK` is automatic.
-- **PR job**: run as normal too. Just make sure `.blastradius/` is cached and
-  restored between CI runs the same way you already cache `~/.m2` — it has to survive
-  between the trunk job that wrote it and the PR job that reads it, or every PR build stays
-  in `FALLBACK` forever (see below).
+Blastradius needs one piece of saved information before it can narrow a PR build: a map of
+which production classes each test actually used. For example, a `main` build may record that
+`CalculatorTest` used `Calculator`, while `InvoiceTest` used `InvoiceService`.
+
+1. The **trunk/post-merge job** runs the full suite and writes that map under
+   `.blastradius/` (`TRACK` is automatic).
+2. The **PR job** restores `.blastradius/`, compares its changed classes with the saved map,
+   and runs only the matching tests (`SELECT`). A change to `Calculator` can therefore run
+   `CalculatorTest` without also running `InvoiceTest`.
+
+GitHub-hosted runners are fresh for every job, so cache `.blastradius/` between the trunk job
+that writes it and the PR job that reads it, just as you cache `~/.m2`. **An S3 bucket is not
+required**: the default file store plus a GitHub Actions cache is enough. S3 is an alternative
+when your runners cannot share a reliable workspace cache.
+
+If the PR job cannot restore the map — for example, on its first run or after a cache miss —
+Blastradius does not guess. It uses safe `FALLBACK` mode and runs the full suite.
 
 ### GitHub Actions feedback
 
@@ -168,6 +180,81 @@ CI environment variables, a workload/instance role, or a shared AWS profile; nev
 keys in the POM. For MinIO or another S3-compatible service, add `s3Endpoint`; its region is
 still required for request signing. A missing, unreadable, unauthorized, or malformed remote
 index remains a safe `FALLBACK` that runs the full suite.
+
+#### S3 credentials
+
+The plugin explicitly uses the AWS SDK's `DefaultCredentialsProvider`. It therefore accepts,
+without any Blastradius-specific secret configuration, AWS Java system properties, environment
+variables, GitHub Actions OIDC credentials, a local `~/.aws/config` / `~/.aws/credentials`
+profile, and ECS or EC2 instance-role credentials. The first complete source in that standard
+chain wins.
+
+For GitHub Actions, use OIDC and a short-lived IAM role rather than long-lived access keys. Add
+GitHub's `https://token.actions.githubusercontent.com` OIDC provider to the AWS account with
+audience `sts.amazonaws.com`, then create a role trusted by the repository's `main` branch:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {
+      "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com"
+    },
+    "Action": "sts:AssumeRoleWithWebIdentity",
+    "Condition": {
+      "StringEquals": {
+        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+        "token.actions.githubusercontent.com:sub": "repo:<OWNER>/<REPOSITORY>:ref:refs/heads/main"
+      }
+    }
+  }]
+}
+```
+
+For repositories using GitHub's immutable OIDC subjects, use the subject format shown in
+GitHub's OIDC settings instead: `repo:<OWNER>@<OWNER_ID>/<REPOSITORY>@<REPOSITORY_ID>:ref:refs/heads/main`.
+
+Attach a permissions policy scoped to the index prefix. Blastradius reads and writes known object
+keys, so it does **not** need to list the bucket:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:GetObject", "s3:PutObject"],
+    "Resource": "arn:aws:s3:::<BUCKET>/<PREFIX>/*"
+  }]
+}
+```
+
+A PR needs only `s3:GetObject`; give it a separate read-only role if it is allowed to read the
+shared store. Do not grant either role to untrusted fork pull requests — let those builds fall
+back to the full suite instead.
+
+In a trusted `main` workflow, configure the role before Maven:
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+
+steps:
+  - uses: actions/checkout@v7
+  - name: Configure AWS credentials
+    uses: aws-actions/configure-aws-credentials@v6.1.0
+    with:
+      role-to-assume: arn:aws:iam::<ACCOUNT_ID>:role/blastradius-index-writer
+      aws-region: eu-central-1
+  - run: mvn -B --no-transfer-progress verify
+```
+
+The action exports the temporary AWS environment variables that the plugin reads. For local
+development, use `aws configure sso` (or an equivalent profile) and set `AWS_PROFILE` before
+running Maven. If OIDC is unavailable, store `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and
+for temporary credentials `AWS_SESSION_TOKEN`, as CI secrets and expose them only to trusted
+jobs. Never place those values in the POM, Gradle build file, repository, or cache.
 
 ## What you'll see in the Maven output
 

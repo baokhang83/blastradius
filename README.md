@@ -49,8 +49,9 @@ no heuristics, no opaque score.
 </plugin>
 ```
 
-For separate CI runners, add the shared S3 index-store settings inside the Maven plugin's
-`<configuration>` block:
+For separate CI runners, first persist and restore the workspace's `.blastradius/` directory
+with your CI cache. S3 is optional; use these Maven settings only when an S3-compatible shared
+store is a better fit for your runners:
 
 ```xml
 <indexStore>s3</indexStore>
@@ -72,7 +73,12 @@ blastradius {
 }
 ```
 
-For separate CI runners, configure the same shared S3 index store:
+There is no separate Gradle `select` task. Applying the plugin configures every Java `Test`
+task, so run the normal `./gradlew test`: it tracks on `main` and selects the relevant tests on
+other branches when a saved index is available.
+
+For separate CI runners, first persist and restore `.blastradius/` with your CI cache. S3 is
+optional; configure the same shared S3 index store only when needed:
 
 ```groovy
 blastradius {
@@ -92,12 +98,52 @@ to set it up in CI.
 
 ### Sharing indexes across CI runners
 
-By default, indexes stay under the workspace's `.blastradius/` directory. If a trunk `TRACK`
-job and PR `SELECT` job run on separate workers, configure the Maven plugin or Gradle extension
-with `indexStore = s3`, a bucket, and a region. The shared object store lets the PR job read the
-same commit-keyed index that the trunk job wrote. Credentials come from the standard AWS
-credential chain; do not put access keys in build files. Missing or inaccessible remote indexes
-still run the full suite safely. See the [Maven S3 configuration reference](blastradius-maven-plugin/README.md#shared-s3-index-store).
+By default, indexes stay under the workspace's `.blastradius/` directory. That directory is a
+saved map of which production classes each test used. A trunk `TRACK` job writes the map; a PR
+`SELECT` job restores it, compares the PR's changed classes to it, and runs only matching tests.
+
+On fresh CI workers, preserve `.blastradius/` between the trunk and PR jobs with the CI cache
+alongside your usual Maven dependency cache. **S3 is not required.** It is an alternative when
+your runners cannot share a reliable cache: configure the Maven plugin or Gradle extension with
+`indexStore = s3`, a bucket, and a region. The shared object store lets the PR job read the same
+commit-keyed index that the trunk job wrote. Credentials come from the standard AWS credential
+chain; do not put access keys in build files. If no saved index can be restored — for example,
+on a first build or cache miss — Blastradius safely runs the full suite instead. See the
+[Maven S3 configuration reference](blastradius-maven-plugin/README.md#shared-s3-index-store).
+
+### GitHub Actions cache example
+
+In the workflow that runs Blastradius-enabled tests, put the restore step after checkout and
+before `mvn verify` or `./gradlew test`. Save only successful `main` builds, after the test
+command, so pull requests always read a map made by the trusted base branch:
+
+```yaml
+steps:
+  - uses: actions/checkout@v7
+
+  - name: Restore Blastradius index
+    id: blastradius-index
+    uses: actions/cache/restore@v4
+    with:
+      path: .blastradius
+      key: blastradius-index-${{ runner.os }}-${{ github.sha }}
+      restore-keys: |
+        blastradius-index-${{ runner.os }}-
+
+  - run: mvn -B --no-transfer-progress verify
+
+  - name: Save Blastradius index from main
+    if: ${{ github.ref == 'refs/heads/main' && success() && steps.blastradius-index.outputs.cache-hit != 'true' }}
+    uses: actions/cache/save@v4
+    with:
+      path: .blastradius
+      key: blastradius-index-${{ runner.os }}-${{ github.sha }}
+```
+
+The key includes the commit SHA so a `main` build saves an immutable snapshot. A PR has a new
+SHA, so its exact lookup misses; `restore-keys` then restores the newest compatible
+`main` snapshot. Do not put credentials or other secrets under `.blastradius/` because GitHub
+Actions caches are readable by pull-request workflows.
 
 ```bash
 git clone https://github.com/baokhang83/blastradius.git
