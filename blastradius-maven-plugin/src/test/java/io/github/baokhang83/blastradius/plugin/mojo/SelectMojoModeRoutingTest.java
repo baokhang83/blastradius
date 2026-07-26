@@ -36,11 +36,11 @@ class SelectMojoModeRoutingTest {
     }
 
     @Test
-    void explicitTrackModeFlagRoutesToTrackEvenOnAPrBuild() {
-        IndexApplicability applicable = IndexApplicability.applicable(
+    void explicitTrackModeFlagRoutesToTrackEvenWithAReachableStaleBaseline() {
+        IndexApplicability staleBaseline = IndexApplicability.staleBaseline(
                 new DependencyIndex("abc123", "2026-07-09T10:00:00Z", List.of()));
 
-        BuildReport.Mode mode = SelectMojo.determineMode(PR_BUILD, applicable, "track");
+        BuildReport.Mode mode = SelectMojo.determineMode(PR_BUILD, staleBaseline, "track");
 
         assertEquals(BuildReport.Mode.TRACK, mode);
     }
