@@ -11,6 +11,7 @@
     </parent>
 
     <artifactId>coverage</artifactId>
+    <packaging>pom</packaging>
     <name>coverage</name>
     <description>Aggregates JaCoCo coverage across the other modules into one report. No product code.</description>
 
