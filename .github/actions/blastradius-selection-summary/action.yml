@@ -1,0 +1,88 @@
+name: Blastradius selection summary
+description: Publish a Blastradius build report to the job summary and, by default, the pull request.
+
+inputs:
+  report-path:
+    description: Path to the JSON report emitted by blastradius:select.
+    required: false
+    default: .blastradius/last-build-report.json
+  comment:
+    description: Whether to update the pull-request comment for same-repository pull requests.
+    required: false
+    default: 'true'
+  github-token:
+    description: "Token with pull-requests: write when pull-request comments are enabled."
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - id: summary
+      name: Write selection summary
+      continue-on-error: true
+      uses: actions/github-script@v8
+      env:
+        REPORT_PATH: ${{ inputs.report-path }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          const { renderSelectionSummary } = require(path.join(process.env.GITHUB_ACTION_PATH, 'render-summary.cjs'));
+          const reportPath = process.env.REPORT_PATH;
+
+          async function writeNeutralSummary(message) {
+            await core.summary
+              .addHeading('Blastradius selection')
+              .addRaw(message)
+              .write();
+          }
+
+          if (!fs.existsSync(reportPath)) {
+            await writeNeutralSummary('No selection report was produced by this build.');
+            core.setOutput('report-found', 'false');
+            return;
+          }
+
+          try {
+            const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+            const body = renderSelectionSummary(report);
+            const bodyPath = path.join(process.env.RUNNER_TEMP, 'blastradius-selection-summary.md');
+            fs.writeFileSync(bodyPath, body);
+            await core.summary.addRaw(body).write();
+            core.setOutput('comment-body-path', bodyPath);
+            core.setOutput('report-found', 'true');
+          } catch (error) {
+            core.warning(`Could not render the Blastradius report: ${error.message}`);
+            await writeNeutralSummary('The selection report could not be read, so no result was published.');
+            core.setOutput('report-found', 'false');
+          }
+
+    - name: Update pull request comment
+      if: inputs.comment == 'true' && steps.summary.outputs.report-found == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+      continue-on-error: true
+      uses: actions/github-script@v8
+      env:
+        COMMENT_BODY_PATH: ${{ steps.summary.outputs.comment-body-path }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const fs = require('fs');
+          const { COMMENT_MARKER } = require(`${process.env.GITHUB_ACTION_PATH}/render-summary.cjs`);
+          const body = fs.readFileSync(process.env.COMMENT_BODY_PATH, 'utf8');
+          const { owner, repo } = context.repo;
+          const issue_number = context.payload.pull_request.number;
+          const comments = await github.paginate(github.rest.issues.listComments, {
+            owner,
+            repo,
+            issue_number,
+            per_page: 100,
+          });
+          const priorComment = comments.find((comment) => comment.user.type === 'Bot' && comment.body?.includes(COMMENT_MARKER));
+
+          if (priorComment) {
+            await github.rest.issues.updateComment({ owner, repo, comment_id: priorComment.id, body });
+          } else {
+            await github.rest.issues.createComment({ owner, repo, issue_number, body });
+          }
