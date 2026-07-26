@@ -128,7 +128,7 @@ jobs:
           pattern: blastradius-selection-report-jdk*
           path: selection-reports
       - name: Publish one selection comment for all JDKs
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           REPORT_ROOT: selection-reports
         with:
