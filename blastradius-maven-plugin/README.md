@@ -116,11 +116,23 @@ module's own goal execution resolves the same commit-keyed path.
 
 ### CI setup
 
-- **Trunk/post-merge job**: run as normal — no extra flags needed, `TRACK` is automatic.
-- **PR job**: run as normal too. Just make sure `.blastradius/` is cached and
-  restored between CI runs the same way you already cache `~/.m2` — it has to survive
-  between the trunk job that wrote it and the PR job that reads it, or every PR build stays
-  in `FALLBACK` forever (see below).
+Blastradius needs one piece of saved information before it can narrow a PR build: a map of
+which production classes each test actually used. For example, a `main` build may record that
+`CalculatorTest` used `Calculator`, while `InvoiceTest` used `InvoiceService`.
+
+1. The **trunk/post-merge job** runs the full suite and writes that map under
+   `.blastradius/` (`TRACK` is automatic).
+2. The **PR job** restores `.blastradius/`, compares its changed classes with the saved map,
+   and runs only the matching tests (`SELECT`). A change to `Calculator` can therefore run
+   `CalculatorTest` without also running `InvoiceTest`.
+
+GitHub-hosted runners are fresh for every job, so cache `.blastradius/` between the trunk job
+that writes it and the PR job that reads it, just as you cache `~/.m2`. **An S3 bucket is not
+required**: the default file store plus a GitHub Actions cache is enough. S3 is an alternative
+when your runners cannot share a reliable workspace cache.
+
+If the PR job cannot restore the map — for example, on its first run or after a cache miss —
+Blastradius does not guess. It uses safe `FALLBACK` mode and runs the full suite.
 
 ### GitHub Actions feedback
 
