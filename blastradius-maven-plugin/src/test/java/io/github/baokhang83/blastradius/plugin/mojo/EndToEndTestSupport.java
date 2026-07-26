@@ -73,7 +73,7 @@ final class EndToEndTestSupport {
                         <plugin>
                             <groupId>io.github.baokhang83.blastradius</groupId>
                             <artifactId>blastradius-maven-plugin</artifactId>
-                            <version>0.1.0</version>
+                            <version>0.3.0</version>
                             <executions>
                                 <execution>
                                     <phase>process-test-classes</phase>
@@ -93,7 +93,7 @@ final class EndToEndTestSupport {
                         <plugin>
                             <groupId>io.github.baokhang83.blastradius</groupId>
                             <artifactId>blastradius-maven-plugin</artifactId>
-                            <version>0.1.0</version>
+                            <version>0.3.0</version>
                             <executions>
                                 <execution>
                                     <phase>process-test-classes</phase>
@@ -110,7 +110,7 @@ final class EndToEndTestSupport {
                         <plugin>
                             <groupId>io.github.baokhang83.blastradius</groupId>
                             <artifactId>blastradius-maven-plugin</artifactId>
-                            <version>0.1.0</version>
+                            <version>0.3.0</version>
                             <executions>
                                 <execution>
                                     <phase>process-test-classes</phase>

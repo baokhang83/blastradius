@@ -39,18 +39,21 @@ jobs:
             blastradius-index-${{ runner.os }}-jdk${{ matrix.java }}-
       - name: Bootstrap Blastradius plugin
         run: |
+          RELEASE_VERSION="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"
+          SELF_HOST_VERSION="${RELEASE_VERSION}-selfhost"
+          export SELF_HOST_VERSION
           mvn -B --no-transfer-progress -DskipTests -Dinvoker.skip=true -pl blastradius-maven-plugin -am package
           mkdir -p target/self-host/META-INF/maven
-          cp blastradius-maven-plugin/target/blastradius-maven-plugin-0.1.0.jar target/blastradius-maven-plugin-0.1.0-selfhost.jar
-          unzip -p blastradius-maven-plugin/target/blastradius-maven-plugin-0.1.0.jar META-INF/maven/plugin.xml \
-            | perl -0pe 's{(<artifactId>blastradius-maven-plugin</artifactId>\s*<version>)0\.1\.0(</version>)}{$1 . "0.1.0-selfhost" . $2}e' \
+          cp "blastradius-maven-plugin/target/blastradius-maven-plugin-${RELEASE_VERSION}.jar" "target/blastradius-maven-plugin-${SELF_HOST_VERSION}.jar"
+          unzip -p "blastradius-maven-plugin/target/blastradius-maven-plugin-${RELEASE_VERSION}.jar" META-INF/maven/plugin.xml \
+            | perl -0pe 's{(<artifactId>blastradius-maven-plugin</artifactId>\s*<version>)[^<]+(</version>)}{$1 . $ENV{SELF_HOST_VERSION} . $2}e' \
             > target/self-host/META-INF/maven/plugin.xml
-          (cd target/self-host && jar uf ../blastradius-maven-plugin-0.1.0-selfhost.jar META-INF/maven/plugin.xml)
+          (cd target/self-host && jar uf "../blastradius-maven-plugin-${SELF_HOST_VERSION}.jar" META-INF/maven/plugin.xml)
           mvn -B --no-transfer-progress org.apache.maven.plugins:maven-install-plugin:3.1.2:install-file \
-            -Dfile=target/blastradius-maven-plugin-0.1.0-selfhost.jar \
+            -Dfile="target/blastradius-maven-plugin-${SELF_HOST_VERSION}.jar" \
             -DgroupId=io.github.baokhang83.blastradius \
             -DartifactId=blastradius-maven-plugin \
-            -Dversion=0.1.0-selfhost \
+            -Dversion="${SELF_HOST_VERSION}" \
             -Dpackaging=maven-plugin \
             -DgeneratePom=true
       - run: mvn -B --no-transfer-progress -Pself-host-blastradius clean verify

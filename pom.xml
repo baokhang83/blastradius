@@ -6,7 +6,7 @@
 
     <groupId>io.github.baokhang83.blastradius</groupId>
     <artifactId>blastradius-parent</artifactId>
-    <version>0.1.0</version>
+    <version>0.3.0</version>
     <packaging>pom</packaging>
 
     <name>Blastradius parent</name>
@@ -38,7 +38,7 @@
         <connection>scm:git:https://github.com/baokhang83/blastradius.git</connection>
         <developerConnection>scm:git:ssh://git@github.com/baokhang83/blastradius.git</developerConnection>
         <url>https://github.com/baokhang83/blastradius</url>
-        <tag>v0.1.0</tag>
+        <tag>v0.3.0</tag>
     </scm>
 
     <issueManagement>
@@ -60,7 +60,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.deploy.skip>true</maven.deploy.skip>
         <central.skip.publishing>true</central.skip.publishing>
-        <blastradius.self.host.version>0.1.0-selfhost</blastradius.self.host.version>
+        <blastradius.self.host.version>${project.version}-selfhost</blastradius.self.host.version>
 
         <jgit.version>7.7.0.202606012155-r</jgit.version>
         <jackson.version>2.17.1</jackson.version>
