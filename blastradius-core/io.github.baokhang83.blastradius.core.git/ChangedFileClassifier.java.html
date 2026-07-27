@@ -120,7 +120,7 @@ import java.util.regex.Pattern;
 <span class="fc" id="L120">            return false;</span>
         }
 <span class="pc bpc" id="L122" title="2 of 6 branches missed.">        if (path.startsWith(&quot;.github/&quot;) || path.startsWith(&quot;.idea/&quot;) || path.startsWith(&quot;.vscode/&quot;)</span>
-<span class="pc bpc" id="L123" title="1 of 4 branches missed.">                || path.startsWith(&quot;docs/&quot;) || path.contains(&quot;/docs/&quot;)) {</span>
+<span class="pc bpc" id="L123" title="1 of 6 branches missed.">                || path.startsWith(&quot;.fluencyloop/&quot;) || path.startsWith(&quot;docs/&quot;) || path.contains(&quot;/docs/&quot;)) {</span>
 <span class="fc" id="L124">            return true;</span>
         }
 <span class="fc" id="L126">        String fileName = path.substring(path.lastIndexOf('/') + 1);</span>
