@@ -41,8 +41,9 @@ import java.util.stream.Collectors;
  * out the base commit to obtain a dependency baseline, checks out the head commit to
  * obtain ground truth, classifies changes, runs selection, and compares against ground
  * truth for would-miss cases — then computes the overall verdict and writes the report.
- * A pair whose base or head commit fails to build is excluded (FR-009) rather than
- * aborting the whole run.
+ * A pair whose base or head commit fails to build — or whose analysis fails for any
+ * other reason (e.g. the tracking agent produced no output for a commit whose build
+ * otherwise succeeded) — is excluded (FR-009) rather than aborting the whole run.
  *
  * <p>Exit codes per the CLI contract: {@code 0} = PASS, {@code 1} = FAIL, {@code 2} =
  * the run itself could not complete.
@@ -86,7 +87,12 @@ public final class RunCommand {
             Path scratchParent = Files.createTempDirectory("blastradius-scratch-");
             try (CommitCheckout checkout = CommitCheckout.forTargetProject(config.projectPath(), scratchParent)) {
                 for (CommitPair pair : window) {
-                    PairAnalysis analysis = analyzePair(pair, config.projectPath(), checkout, agentJar);
+                    PairAnalysis analysis;
+                    try {
+                        analysis = analyzePair(pair, config.projectPath(), checkout, agentJar);
+                    } catch (Exception e) {
+                        analysis = excluded(pair, "analysis failed: " + e.getMessage());
+                    }
                     if (analysis.pair().status() == PairStatus.EXCLUDED) {
                         excludedPairs.add(analysis.pair());
                     } else {

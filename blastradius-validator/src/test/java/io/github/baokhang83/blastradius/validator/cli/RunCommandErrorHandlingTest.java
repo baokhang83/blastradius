@@ -67,6 +67,34 @@ class RunCommandErrorHandlingTest {
         assertTrue(report.get("analyzedCommitPairs").isEmpty());
     }
 
+    @Test
+    void baseCommitWithNoTrackedDependencyOutputExcludesThePairInsteadOfAbortingTheRun(
+            @TempDir Path projectDir, @TempDir Path outDir) throws Exception {
+        Path agentJar = findOwnAgentJar();
+        Path reportFile = outDir.resolve("report.json");
+
+        // A real, buildable Maven project with zero test classes: `mvn clean test`
+        // succeeds (exit 0) but Surefire runs nothing, so the tracking agent's shutdown
+        // hook sees an empty record and never writes an output file — the same shape of
+        // failure as a build whose only forked test JVM crashes before writing (e.g. a
+        // conflicting javaagent), found running against apache/shenyu.
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        fixture.commit("initial (no tests)");
+        fixture.writeResource("NOTES.txt", "second commit");
+        fixture.commit("second commit");
+
+        RunConfig config = new RunConfig(projectDir, 1, reportFile);
+        int exitCode = new RunCommand().run(config, agentJar);
+
+        // Not a crash (no exit-2): the pair is excluded with a clear reason, and the run
+        // still completes and writes a report, per the class's own documented FR-009
+        // contract ("excluded... rather than aborting the whole run").
+        assertEquals(0, exitCode);
+        JsonNode report = new ObjectMapper().readTree(reportFile.toFile());
+        assertEquals(1, report.get("excludedCommitPairs").size());
+        assertTrue(report.get("analyzedCommitPairs").isEmpty());
+    }
+
     private static Path findOwnAgentJar() throws IOException {
         Path targetDir = Path.of("target");
         try (var stream = Files.list(targetDir)) {
