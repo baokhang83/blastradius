@@ -30,6 +30,14 @@ final class EndToEndTestSupport {
 
     private static final PluginInstaller PLUGIN_INSTALLER = new PluginInstaller();
 
+    /**
+     * The plugin version under test, read from the build rather than hardcoded: a hardcoded
+     * string here resolves against whatever was last published to Central under that version
+     * once it no longer matches the reactor's actual version, silently testing that stale
+     * published jar instead of the one {@link #installThisPluginOnce()} just built.
+     */
+    private static final String PLUGIN_VERSION = System.getProperty("blastradius.version");
+
     private EndToEndTestSupport() {
     }
 
@@ -111,7 +119,7 @@ final class EndToEndTestSupport {
                         <plugin>
                             <groupId>io.github.baokhang83.blastradius</groupId>
                             <artifactId>blastradius-maven-plugin</artifactId>
-                            <version>0.3.0</version>
+                            <version>%s</version>
                             <executions>
                                 <execution>
                                     <phase>process-test-classes</phase>
@@ -122,7 +130,7 @@ final class EndToEndTestSupport {
                                 <baseRef>%s</baseRef>
                             </configuration>
                         </plugin>
-                """.formatted(anchorCommit);
+                """.formatted(PLUGIN_VERSION, anchorCommit);
     }
 
     /** Plugin binding deliberately missing the required {@code baseRef} configuration (T049). */
@@ -131,7 +139,7 @@ final class EndToEndTestSupport {
                         <plugin>
                             <groupId>io.github.baokhang83.blastradius</groupId>
                             <artifactId>blastradius-maven-plugin</artifactId>
-                            <version>0.3.0</version>
+                            <version>%s</version>
                             <executions>
                                 <execution>
                                     <phase>process-test-classes</phase>
@@ -139,7 +147,7 @@ final class EndToEndTestSupport {
                                 </execution>
                             </executions>
                         </plugin>
-                """;
+                """.formatted(PLUGIN_VERSION);
     }
 
     /** Plugin binding with an explicit, possibly-invalid {@code indexPath} (T049). */
@@ -148,7 +156,7 @@ final class EndToEndTestSupport {
                         <plugin>
                             <groupId>io.github.baokhang83.blastradius</groupId>
                             <artifactId>blastradius-maven-plugin</artifactId>
-                            <version>0.3.0</version>
+                            <version>%s</version>
                             <executions>
                                 <execution>
                                     <phase>process-test-classes</phase>
@@ -160,7 +168,7 @@ final class EndToEndTestSupport {
                                 <indexPath>%s</indexPath>
                             </configuration>
                         </plugin>
-                """.formatted(anchorCommit, indexPath);
+                """.formatted(PLUGIN_VERSION, anchorCommit, indexPath);
     }
 
     /** Recursively deletes {@code projectDir}'s {@code .git} directory (T049: non-git target). */
