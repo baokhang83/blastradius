@@ -1,8 +1,8 @@
 {
-  "feature": "fix-dependency-tracking-agent-missing-classes-loaded-before",
-  "branch": "feature/fix-dependency-tracking-agent-missing-classes-loaded-before",
+  "feature": "surface-a-distinct-reason-when-the-stale-baseline-fallback-s",
+  "branch": "feature/surface-a-distinct-reason-when-the-stale-baseline-fallback-s",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/fix-dependency-tracking-agent-missing-classes-loaded-before/sessions/tests-full-verify-fixture-ordering-fix-for-ambient-snapshot.md",
+  "last_session": "docs/fluencyloop/features/surface-a-distinct-reason-when-the-stale-baseline-fallback-s/sessions/surface-format-version-mismatch-instead-of-bare-missing-and.md",
   "base_ref": "main",
-  "updated": "2026-07-26"
+  "updated": "2026-07-27"
 }

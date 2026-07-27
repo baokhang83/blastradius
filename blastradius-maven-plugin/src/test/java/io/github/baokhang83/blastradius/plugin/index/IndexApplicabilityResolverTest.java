@@ -120,6 +120,33 @@ class IndexApplicabilityResolverTest {
     }
 
     @Test
+    void staleBaselineFallbackReportsFormatMismatchNotMissingWhenOnlyCandidateIsOutdated(
+            @TempDir Path projectDir) {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        String oldAnchor = fixture.commit("last baseline before a format bump");
+        fixture.writeClass("com.example.Feature", "package com.example; class Feature {}");
+        String expectedBase = fixture.commit("main advances past the format bump");
+        fixture.writeClass("com.example.Changed", "package com.example; class Changed {}");
+        String head = fixture.commit("feature change");
+
+        DependencyIndex outdatedIndex = new DependencyIndex(DependencyIndexFormat.CURRENT_VERSION - 1,
+                oldAnchor, "2026-07-09T10:00:00Z", List.of(), Set.of());
+        IndexStore<DependencyIndex> store = store(projectDir);
+        store.put(CommitIndexKey.forCommit(INDEX_KEY, oldAnchor), outdatedIndex);
+
+        IndexApplicability applicability = resolver.resolve(
+                store,
+                CommitIndexKey.forCommit(INDEX_KEY, expectedBase),
+                INDEX_KEY,
+                expectedBase,
+                head,
+                projectDir);
+
+        assertEquals(IndexApplicability.Status.FORMAT_VERSION_MISMATCH, applicability.status());
+        assertNull(applicability.index());
+    }
+
+    @Test
     void unsupportedIndexFormatIsReportedAsAMismatch(@TempDir Path projectDir) {
         String anchorCommit = FixtureProjectBuilder.singleModule(projectDir).commit("initial");
         store(projectDir).put(INDEX_KEY, new DependencyIndex(
