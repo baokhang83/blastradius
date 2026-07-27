@@ -70,8 +70,8 @@ import java.util.stream.Collectors;
 <span class="nc" id="L70">            throw new UncheckedIOException(&quot;failed to list dependency record files matching &quot; + prefix + &quot;* in &quot;</span>
                     + parent, e);
 <span class="fc" id="L72">        }</span>
-<span class="pc bpc" id="L73" title="1 of 2 branches missed.">        if (!foundAny) {</span>
-<span class="nc" id="L74">            throw new UncheckedIOException(</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (!foundAny) {</span>
+<span class="fc" id="L74">            throw new UncheckedIOException(</span>
                     &quot;failed to read dependency record from &quot; + baseOutputFile,
                     new IOException(&quot;no files matching &quot; + prefix + &quot;* found in &quot; + parent));
         }
