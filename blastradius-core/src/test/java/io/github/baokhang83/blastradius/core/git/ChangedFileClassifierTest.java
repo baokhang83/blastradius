@@ -162,6 +162,22 @@ class ChangedFileClassifierTest {
     }
 
     @Test
+    void fluencyloopStateFileChangeIsClassifiedAsInert(@TempDir Path tempDir) {
+        // FluencyLoop's own branch/stage bookkeeping (.fluencyloop/state.json) can't affect
+        // any test outcome, but it lives outside docs/ and has no recognized doc extension —
+        // before this it fell through to NON_SOURCE and forced a full-suite fallback on every
+        // module in the build (found running blastradius against its own PR #140).
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(tempDir);
+        String base = fixture.commit("initial");
+        fixture.writeResource(".fluencyloop/state.json", "{\"feature\":\"x\"}");
+        String head = fixture.commit("update fluencyloop state");
+
+        List<ChangedFile> changed = classifier.classify(tempDir, base, head);
+
+        assertEquals(FileKind.INERT, single(changed, ".fluencyloop/state.json").kind());
+    }
+
+    @Test
     void markdownUnderResourcesIsNonSourceNotInert(@TempDir Path tempDir) {
         // Soundness (§III): a Markdown file under resources/ can be test data a test loads,
         // and class-load tracking can't see it — so it MUST fall back, never select nothing.
