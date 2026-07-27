@@ -123,12 +123,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Download Blastradius selection reports
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: blastradius-selection-report-jdk*
           path: selection-reports
       - name: Publish one selection comment for all JDKs
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           REPORT_ROOT: selection-reports
         with:
