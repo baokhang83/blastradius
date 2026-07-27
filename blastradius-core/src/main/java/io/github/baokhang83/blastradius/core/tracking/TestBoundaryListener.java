@@ -28,6 +28,11 @@ public final class TestBoundaryListener implements TestExecutionListener {
     @Override
     public void executionStarted(TestIdentifier testIdentifier) {
         if (testIdentifier.isTest()) {
+            // First call in this fork snapshots everything already loaded — JVM/Surefire
+            // bootstrap plus JUnit Platform's discovery pass, which runs before any test's
+            // window opens and can force-load classes the tracker can never re-observe.
+            // No-op on every call after the first.
+            DependencyTrackingAgent.recordAmbientSnapshot();
             TestIdentity test = toTestIdentity(testIdentifier);
             // Register before publishing this identity to the agent. Computing the record's
             // generated hash code may load JVM support classes; while no test is current those

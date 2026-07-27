@@ -81,6 +81,8 @@ class DependencyIndexIoTest {
 
         DependencyIndex migrated = store.get("legacy.json").orElseThrow();
 
-        assertEquals(DependencyIndexFormat.CURRENT_VERSION, migrated.formatVersion());
+        // Not CURRENT_VERSION: a legacy index genuinely has no ambient data, so it must
+        // land on the last pre-ambient-dependencies schema, not silently pass as current.
+        assertEquals(DependencyIndexFormat.PRE_AMBIENT_DEPENDENCIES_VERSION, migrated.formatVersion());
     }
 }

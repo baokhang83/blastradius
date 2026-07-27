@@ -93,7 +93,8 @@ final class ApplySelectionAction implements Action<Task> {
                 .filter(test -> new NewOrModifiedTestSelector().appliesTo(
                         test, !dependenciesByTest.containsKey(test.baselineKey()), changedClassNames))
                 .collect(Collectors.toSet());
-        return new SelectionEngine().selectAll(allTests, dependenciesByTest, newOrModifiedTests, changedFiles);
+        return new SelectionEngine().selectAll(
+                allTests, dependenciesByTest, newOrModifiedTests, changedFiles, Set.of());
     }
 
     private static void applyFilter(Test test, List<SelectionDecision> decisions) {

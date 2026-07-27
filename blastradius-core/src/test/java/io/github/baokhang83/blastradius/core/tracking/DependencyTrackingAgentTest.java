@@ -3,6 +3,7 @@ package io.github.baokhang83.blastradius.core.tracking;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
@@ -112,6 +113,30 @@ class DependencyTrackingAgentTest {
         assertTrue(all.get(FOO_TEST).containsKey("com.example.Foo"));
         assertFalse(all.get(FOO_TEST).containsKey("com.example.Bar"));
         assertTrue(all.get(barTest).containsKey("com.example.Bar"));
+    }
+
+    @Test
+    void ambientDependenciesIsEmptyWithNoInstrumentationAttached() {
+        // In a plain unit-test JVM (no -javaagent), the static Instrumentation seam is
+        // never set, so loadedClasses() returns Set.of() and the snapshot captures nothing —
+        // this documents that graceful degradation rather than throwing.
+        agent.snapshotAmbientDependencies();
+
+        assertTrue(agent.ambientDependencies().isEmpty());
+    }
+
+    @Test
+    void snapshotAmbientDependenciesIsIdempotent() {
+        agent.snapshotAmbientDependencies();
+        agent.snapshotAmbientDependencies();
+
+        assertTrue(agent.ambientDependencies().isEmpty());
+    }
+
+    @Test
+    void ambientDependenciesReturnsAnImmutableCopy() {
+        Set<String> snapshot = agent.ambientDependencies();
+        assertThrows(UnsupportedOperationException.class, () -> snapshot.add("com.example.Injected"));
     }
 
     private static String sha256Hex(byte[] bytes) throws NoSuchAlgorithmException {

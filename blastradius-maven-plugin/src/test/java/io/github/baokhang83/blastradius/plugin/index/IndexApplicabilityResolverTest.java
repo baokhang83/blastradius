@@ -123,7 +123,7 @@ class IndexApplicabilityResolverTest {
     void unsupportedIndexFormatIsReportedAsAMismatch(@TempDir Path projectDir) {
         String anchorCommit = FixtureProjectBuilder.singleModule(projectDir).commit("initial");
         store(projectDir).put(INDEX_KEY, new DependencyIndex(
-                DependencyIndexFormat.CURRENT_VERSION + 1, anchorCommit, "2026-07-09T10:00:00Z", List.of()));
+                DependencyIndexFormat.CURRENT_VERSION + 1, anchorCommit, "2026-07-09T10:00:00Z", List.of(), Set.of()));
 
         IndexApplicability applicability = resolver.resolve(store(projectDir), INDEX_KEY, anchorCommit, projectDir);
 

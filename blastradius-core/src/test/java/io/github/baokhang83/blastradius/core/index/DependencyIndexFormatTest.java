@@ -9,8 +9,15 @@ import org.junit.jupiter.api.Test;
 class DependencyIndexFormatTest {
 
     @Test
-    void migratesTheKnownUnversionedLegacySchemaToTheCurrentVersion() {
-        assertEquals(DependencyIndexFormat.CURRENT_VERSION, DependencyIndexFormat.migrateLegacyVersion(0));
+    void migratesTheKnownUnversionedLegacySchemaToItsPreAmbientDependenciesVersion() {
+        // Not CURRENT_VERSION: a legacy index genuinely has no ambient data, so it must land
+        // on the last pre-ambient-dependencies schema, not silently pass as fully current.
+        assertEquals(DependencyIndexFormat.PRE_AMBIENT_DEPENDENCIES_VERSION, DependencyIndexFormat.migrateLegacyVersion(0));
+    }
+
+    @Test
+    void preAmbientDependenciesVersionIsNotTheCurrentVersion() {
+        assertFalse(DependencyIndexFormat.isCurrentVersion(DependencyIndexFormat.PRE_AMBIENT_DEPENDENCIES_VERSION));
     }
 
     @Test

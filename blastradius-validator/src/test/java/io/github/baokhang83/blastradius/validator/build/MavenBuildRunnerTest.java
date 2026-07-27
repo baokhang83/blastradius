@@ -86,7 +86,7 @@ class MavenBuildRunnerTest {
         BuildResult result = runner.run(projectDir, agentJar, recordFile);
 
         assertEquals(0, result.exitCode());
-        assertTrue(!new DependencyRecordReader().readAll(recordFile).isEmpty(),
+        assertTrue(!new DependencyRecordReader().readAll(recordFile).tests().isEmpty(),
                 "agent should have written its dependency record");
     }
 

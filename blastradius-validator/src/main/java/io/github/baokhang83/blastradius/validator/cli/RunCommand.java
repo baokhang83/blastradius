@@ -20,6 +20,7 @@ import io.github.baokhang83.blastradius.core.selection.NewOrModifiedTestSelector
 import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
 import io.github.baokhang83.blastradius.core.selection.SelectionEngine;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
+import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.validator.verdict.FlakyFailure;
 import io.github.baokhang83.blastradius.validator.verdict.Verdict;
@@ -126,7 +127,8 @@ public final class RunCommand {
         if (buildFailureDetector.isBuildFailure(baseResult, baseWorkDir)) {
             return excluded(pair, "base commit " + pair.baseCommit() + " failed to build");
         }
-        Map<TestIdentity, Map<String, String>> baseRecord = new DependencyRecordReader().readAll(baseDepsFile);
+        DependencyRecordSet baseRecordSet = new DependencyRecordReader().readAll(baseDepsFile);
+        Map<TestIdentity, Map<String, String>> baseRecord = baseRecordSet.tests();
         // Keyed by baselineKey(), not the raw tracked identity, so a ground-truth lookup
         // (which may carry a parameterized-test's Surefire-style invocation suffix) can
         // still find the baseline the tracking agent recorded under the plain method
@@ -164,8 +166,8 @@ public final class RunCommand {
                         test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))
                 .collect(Collectors.toSet());
 
-        List<SelectionDecision> decisions =
-                selectionEngine.selectAll(allTests, testDependencies, newOrModifiedTests, changedFiles);
+        List<SelectionDecision> decisions = selectionEngine.selectAll(
+                allTests, testDependencies, newOrModifiedTests, changedFiles, baseRecordSet.ambientDependencies());
 
         CommitPair enrichedPair = CommitPair.analyzed(pair.baseCommit(), pair.headCommit(), changedFiles);
         List<WouldMissCase> misses = wouldMissComparator.compare(enrichedPair, decisions, groundTruth);

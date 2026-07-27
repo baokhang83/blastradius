@@ -399,6 +399,7 @@ public final class SelectMojo extends AbstractMojo {
                         test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))
                 .collect(Collectors.toSet());
 
-        return SELECTION_ENGINE.selectAll(allTests, testDependencies, newOrModifiedTests, changedFiles);
+        return SELECTION_ENGINE.selectAll(
+                allTests, testDependencies, newOrModifiedTests, changedFiles, index.ambientDependencies());
     }
 }

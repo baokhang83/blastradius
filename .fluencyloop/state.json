@@ -1,8 +1,8 @@
 {
-  "feature": "refresh-the-main-ci-dependency-index-after-conservative-fall",
-  "branch": "feature/refresh-the-main-ci-dependency-index-after-conservative-fall",
+  "feature": "fix-dependency-tracking-agent-missing-classes-loaded-before",
+  "branch": "feature/fix-dependency-tracking-agent-missing-classes-loaded-before",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/refresh-the-main-ci-dependency-index-after-conservative-fall/sessions/refresh-main-baselines-after-non-exact-cache-restores.md",
+  "last_session": "docs/fluencyloop/features/fix-dependency-tracking-agent-missing-classes-loaded-before/sessions/tests-full-verify-fixture-ordering-fix-for-ambient-snapshot.md",
   "base_ref": "main",
   "updated": "2026-07-26"
 }

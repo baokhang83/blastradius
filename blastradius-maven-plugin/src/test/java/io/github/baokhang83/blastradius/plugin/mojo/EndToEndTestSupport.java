@@ -6,7 +6,7 @@ import io.github.baokhang83.blastradius.core.index.FileIndexStore;
 import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
-import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDependencyEntry;
 import java.io.IOException;
@@ -34,8 +34,16 @@ final class EndToEndTestSupport {
     }
 
     static void installThisPluginOnce() throws IOException, InterruptedException {
+        // `clean` is required, not cosmetic: without it, when blastradius-maven-plugin's own
+        // sources haven't changed, maven-jar-plugin's up-to-date check skips regenerating its
+        // plain jar, leaving the *previous* run's shaded uber-jar sitting at that same path —
+        // and the next shade execution bootstraps its assembly from that stale self-referential
+        // jar, silently keeping OLD embedded blastradius-core classes as "duplicates" over the
+        // freshly-rebuilt ones. A stale core fix would otherwise never make it into a real
+        // TRACK-mode build's classpath even after rebuilding blastradius-core.
         PLUGIN_INSTALLER.installOnce(() -> runToCompletion(new ProcessBuilder(
-                "mvn", "-q", "-pl", "blastradius-maven-plugin", "-am", "install", "-DskipTests", "-Dinvoker.skip=true")
+                "mvn", "-q", "-pl", "blastradius-maven-plugin", "-am", "clean", "install", "-DskipTests",
+                "-Dinvoker.skip=true")
                 .directory(Path.of("..").toAbsolutePath().normalize().toFile())));
     }
 
@@ -149,11 +157,11 @@ final class EndToEndTestSupport {
         pb.environment().merge("JAVA_TOOL_OPTIONS", agentOption, (a, b) -> a + " " + b);
         runToCompletion(pb);
 
-        Map<TestIdentity, Map<String, String>> recorded = new DependencyRecordReader().readAll(outputFile);
-        List<TestDependencyEntry> entries = recorded.entrySet().stream()
+        DependencyRecordSet recorded = new DependencyRecordReader().readAll(outputFile);
+        List<TestDependencyEntry> entries = recorded.tests().entrySet().stream()
                 .map(e -> new TestDependencyEntry(e.getKey(), e.getValue().keySet()))
                 .toList();
-        return new DependencyIndex(anchorCommit, Instant.now().toString(), entries);
+        return new DependencyIndex(anchorCommit, Instant.now().toString(), entries, recorded.ambientDependencies());
     }
 
     static void writeIndex(Path projectDir, DependencyIndex index) {

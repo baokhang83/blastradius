@@ -6,6 +6,12 @@ public enum SelectionReason {
     DEPENDENCY_MATCH,
     /** A non-Java-source change forced selection of every test (FR-006). */
     FALLBACK_NON_SOURCE_CHANGE,
+    /**
+     * A changed class was loaded before any test's tracking window opened in some fork
+     * (an "ambient" dependency), so no per-test dependency data can be trusted for it —
+     * every test was conservatively selected instead of risking a silent {@code NO_MATCH}.
+     */
+    FALLBACK_AMBIENT_DEPENDENCY,
     /** The test is new or its own file was modified (FR-007). */
     NEW_OR_MODIFIED_TEST,
     /** Not selected — no changed class intersects its tracked dependencies. */

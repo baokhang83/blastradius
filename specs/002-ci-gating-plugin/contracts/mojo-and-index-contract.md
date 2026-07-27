@@ -120,7 +120,7 @@ planned execution set, not their final pass/fail result.
 ```
 [blastradius] SELECT — index built from a1b2c3d (2026-07-09T10:03:00Z)
 [blastradius] 41 / 96 tests selected (57.3% skipped)
-[blastradius]   dependency-matched: 33, new-or-modified: 8, fallback: 0
+[blastradius]   dependency-matched: 33, new-or-modified: 8, fallback: 0, fallback-ambient: 0
 [blastradius] Skipped test detail: run with -Dblastradius.explain=true for the full per-test reasoning
 ```
 

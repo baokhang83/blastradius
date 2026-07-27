@@ -31,8 +31,10 @@ public final class ConsoleSummaryRenderer {
             long dependencyMatched = countReason(report, SelectionReason.DEPENDENCY_MATCH);
             long newOrModified = countReason(report, SelectionReason.NEW_OR_MODIFIED_TEST);
             long fallback = countReason(report, SelectionReason.FALLBACK_NON_SOURCE_CHANGE);
-            lines.add(String.format("[blastradius]   dependency-matched: %d, new-or-modified: %d, fallback: %d",
-                    dependencyMatched, newOrModified, fallback));
+            long fallbackAmbient = countReason(report, SelectionReason.FALLBACK_AMBIENT_DEPENDENCY);
+            lines.add(String.format(
+                    "[blastradius]   dependency-matched: %d, new-or-modified: %d, fallback: %d, fallback-ambient: %d",
+                    dependencyMatched, newOrModified, fallback, fallbackAmbient));
             lines.add("[blastradius] Skipped test detail: run with -Dblastradius.explain=true for the full per-test reasoning");
         }
         return lines;
