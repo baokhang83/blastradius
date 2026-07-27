@@ -29,6 +29,11 @@
             <artifactId>jackson-databind</artifactId>
             <version>${jackson.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm</artifactId>
+            <version>${asm.version}</version>
+        </dependency>
         <!-- Compile scope: TestBoundaryListener instruments the TARGET project's own
              JUnit 5 run, not just ours, so it ships as part of the shaded agent jar. -->
         <dependency>
