@@ -21,6 +21,7 @@
    <img src="https://raw.githubusercontent.com/baokhang83/blastradius/refs/heads/gh-pages/badges/jacoco.svg" />
 </a>
 
+
 Most "test impact analysis" tools guess from a static, per-module dependency graph, or
 train something probabilistic on historical flakiness. Blastradius does neither: a
 `-javaagent` observes every class *actually loaded* while each test runs, records it, and
