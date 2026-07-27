@@ -5,6 +5,7 @@ import java.util.Set;
 
 /**
  * One file that differs between a commit pair's base and head.
+ * Tested selection on this class on 27/07/2026
  *
  * @param path              repo-relative path
  * @param kind              {@link FileKind#JAVA_SOURCE} or {@link FileKind#NON_SOURCE}
