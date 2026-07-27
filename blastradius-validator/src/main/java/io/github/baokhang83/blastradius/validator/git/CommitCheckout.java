@@ -1,8 +1,11 @@
 package io.github.baokhang83.blastradius.validator.git;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Comparator;
 import org.eclipse.jgit.api.Git;
 
@@ -47,25 +50,49 @@ public final class CommitCheckout implements AutoCloseable {
      * Checks out {@code commitSha} within the scratch clone (detached HEAD) and returns
      * the working directory now reflecting that commit's tree.
      *
-     * <p>Also deletes any {@code target/} directory left over from a previous
-     * checkout's build, rather than relying on the next {@code mvn clean test}
-     * invocation to do it. A commit whose {@code pom.xml} fails to resolve (e.g. an
-     * unpublished SNAPSHOT parent — a real case found running against jackson-databind)
-     * fails during Maven's project-model-building phase, before the {@code clean} goal
-     * ever runs, letting a stale {@code target/surefire-reports/TEST-*.xml} from the
-     * prior commit survive. {@code BuildFailureDetector} can only see whether *any*
-     * {@code TEST-*.xml} exists, not whether it's fresh, so a stale one fools it into
-     * treating a genuine build failure as if it had run tests — this cleanup (not
-     * relying on the target project's own `clean` goal succeeding) closes that gap
-     * directly at the source.
+     * <p>Also deletes every {@code target/} directory left over from a previous
+     * checkout's build — not just the reactor root's — rather than relying on the next
+     * {@code mvn clean test} invocation to do it. A commit whose {@code pom.xml} fails to
+     * resolve (e.g. an unpublished SNAPSHOT parent — a real case found running against
+     * jackson-databind) fails during Maven's project-model-building phase, before the
+     * {@code clean} goal ever runs, letting a stale {@code target/surefire-reports/TEST-*.xml}
+     * from the prior commit survive. In a multi-module reactor, a build can also fail
+     * partway through — after `clean` ran for some modules but before it reached others —
+     * leaving a stale report in a downstream module's own {@code target/} even though the
+     * root's was cleaned. {@code BuildFailureDetector} can only see whether *any*
+     * {@code TEST-*.xml} exists anywhere under the project, not whether it's fresh, so a
+     * stale one fools it into treating a genuine build failure as if it had run tests —
+     * this cleanup (not relying on the target project's own `clean` goal succeeding) closes
+     * that gap directly at the source, for every module.
      */
     public Path checkoutCommit(String commitSha) {
         try {
             scratchGit.checkout().setName(commitSha).call();
-            deleteRecursively(scratchDir.resolve("target"));
+            deleteAllTargetDirectories(scratchDir);
             return scratchDir;
         } catch (Exception e) {
             throw new IllegalStateException("failed to checkout commit " + commitSha, e);
+        }
+    }
+
+    private static void deleteAllTargetDirectories(Path scratchDir) {
+        try {
+            Files.walkFileTree(scratchDir, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                    String name = dir.getFileName().toString();
+                    if (".git".equals(name)) {
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+                    if ("target".equals(name)) {
+                        deleteRecursively(dir);
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            throw new IllegalStateException("failed to scan for stale target directories under " + scratchDir, e);
         }
     }
 

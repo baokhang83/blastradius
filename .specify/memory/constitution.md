@@ -1,6 +1,25 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 2.1.0 → 2.2.0 (MINOR — new Principle VII added)
+Added principles:
+  - VII. Exhaustive Harness Cleanup — our own tooling that reuses a scratch/build
+    directory across repeated builds (CommitCheckout, the Maven plugin's E2E harness)
+    MUST clean every location a prior build could have left state in, not just the
+    top-level one, and MUST NOT rely on the target build's own `clean` goal to have
+    done it.
+    Rationale: found concretely when CommitCheckout cleaned only the reactor root and
+    a submodule's stale TEST-*.xml report survived into the next commit's failed
+    build against a real multi-module project (apache/shenyu), fooling
+    BuildFailureDetector's report-existence heuristic.
+Removed principles: none
+Added/removed sections: none
+Templates requiring updates:
+  - ✅ .specify/templates/plan-template.md — Constitution Check derived dynamically
+    from this file, no changes needed
+Follow-up TODOs: none
+
+Previous entry (2.0.0 → 2.1.0):
 Version change: 2.0.0 → 2.1.0 (MINOR — Principle III materially refined)
 Modified principles:
   - III. Safety Over Speed — added the inert-change carve-out: a change that provably
@@ -132,6 +151,24 @@ now-removed JDK mechanisms became unusable as the ecosystem moved on. Building o
 current, actively maintained foundations from the start is a precondition for the
 project outliving its predecessors.
 
+### VII. Exhaustive Harness Cleanup
+
+Any of our own tooling that reuses a scratch or build directory across repeated builds
+(the validator's `CommitCheckout` re-checking out commits into one clone, the Maven
+plugin's E2E harness rebuilding itself mid-Surefire-run, and any future equivalent)
+MUST clean every location a prior build could have left state in, not just the
+top-level or most visible one — and MUST NOT rely on the target build's own `clean`
+goal to have done it, since a genuinely broken build is exactly the case where that
+goal may not have reached every module.
+
+**Rationale**: A build harness's own detectors (e.g. "does a `TEST-*.xml` report
+exist") can only see what's on disk, not whether it's fresh. A partial cleanup turns a
+real build failure in the target project into a false "tests ran" signal one checkout
+later, corrupting the harness's own judgment rather than the target project's — found
+concretely when `CommitCheckout` cleaned only the reactor root and a submodule's stale
+report survived into the next commit's (failed) build against a real multi-module
+project (apache/shenyu).
+
 ## Technology & Architecture Constraints
 
 - **Test execution model**: JUnit 5 Platform (Jupiter) is the primary, native
@@ -185,4 +222,4 @@ gate defined in `.specify/templates/plan-template.md`. Any violation MUST be
 explicitly justified in that plan's Complexity Tracking section or the design MUST
 be simplified until it complies.
 
-**Version**: 2.1.0 | **Ratified**: 2026-07-08 | **Last Amended**: 2026-07-11
+**Version**: 2.2.0 | **Ratified**: 2026-07-08 | **Last Amended**: 2026-07-28

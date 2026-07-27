@@ -1,8 +1,8 @@
 {
-  "feature": "narrow-ambient-dependency-fallback-to-statically-identified",
-  "branch": "fix/avoid-tracking-agent-callback-recursion",
+  "feature": "fix-commitcheckout-to-clear-stale-target-dirs-in-every-submo",
+  "branch": "feature/fix-commitcheckout-to-clear-stale-target-dirs-in-every-submo",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/narrow-ambient-dependency-fallback-to-statically-identified/sessions/protect-agent-infrastructure-from-runtime-probes.md",
+  "last_session": "docs/fluencyloop/features/fix-commitcheckout-to-clear-stale-target-dirs-in-every-submo/sessions/walk-the-whole-scratch-tree-pruning-git-and-target-subtrees.md",
   "base_ref": "main",
   "updated": "2026-07-27"
 }
