@@ -120,7 +120,7 @@ public final class ChangedFileClassifier {
             return false;
         }
         if (path.startsWith(".github/") || path.startsWith(".idea/") || path.startsWith(".vscode/")
-                || path.startsWith("docs/") || path.contains("/docs/")) {
+                || path.startsWith(".fluencyloop/") || path.startsWith("docs/") || path.contains("/docs/")) {
             return true;
         }
         String fileName = path.substring(path.lastIndexOf('/') + 1);
