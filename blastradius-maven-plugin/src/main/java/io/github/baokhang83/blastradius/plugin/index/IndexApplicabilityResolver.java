@@ -5,6 +5,7 @@ import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
@@ -61,26 +62,44 @@ public final class IndexApplicabilityResolver {
         }
 
         try {
-            return store.keys(parentPrefix(indexPathKey)).stream()
+            List<KeyEvaluation> evaluations = store.keys(parentPrefix(indexPathKey)).stream()
                     .map(key -> CommitIndexKey.commitFromKey(indexPathKey, key)
-                            .flatMap(commit -> readCandidate(store, key, commit, currentCommit, projectDir)))
+                            .map(commit -> evaluate(store, key, commit, currentCommit, projectDir)))
                     .flatMap(Optional::stream)
-                .min(Comparator.comparingInt(Candidate::distanceFromHead))
+                    .toList();
+
+            return evaluations.stream()
+                    .flatMap(evaluation -> evaluation.candidate().stream())
+                    .min(Comparator.comparingInt(Candidate::distanceFromHead))
                     .map(candidate -> IndexApplicability.staleBaseline(candidate.index()))
-                    .orElseGet(IndexApplicability::missing);
+                    .orElseGet(() -> evaluations.stream().anyMatch(KeyEvaluation::formatIncompatible)
+                            ? IndexApplicability.formatVersionMismatch()
+                            : IndexApplicability.missing());
         } catch (UncheckedIOException e) {
             return IndexApplicability.unreadable();
         }
     }
 
-    private static Optional<Candidate> readCandidate(IndexStore<DependencyIndex> store, String key, String keyCommit,
+    /**
+     * Evaluates one enumerated candidate key, distinguishing "this key just doesn't
+     * qualify" (empty candidate) from *why* — a format-incompatible index still means an
+     * index was found, which is more informative than the enumeration coming up
+     * completely empty (Constitution §V, Explainability): a stale baseline whose only
+     * candidate predates a format-version bump on {@code main} should say so, not report
+     * bare {@code MISSING} as if nothing had ever been cached.
+     */
+    private static KeyEvaluation evaluate(IndexStore<DependencyIndex> store, String key, String keyCommit,
             String currentCommit, Path projectDir) {
         DependencyIndex index = store.get(key).orElse(null);
-        if (index == null || !index.hasCurrentFormat() || !index.anchorCommit().equals(keyCommit)) {
-            return Optional.empty();
+        if (index == null || !index.anchorCommit().equals(keyCommit)) {
+            return new KeyEvaluation(Optional.empty(), false);
         }
-        return distanceFromHead(index.anchorCommit(), currentCommit, projectDir)
+        if (!index.hasCurrentFormat()) {
+            return new KeyEvaluation(Optional.empty(), true);
+        }
+        Optional<Candidate> candidate = distanceFromHead(index.anchorCommit(), currentCommit, projectDir)
                 .map(distance -> new Candidate(index, distance));
+        return new KeyEvaluation(candidate, false);
     }
 
     private static String parentPrefix(String indexPathKey) {
@@ -113,6 +132,9 @@ public final class IndexApplicabilityResolver {
     }
 
     private record Candidate(DependencyIndex index, int distanceFromHead) {}
+
+    /** A qualifying {@code candidate}, or a non-qualifying key flagged {@code formatIncompatible}. */
+    private record KeyEvaluation(Optional<Candidate> candidate, boolean formatIncompatible) {}
 
     private static boolean anchorIsReachable(String anchorCommit, Path projectDir) {
         try (org.eclipse.jgit.api.Git git = org.eclipse.jgit.api.Git.open(projectDir.toFile())) {

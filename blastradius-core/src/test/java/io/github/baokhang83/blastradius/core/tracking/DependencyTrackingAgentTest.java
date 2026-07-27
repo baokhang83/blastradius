@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
 import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -116,21 +117,41 @@ class DependencyTrackingAgentTest {
     }
 
     @Test
-    void ambientDependenciesIsEmptyWithNoInstrumentationAttached() {
-        // In a plain unit-test JVM (no -javaagent), the static Instrumentation seam is
-        // never set, so loadedClasses() returns Set.of() and the snapshot captures nothing —
-        // this documents that graceful degradation rather than throwing.
-        agent.snapshotAmbientDependencies();
+    void ambientDependenciesIsEmptyWithNoInstrumentationAttached() throws Exception {
+        // loadedClasses() reads the static Instrumentation seam shared by the whole JVM fork.
+        // It's genuinely null in a plain unit-test run, but TrackRunner re-forks this very
+        // module's own tests with a real -javaagent attached to collect dependency data —
+        // so this test must force the seam to its "no agent" state itself rather than assume
+        // the ambient JVM matches, or it fails deterministically under that fork. No lambda
+        // here: another test in this class self-loads this class's own compiled bytecode as
+        // a hidden class, which an invokedynamic call site (as a lambda would add) breaks.
+        Field instrumentationField = DependencyTrackingAgent.class.getDeclaredField("instrumentation");
+        instrumentationField.setAccessible(true);
+        Object previous = instrumentationField.get(null);
+        instrumentationField.set(null, null);
+        try {
+            agent.snapshotAmbientDependencies();
 
-        assertTrue(agent.ambientDependencies().isEmpty());
+            assertTrue(agent.ambientDependencies().isEmpty());
+        } finally {
+            instrumentationField.set(null, previous);
+        }
     }
 
     @Test
-    void snapshotAmbientDependenciesIsIdempotent() {
-        agent.snapshotAmbientDependencies();
-        agent.snapshotAmbientDependencies();
+    void snapshotAmbientDependenciesIsIdempotent() throws Exception {
+        Field instrumentationField = DependencyTrackingAgent.class.getDeclaredField("instrumentation");
+        instrumentationField.setAccessible(true);
+        Object previous = instrumentationField.get(null);
+        instrumentationField.set(null, null);
+        try {
+            agent.snapshotAmbientDependencies();
+            agent.snapshotAmbientDependencies();
 
-        assertTrue(agent.ambientDependencies().isEmpty());
+            assertTrue(agent.ambientDependencies().isEmpty());
+        } finally {
+            instrumentationField.set(null, previous);
+        }
     }
 
     @Test
