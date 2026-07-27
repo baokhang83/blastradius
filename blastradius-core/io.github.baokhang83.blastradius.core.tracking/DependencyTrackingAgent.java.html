@@ -56,7 +56,7 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
      * Computing a checksum can initialize JDK security-provider classes. Those class loads call
      * this transformer again, so they must not recursively trigger another checksum computation.
      */
-<span class="pc" id="L59">    private static final ThreadLocal&lt;Boolean&gt; RECORDING_CLASS_LOAD = ThreadLocal.withInitial(() -&gt; false);</span>
+<span class="fc" id="L59">    private static final ThreadLocal&lt;Boolean&gt; RECORDING_CLASS_LOAD = ThreadLocal.withInitial(() -&gt; false);</span>
 
     /**
      * Initialized while the agent class is loaded, before {@link #premain(String, Instrumentation)}
@@ -70,22 +70,22 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
     private static volatile Instrumentation instrumentation;
 
     private final Supplier&lt;TestIdentity&gt; currentTestSupplier;
-<span class="nc" id="L73">    private final Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; checksumsByTest = new ConcurrentHashMap&lt;&gt;();</span>
-<span class="nc" id="L74">    private final Set&lt;String&gt; ambientDependencies = ConcurrentHashMap.newKeySet();</span>
-<span class="nc" id="L75">    private final Set&lt;String&gt; pendingAmbientRetransformations = ConcurrentHashMap.newKeySet();</span>
-<span class="nc" id="L76">    private final Set&lt;String&gt; transformedAmbientClasses = ConcurrentHashMap.newKeySet();</span>
-<span class="nc" id="L77">    private final Map&lt;String, String&gt; ambientChecksums = new ConcurrentHashMap&lt;&gt;();</span>
-<span class="nc" id="L78">    private final AmbientClassInstrumenter ambientClassInstrumenter = new AmbientClassInstrumenter();</span>
-<span class="nc" id="L79">    private final AtomicBoolean ambientSnapshotTaken = new AtomicBoolean(false);</span>
+<span class="fc" id="L73">    private final Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; checksumsByTest = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L74">    private final Set&lt;String&gt; ambientDependencies = ConcurrentHashMap.newKeySet();</span>
+<span class="fc" id="L75">    private final Set&lt;String&gt; pendingAmbientRetransformations = ConcurrentHashMap.newKeySet();</span>
+<span class="fc" id="L76">    private final Set&lt;String&gt; transformedAmbientClasses = ConcurrentHashMap.newKeySet();</span>
+<span class="fc" id="L77">    private final Map&lt;String, String&gt; ambientChecksums = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L78">    private final AmbientClassInstrumenter ambientClassInstrumenter = new AmbientClassInstrumenter();</span>
+<span class="fc" id="L79">    private final AtomicBoolean ambientSnapshotTaken = new AtomicBoolean(false);</span>
 
     public DependencyTrackingAgent() {
 <span class="nc" id="L82">        this(TestBoundaryListener::currentTest);</span>
 <span class="nc" id="L83">    }</span>
 
     /** Visible for testing: inject a fake &quot;current test&quot; source instead of the real listener. */
-<span class="nc" id="L86">    DependencyTrackingAgent(Supplier&lt;TestIdentity&gt; currentTestSupplier) {</span>
-<span class="nc" id="L87">        this.currentTestSupplier = currentTestSupplier;</span>
-<span class="nc" id="L88">    }</span>
+<span class="fc" id="L86">    DependencyTrackingAgent(Supplier&lt;TestIdentity&gt; currentTestSupplier) {</span>
+<span class="fc" id="L87">        this.currentTestSupplier = currentTestSupplier;</span>
+<span class="fc" id="L88">    }</span>
 
     /**
      * Entry point for {@code -javaagent:agent.jar=&lt;outputFilePathPrefix&gt;}. If an output
@@ -125,12 +125,12 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
     @Override
     public byte[] transform(ClassLoader loader, String className, Class&lt;?&gt; classBeingRedefined,
             ProtectionDomain protectionDomain, byte[] classfileBuffer) {
-<span class="nc bnc" id="L128" title="All 6 branches missed.">        if (className == null || classfileBuffer == null || RECORDING_CLASS_LOAD.get()) {</span>
-<span class="nc" id="L129">            return null;</span>
+<span class="pc bpc" id="L128" title="2 of 6 branches missed.">        if (className == null || classfileBuffer == null || RECORDING_CLASS_LOAD.get()) {</span>
+<span class="fc" id="L129">            return null;</span>
         }
 
-<span class="nc" id="L132">        String dottedClassName = className.replace('/', '.');</span>
-<span class="nc bnc" id="L133" title="All 4 branches missed.">        if (classBeingRedefined != null &amp;&amp; pendingAmbientRetransformations.contains(dottedClassName)) {</span>
+<span class="fc" id="L132">        String dottedClassName = className.replace('/', '.');</span>
+<span class="pc bpc" id="L133" title="3 of 4 branches missed.">        if (classBeingRedefined != null &amp;&amp; pendingAmbientRetransformations.contains(dottedClassName)) {</span>
             try {
 <span class="nc" id="L135">                byte[] instrumented = ambientClassInstrumenter.instrument(dottedClassName, classfileBuffer);</span>
 <span class="nc bnc" id="L136" title="All 2 branches missed.">                if (instrumented != null) {</span>
@@ -144,20 +144,20 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
             }
         }
 
-<span class="nc" id="L147">        TestIdentity currentTest = currentTestSupplier.get();</span>
-<span class="nc bnc" id="L148" title="All 2 branches missed.">        if (currentTest == null) {</span>
-<span class="nc" id="L149">            return null;</span>
+<span class="fc" id="L147">        TestIdentity currentTest = currentTestSupplier.get();</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">        if (currentTest == null) {</span>
+<span class="fc" id="L149">            return null;</span>
         }
 
-<span class="nc" id="L152">        RECORDING_CLASS_LOAD.set(true);</span>
+<span class="fc" id="L152">        RECORDING_CLASS_LOAD.set(true);</span>
         try {
-<span class="nc" id="L154">            checksumsByTest</span>
-<span class="nc" id="L155">                    .computeIfAbsent(currentTest, ignored -&gt; new ConcurrentHashMap&lt;&gt;())</span>
-<span class="nc" id="L156">                    .put(dottedClassName, sha256Hex(classfileBuffer));</span>
+<span class="fc" id="L154">            checksumsByTest</span>
+<span class="fc" id="L155">                    .computeIfAbsent(currentTest, ignored -&gt; new ConcurrentHashMap&lt;&gt;())</span>
+<span class="fc" id="L156">                    .put(dottedClassName, sha256Hex(classfileBuffer));</span>
         } finally {
-<span class="nc" id="L158">            RECORDING_CLASS_LOAD.remove();</span>
+<span class="fc" id="L158">            RECORDING_CLASS_LOAD.remove();</span>
         }
-<span class="nc" id="L160">        return null;</span>
+<span class="fc" id="L160">        return null;</span>
     }
 
     /**
@@ -176,8 +176,8 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
 <span class="fc" id="L176">    }</span>
 
     void recordTestExecution(TestIdentity test) {
-<span class="nc" id="L179">        checksumsByTest.computeIfAbsent(test, ignored -&gt; new ConcurrentHashMap&lt;&gt;());</span>
-<span class="nc" id="L180">    }</span>
+<span class="fc" id="L179">        checksumsByTest.computeIfAbsent(test, ignored -&gt; new ConcurrentHashMap&lt;&gt;());</span>
+<span class="fc" id="L180">    }</span>
 
     /**
      * Called once, before the very first test in a fork starts (see {@link TestBoundaryListener}).
@@ -196,14 +196,14 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
 <span class="fc" id="L196">    }</span>
 
     void snapshotAmbientDependencies() {
-<span class="nc bnc" id="L199" title="All 2 branches missed.">        if (ambientSnapshotTaken.compareAndSet(false, true)) {</span>
-<span class="nc" id="L200">            Set&lt;Class&lt;?&gt;&gt; loadedClasses = loadedClasses();</span>
-<span class="nc bnc" id="L201" title="All 2 branches missed.">            for (Class&lt;?&gt; loadedClass : loadedClasses) {</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">        if (ambientSnapshotTaken.compareAndSet(false, true)) {</span>
+<span class="fc" id="L200">            Set&lt;Class&lt;?&gt;&gt; loadedClasses = loadedClasses();</span>
+<span class="pc bpc" id="L201" title="1 of 2 branches missed.">            for (Class&lt;?&gt; loadedClass : loadedClasses) {</span>
 <span class="nc" id="L202">                ambientDependencies.add(loadedClass.getName());</span>
 <span class="nc" id="L203">            }</span>
-<span class="nc" id="L204">            retransformProjectAmbientClasses(loadedClasses);</span>
+<span class="fc" id="L204">            retransformProjectAmbientClasses(loadedClasses);</span>
         }
-<span class="nc" id="L206">    }</span>
+<span class="fc" id="L206">    }</span>
 
     /** Called from bytecode injected into an already-loaded project class. */
     public static void recordAmbientExecution(String className) {
@@ -224,9 +224,9 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
 <span class="nc" id="L224">    }</span>
 
     private void retransformProjectAmbientClasses(Set&lt;Class&lt;?&gt;&gt; loadedClasses) {
-<span class="nc" id="L227">        Instrumentation currentInstrumentation = instrumentation;</span>
-<span class="nc bnc" id="L228" title="All 4 branches missed.">        if (currentInstrumentation == null || !currentInstrumentation.isRetransformClassesSupported()) {</span>
-<span class="nc" id="L229">            return;</span>
+<span class="fc" id="L227">        Instrumentation currentInstrumentation = instrumentation;</span>
+<span class="pc bpc" id="L228" title="3 of 4 branches missed.">        if (currentInstrumentation == null || !currentInstrumentation.isRetransformClassesSupported()) {</span>
+<span class="fc" id="L229">            return;</span>
         }
 <span class="nc" id="L231">        Path projectRoot = configuredProjectRoot();</span>
 <span class="nc bnc" id="L232" title="All 2 branches missed.">        for (Class&lt;?&gt; loadedClass : loadedClasses) {</span>
@@ -250,18 +250,18 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
 <span class="nc" id="L250">    }</span>
 
     static boolean isAmbientInstrumentationCandidate(Class&lt;?&gt; loadedClass) {
-<span class="nc" id="L253">        return isAmbientInstrumentationCandidate(loadedClass, configuredProjectRoot());</span>
+<span class="fc" id="L253">        return isAmbientInstrumentationCandidate(loadedClass, configuredProjectRoot());</span>
     }
 
     static boolean isAmbientInstrumentationCandidate(Class&lt;?&gt; loadedClass, Path projectRoot) {
-<span class="nc bnc" id="L257" title="All 2 branches missed.">        if (loadedClass.getName().startsWith(TRACKING_PACKAGE_PREFIX)</span>
-<span class="nc bnc" id="L258" title="All 2 branches missed.">                || loadedClass.getName().startsWith(INSTRUMENTATION_LIBRARY_PACKAGE_PREFIX)</span>
-<span class="nc bnc" id="L259" title="All 2 branches missed.">                || loadedClass.isArray()</span>
-<span class="nc bnc" id="L260" title="All 2 branches missed.">                || loadedClass.isPrimitive()) {</span>
-<span class="nc" id="L261">            return false;</span>
+<span class="fc bfc" id="L257" title="All 2 branches covered.">        if (loadedClass.getName().startsWith(TRACKING_PACKAGE_PREFIX)</span>
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">                || loadedClass.getName().startsWith(INSTRUMENTATION_LIBRARY_PACKAGE_PREFIX)</span>
+<span class="pc bpc" id="L259" title="1 of 2 branches missed.">                || loadedClass.isArray()</span>
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">                || loadedClass.isPrimitive()) {</span>
+<span class="fc" id="L261">            return false;</span>
         }
-<span class="nc" id="L263">        Path codeSource = codeSourceOf(loadedClass);</span>
-<span class="nc bnc" id="L264" title="All 4 branches missed.">        return codeSource != null &amp;&amp; isProjectCodeSource(codeSource, projectRoot);</span>
+<span class="fc" id="L263">        Path codeSource = codeSourceOf(loadedClass);</span>
+<span class="pc bpc" id="L264" title="2 of 4 branches missed.">        return codeSource != null &amp;&amp; isProjectCodeSource(codeSource, projectRoot);</span>
     }
 
     /**
@@ -272,20 +272,20 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
      * from a third-party one, so it stays ambient and selection keeps its conservative fallback.
      */
     static boolean isProjectCodeSource(Path codeSource, Path projectRoot) {
-<span class="nc bnc" id="L275" title="All 4 branches missed.">        if (projectRoot != null &amp;&amp; codeSource.startsWith(projectRoot)) {</span>
-<span class="nc" id="L276">            return true;</span>
+<span class="fc bfc" id="L275" title="All 4 branches covered.">        if (projectRoot != null &amp;&amp; codeSource.startsWith(projectRoot)) {</span>
+<span class="fc" id="L276">            return true;</span>
         }
-<span class="nc" id="L278">        String path = codeSource.toString().replace('\\', '/');</span>
-<span class="nc bnc" id="L279" title="All 2 branches missed.">        return path.endsWith(&quot;/target/classes&quot;)</span>
-<span class="nc bnc" id="L280" title="All 2 branches missed.">                || path.endsWith(&quot;/target/test-classes&quot;)</span>
-<span class="nc bnc" id="L281" title="All 2 branches missed.">                || path.endsWith(&quot;/build/classes/java/main&quot;)</span>
-<span class="nc bnc" id="L282" title="All 2 branches missed.">                || path.endsWith(&quot;/build/classes/java/test&quot;);</span>
+<span class="fc" id="L278">        String path = codeSource.toString().replace('\\', '/');</span>
+<span class="fc bfc" id="L279" title="All 2 branches covered.">        return path.endsWith(&quot;/target/classes&quot;)</span>
+<span class="pc bpc" id="L280" title="1 of 2 branches missed.">                || path.endsWith(&quot;/target/test-classes&quot;)</span>
+<span class="pc bpc" id="L281" title="1 of 2 branches missed.">                || path.endsWith(&quot;/build/classes/java/main&quot;)</span>
+<span class="pc bpc" id="L282" title="1 of 2 branches missed.">                || path.endsWith(&quot;/build/classes/java/test&quot;);</span>
     }
 
     private static Path configuredProjectRoot() {
-<span class="nc" id="L286">        String configured = System.getProperty(PROJECT_ROOT_PROPERTY);</span>
-<span class="nc bnc" id="L287" title="All 4 branches missed.">        if (configured == null || configured.isBlank()) {</span>
-<span class="nc" id="L288">            return null;</span>
+<span class="fc" id="L286">        String configured = System.getProperty(PROJECT_ROOT_PROPERTY);</span>
+<span class="pc bpc" id="L287" title="3 of 4 branches missed.">        if (configured == null || configured.isBlank()) {</span>
+<span class="fc" id="L288">            return null;</span>
         }
         try {
 <span class="nc" id="L291">            return canonicalize(Path.of(configured));</span>
@@ -301,26 +301,26 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
      * containment check between the two forms silently fails.
      */
     private static Path canonicalize(Path path) {
-<span class="nc" id="L304">        Path absolute = path.toAbsolutePath().normalize();</span>
+<span class="fc" id="L304">        Path absolute = path.toAbsolutePath().normalize();</span>
         try {
-<span class="nc" id="L306">            return absolute.toRealPath();</span>
+<span class="fc" id="L306">            return absolute.toRealPath();</span>
 <span class="nc" id="L307">        } catch (IOException ignored) {</span>
 <span class="nc" id="L308">            return absolute;</span>
         }
     }
 
     private static Path codeSourceOf(Class&lt;?&gt; loadedClass) {
-<span class="nc" id="L313">        ProtectionDomain protectionDomain = loadedClass.getProtectionDomain();</span>
-<span class="nc bnc" id="L314" title="All 4 branches missed.">        if (protectionDomain == null || protectionDomain.getCodeSource() == null</span>
-<span class="nc bnc" id="L315" title="All 2 branches missed.">                || protectionDomain.getCodeSource().getLocation() == null) {</span>
+<span class="fc" id="L313">        ProtectionDomain protectionDomain = loadedClass.getProtectionDomain();</span>
+<span class="pc bpc" id="L314" title="2 of 4 branches missed.">        if (protectionDomain == null || protectionDomain.getCodeSource() == null</span>
+<span class="pc bpc" id="L315" title="1 of 2 branches missed.">                || protectionDomain.getCodeSource().getLocation() == null) {</span>
 <span class="nc" id="L316">            return null;</span>
         }
         try {
-<span class="nc" id="L319">            URI location = protectionDomain.getCodeSource().getLocation().toURI();</span>
-<span class="nc bnc" id="L320" title="All 2 branches missed.">            if (!&quot;file&quot;.equals(location.getScheme())) {</span>
+<span class="fc" id="L319">            URI location = protectionDomain.getCodeSource().getLocation().toURI();</span>
+<span class="pc bpc" id="L320" title="1 of 2 branches missed.">            if (!&quot;file&quot;.equals(location.getScheme())) {</span>
 <span class="nc" id="L321">                return null;</span>
             }
-<span class="nc" id="L323">            return canonicalize(Path.of(location));</span>
+<span class="fc" id="L323">            return canonicalize(Path.of(location));</span>
 <span class="nc" id="L324">        } catch (URISyntaxException | IllegalArgumentException ignored) {</span>
 <span class="nc" id="L325">            return null;</span>
         }
@@ -328,14 +328,14 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
 
     /** An immutable snapshot of {@code test -&gt; {className -&gt; tracking token}} recorded so far. */
     public Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; recordedDependencies() {
-<span class="nc" id="L331">        return checksumsByTest.entrySet().stream()</span>
-<span class="nc" id="L332">                .collect(java.util.stream.Collectors.toUnmodifiableMap(</span>
-<span class="nc" id="L333">                        Map.Entry::getKey, e -&gt; Map.copyOf(e.getValue())));</span>
+<span class="fc" id="L331">        return checksumsByTest.entrySet().stream()</span>
+<span class="fc" id="L332">                .collect(java.util.stream.Collectors.toUnmodifiableMap(</span>
+<span class="fc" id="L333">                        Map.Entry::getKey, e -&gt; Map.copyOf(e.getValue())));</span>
     }
 
     /** Class names loaded before the first test's tracking window opened in this fork. */
     public Set&lt;String&gt; ambientDependencies() {
-<span class="nc" id="L338">        return Set.copyOf(ambientDependencies);</span>
+<span class="fc" id="L338">        return Set.copyOf(ambientDependencies);</span>
     }
 
     static Set&lt;Class&lt;?&gt;&gt; loadedClasses() {
@@ -357,31 +357,31 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
 <span class="fc" id="L357">    }</span>
 
     void recordNewHiddenClasses(TestIdentity test, Set&lt;Class&lt;?&gt;&gt; classesAtTestStart, Class&lt;?&gt;[] allLoadedClasses) {
-<span class="nc bnc" id="L360" title="All 2 branches missed.">        Set&lt;Class&lt;?&gt;&gt; baseline = classesAtTestStart == null ? Set.of() : classesAtTestStart;</span>
-<span class="nc bnc" id="L361" title="All 2 branches missed.">        for (Class&lt;?&gt; loadedClass : allLoadedClasses) {</span>
-<span class="nc bnc" id="L362" title="All 4 branches missed.">            if (loadedClass.isHidden() &amp;&amp; !baseline.contains(loadedClass)) {</span>
-<span class="nc" id="L363">                String sourceClassName = sourceClassName(loadedClass);</span>
-<span class="nc bnc" id="L364" title="All 2 branches missed.">                if (sourceClassName != null) {</span>
-<span class="nc" id="L365">                    checksumsByTest</span>
-<span class="nc" id="L366">                            .computeIfAbsent(test, ignored -&gt; new ConcurrentHashMap&lt;&gt;())</span>
-<span class="nc" id="L367">                            .putIfAbsent(sourceClassName, HIDDEN_CLASS_CHECKSUM);</span>
+<span class="pc bpc" id="L360" title="1 of 2 branches missed.">        Set&lt;Class&lt;?&gt;&gt; baseline = classesAtTestStart == null ? Set.of() : classesAtTestStart;</span>
+<span class="fc bfc" id="L361" title="All 2 branches covered.">        for (Class&lt;?&gt; loadedClass : allLoadedClasses) {</span>
+<span class="pc bpc" id="L362" title="2 of 4 branches missed.">            if (loadedClass.isHidden() &amp;&amp; !baseline.contains(loadedClass)) {</span>
+<span class="fc" id="L363">                String sourceClassName = sourceClassName(loadedClass);</span>
+<span class="pc bpc" id="L364" title="1 of 2 branches missed.">                if (sourceClassName != null) {</span>
+<span class="fc" id="L365">                    checksumsByTest</span>
+<span class="fc" id="L366">                            .computeIfAbsent(test, ignored -&gt; new ConcurrentHashMap&lt;&gt;())</span>
+<span class="fc" id="L367">                            .putIfAbsent(sourceClassName, HIDDEN_CLASS_CHECKSUM);</span>
                 }
             }
         }
-<span class="nc" id="L371">    }</span>
+<span class="fc" id="L371">    }</span>
 
     private static String sha256Hex(byte[] bytes) {
         byte[] hash;
-<span class="nc" id="L375">        synchronized (SHA_256) {</span>
-<span class="nc" id="L376">            hash = SHA_256.digest(bytes);</span>
-<span class="nc" id="L377">        }</span>
-<span class="nc" id="L378">        StringBuilder sb = new StringBuilder(hash.length * 2);</span>
-<span class="nc bnc" id="L379" title="All 2 branches missed.">        for (byte b : hash) {</span>
-<span class="nc" id="L380">            int unsigned = Byte.toUnsignedInt(b);</span>
-<span class="nc" id="L381">            sb.append(HEX_DIGITS[unsigned &gt;&gt;&gt; 4]);</span>
-<span class="nc" id="L382">            sb.append(HEX_DIGITS[unsigned &amp; 0x0f]);</span>
+<span class="fc" id="L375">        synchronized (SHA_256) {</span>
+<span class="fc" id="L376">            hash = SHA_256.digest(bytes);</span>
+<span class="fc" id="L377">        }</span>
+<span class="fc" id="L378">        StringBuilder sb = new StringBuilder(hash.length * 2);</span>
+<span class="fc bfc" id="L379" title="All 2 branches covered.">        for (byte b : hash) {</span>
+<span class="fc" id="L380">            int unsigned = Byte.toUnsignedInt(b);</span>
+<span class="fc" id="L381">            sb.append(HEX_DIGITS[unsigned &gt;&gt;&gt; 4]);</span>
+<span class="fc" id="L382">            sb.append(HEX_DIGITS[unsigned &amp; 0x0f]);</span>
         }
-<span class="nc" id="L384">        return sb.toString();</span>
+<span class="fc" id="L384">        return sb.toString();</span>
     }
 
     private static MessageDigest initializeSha256() {
@@ -393,9 +393,9 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
     }
 
     private static String sourceClassName(Class&lt;?&gt; hiddenClass) {
-<span class="nc" id="L396">        String hiddenName = hiddenClass.getName();</span>
-<span class="nc" id="L397">        int suffixSeparator = hiddenName.lastIndexOf('/');</span>
-<span class="nc bnc" id="L398" title="All 2 branches missed.">        return suffixSeparator &gt; 0 ? hiddenName.substring(0, suffixSeparator) : null;</span>
+<span class="fc" id="L396">        String hiddenName = hiddenClass.getName();</span>
+<span class="fc" id="L397">        int suffixSeparator = hiddenName.lastIndexOf('/');</span>
+<span class="pc bpc" id="L398" title="1 of 2 branches missed.">        return suffixSeparator &gt; 0 ? hiddenName.substring(0, suffixSeparator) : null;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

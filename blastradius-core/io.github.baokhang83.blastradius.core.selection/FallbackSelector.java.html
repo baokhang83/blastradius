@@ -12,11 +12,11 @@ import java.util.List;
 <span class="fc" id="L12">public final class FallbackSelector {</span>
 
     public boolean shouldFallback(List&lt;ChangedFile&gt; changedFiles) {
-<span class="pc bpc" id="L15" title="1 of 2 branches missed.">        return changedFiles.stream().anyMatch(f -&gt; f.kind() == FileKind.NON_SOURCE);</span>
+<span class="fc bfc" id="L15" title="All 2 branches covered.">        return changedFiles.stream().anyMatch(f -&gt; f.kind() == FileKind.NON_SOURCE);</span>
     }
 
     public SelectionDecision select(TestIdentity test) {
-<span class="nc" id="L19">        return SelectionDecision.fallback(test);</span>
+<span class="fc" id="L19">        return SelectionDecision.fallback(test);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

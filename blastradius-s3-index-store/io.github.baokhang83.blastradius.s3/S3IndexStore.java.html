@@ -15,33 +15,33 @@ public final class S3IndexStore&lt;T&gt; implements IndexStore&lt;T&gt;, AutoClo
     private final S3ObjectStore objects;
     private final String prefix;
     private final Class&lt;T&gt; valueType;
-<span class="nc" id="L18">    private final ObjectMapper mapper = new ObjectMapper();</span>
+<span class="fc" id="L18">    private final ObjectMapper mapper = new ObjectMapper();</span>
 
-<span class="nc" id="L20">    S3IndexStore(S3ObjectStore objects, String prefix, Class&lt;T&gt; valueType) {</span>
-<span class="nc" id="L21">        this.objects = objects;</span>
-<span class="nc" id="L22">        this.prefix = normalizePrefix(prefix);</span>
-<span class="nc" id="L23">        this.valueType = valueType;</span>
-<span class="nc" id="L24">    }</span>
+<span class="fc" id="L20">    S3IndexStore(S3ObjectStore objects, String prefix, Class&lt;T&gt; valueType) {</span>
+<span class="fc" id="L21">        this.objects = objects;</span>
+<span class="fc" id="L22">        this.prefix = normalizePrefix(prefix);</span>
+<span class="fc" id="L23">        this.valueType = valueType;</span>
+<span class="fc" id="L24">    }</span>
 
     @Override
     public Optional&lt;T&gt; get(String key) {
-<span class="nc" id="L28">        return objects.get(objectKey(key)).map(this::deserialize);</span>
+<span class="fc" id="L28">        return objects.get(objectKey(key)).map(this::deserialize);</span>
     }
 
     @Override
     public List&lt;String&gt; keys(String prefix) {
-<span class="nc" id="L33">        String objectPrefix = objectPrefix(prefix);</span>
-<span class="nc" id="L34">        return objects.keys(objectPrefix).stream().map(this::relativeKey).toList();</span>
+<span class="fc" id="L33">        String objectPrefix = objectPrefix(prefix);</span>
+<span class="fc" id="L34">        return objects.keys(objectPrefix).stream().map(this::relativeKey).toList();</span>
     }
 
     @Override
     public void put(String key, T value) {
         try {
-<span class="nc" id="L40">            objects.put(objectKey(key), mapper.writeValueAsBytes(value));</span>
+<span class="fc" id="L40">            objects.put(objectKey(key), mapper.writeValueAsBytes(value));</span>
 <span class="nc" id="L41">        } catch (IOException e) {</span>
 <span class="nc" id="L42">            throw new UncheckedIOException(&quot;failed to serialize dependency index&quot;, e);</span>
-<span class="nc" id="L43">        }</span>
-<span class="nc" id="L44">    }</span>
+<span class="fc" id="L43">        }</span>
+<span class="fc" id="L44">    }</span>
 
     @Override
     public void close() {
@@ -50,65 +50,65 @@ public final class S3IndexStore&lt;T&gt; implements IndexStore&lt;T&gt;, AutoClo
 
     private T deserialize(byte[] payload) {
         try {
-<span class="nc" id="L53">            T value = mapper.readValue(payload, valueType);</span>
-<span class="nc bnc" id="L54" title="All 2 branches missed.">            if (value == null) {</span>
+<span class="fc" id="L53">            T value = mapper.readValue(payload, valueType);</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">            if (value == null) {</span>
 <span class="nc" id="L55">                throw new IOException(&quot;index value must not be null&quot;);</span>
             }
-<span class="nc" id="L57">            return value;</span>
+<span class="fc" id="L57">            return value;</span>
 <span class="nc" id="L58">        } catch (IOException e) {</span>
 <span class="nc" id="L59">            throw new UncheckedIOException(&quot;failed to read dependency index from S3&quot;, e);</span>
         }
     }
 
     private String objectKey(String key) {
-<span class="nc bnc" id="L64" title="All 4 branches missed.">        if (key == null || key.isBlank()) {</span>
+<span class="pc bpc" id="L64" title="2 of 4 branches missed.">        if (key == null || key.isBlank()) {</span>
 <span class="nc" id="L65">            throw new IllegalArgumentException(&quot;index key must not be blank&quot;);</span>
         }
         try {
-<span class="nc" id="L68">            Path path = Path.of(key).normalize();</span>
-<span class="nc bnc" id="L69" title="All 6 branches missed.">            if (path.isAbsolute() || path.getNameCount() == 0 || path.startsWith(&quot;..&quot;)) {</span>
-<span class="nc" id="L70">                throw new IllegalArgumentException(&quot;index key must stay below the configured S3 prefix: &quot; + key);</span>
+<span class="fc" id="L68">            Path path = Path.of(key).normalize();</span>
+<span class="pc bpc" id="L69" title="1 of 6 branches missed.">            if (path.isAbsolute() || path.getNameCount() == 0 || path.startsWith(&quot;..&quot;)) {</span>
+<span class="fc" id="L70">                throw new IllegalArgumentException(&quot;index key must stay below the configured S3 prefix: &quot; + key);</span>
             }
-<span class="nc" id="L72">            String normalizedKey = path.toString().replace('\\', '/');</span>
-<span class="nc bnc" id="L73" title="All 2 branches missed.">            return prefix.isEmpty() ? normalizedKey : prefix + &quot;/&quot; + normalizedKey;</span>
+<span class="fc" id="L72">            String normalizedKey = path.toString().replace('\\', '/');</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">            return prefix.isEmpty() ? normalizedKey : prefix + &quot;/&quot; + normalizedKey;</span>
 <span class="nc" id="L74">        } catch (InvalidPathException e) {</span>
 <span class="nc" id="L75">            throw new IllegalArgumentException(&quot;invalid index key: &quot; + key, e);</span>
         }
     }
 
     private String objectPrefix(String relativePrefix) {
-<span class="nc bnc" id="L80" title="All 4 branches missed.">        if (relativePrefix == null || relativePrefix.isBlank()) {</span>
-<span class="nc" id="L81">            return prefix;</span>
+<span class="pc bpc" id="L80" title="1 of 4 branches missed.">        if (relativePrefix == null || relativePrefix.isBlank()) {</span>
+<span class="fc" id="L81">            return prefix;</span>
         }
-<span class="nc" id="L83">        return objectKey(relativePrefix);</span>
+<span class="fc" id="L83">        return objectKey(relativePrefix);</span>
     }
 
     private String relativeKey(String objectKey) {
-<span class="nc bnc" id="L87" title="All 2 branches missed.">        if (prefix.isEmpty()) {</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">        if (prefix.isEmpty()) {</span>
 <span class="nc" id="L88">            return objectKey;</span>
         }
-<span class="nc" id="L90">        String prefixWithSeparator = prefix + &quot;/&quot;;</span>
-<span class="nc bnc" id="L91" title="All 2 branches missed.">        if (!objectKey.startsWith(prefixWithSeparator)) {</span>
+<span class="fc" id="L90">        String prefixWithSeparator = prefix + &quot;/&quot;;</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">        if (!objectKey.startsWith(prefixWithSeparator)) {</span>
 <span class="nc" id="L92">            throw new IllegalArgumentException(&quot;S3 object key is outside the configured prefix: &quot; + objectKey);</span>
         }
-<span class="nc" id="L94">        return objectKey.substring(prefixWithSeparator.length());</span>
+<span class="fc" id="L94">        return objectKey.substring(prefixWithSeparator.length());</span>
     }
 
     private static String normalizePrefix(String prefix) {
-<span class="nc bnc" id="L98" title="All 4 branches missed.">        if (prefix == null || prefix.isBlank()) {</span>
+<span class="pc bpc" id="L98" title="2 of 4 branches missed.">        if (prefix == null || prefix.isBlank()) {</span>
 <span class="nc" id="L99">            return &quot;&quot;;</span>
         }
-<span class="nc" id="L101">        String normalized = prefix.replace('\\', '/');</span>
-<span class="nc bnc" id="L102" title="All 2 branches missed.">        while (normalized.startsWith(&quot;/&quot;)) {</span>
+<span class="fc" id="L101">        String normalized = prefix.replace('\\', '/');</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">        while (normalized.startsWith(&quot;/&quot;)) {</span>
 <span class="nc" id="L103">            normalized = normalized.substring(1);</span>
         }
-<span class="nc bnc" id="L105" title="All 2 branches missed.">        while (normalized.endsWith(&quot;/&quot;)) {</span>
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">        while (normalized.endsWith(&quot;/&quot;)) {</span>
 <span class="nc" id="L106">            normalized = normalized.substring(0, normalized.length() - 1);</span>
         }
-<span class="nc bnc" id="L108" title="All 8 branches missed.">        if (normalized.isBlank() || normalized.equals(&quot;.&quot;) || normalized.startsWith(&quot;../&quot;) || normalized.contains(&quot;/../&quot;)) {</span>
+<span class="pc bpc" id="L108" title="4 of 8 branches missed.">        if (normalized.isBlank() || normalized.equals(&quot;.&quot;) || normalized.startsWith(&quot;../&quot;) || normalized.contains(&quot;/../&quot;)) {</span>
 <span class="nc" id="L109">            throw new IllegalArgumentException(&quot;S3 prefix must not escape its bucket: &quot; + prefix);</span>
         }
-<span class="nc" id="L111">        return normalized;</span>
+<span class="fc" id="L111">        return normalized;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

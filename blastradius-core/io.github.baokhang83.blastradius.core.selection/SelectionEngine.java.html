@@ -39,16 +39,16 @@ import java.util.stream.Collectors;
             List&lt;ChangedFile&gt; changedFiles,
             Set&lt;String&gt; ambientDependencies) {
 
-<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        if (fallbackSelector.shouldFallback(changedFiles)) {</span>
-<span class="nc" id="L43">            return allTests.stream().map(fallbackSelector::select).toList();</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        if (fallbackSelector.shouldFallback(changedFiles)) {</span>
+<span class="fc" id="L43">            return allTests.stream().map(fallbackSelector::select).toList();</span>
         }
 
 <span class="fc" id="L46">        Set&lt;String&gt; changedClassNames = changedFiles.stream()</span>
 <span class="fc" id="L47">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
 <span class="fc" id="L48">                .collect(Collectors.toUnmodifiableSet());</span>
 
-<span class="pc bpc" id="L50" title="1 of 2 branches missed.">        if (ambientDependencySelector.shouldFallback(changedClassNames, ambientDependencies)) {</span>
-<span class="nc" id="L51">            return allTests.stream().map(ambientDependencySelector::select).toList();</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        if (ambientDependencySelector.shouldFallback(changedClassNames, ambientDependencies)) {</span>
+<span class="fc" id="L51">            return allTests.stream().map(ambientDependencySelector::select).toList();</span>
         }
 
 <span class="fc" id="L54">        List&lt;SelectionDecision&gt; decisions = new ArrayList&lt;&gt;();</span>

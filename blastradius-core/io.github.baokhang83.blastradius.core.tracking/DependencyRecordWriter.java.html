@@ -13,24 +13,24 @@ import java.util.Set;
  * {@link DependencyTrackingAgent#ambientDependencies()}) to a file, so a parent process can
  * read it back after the agent's subprocess JVM exits (research.md #1).
  */
-<span class="nc" id="L16">public final class DependencyRecordWriter {</span>
+<span class="fc" id="L16">public final class DependencyRecordWriter {</span>
 
-<span class="nc" id="L18">    private final ObjectMapper mapper = new ObjectMapper();</span>
+<span class="fc" id="L18">    private final ObjectMapper mapper = new ObjectMapper();</span>
 
     public void write(Path outputFile, Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; recordedDependencies) {
-<span class="nc" id="L21">        write(outputFile, recordedDependencies, Set.of());</span>
-<span class="nc" id="L22">    }</span>
+<span class="fc" id="L21">        write(outputFile, recordedDependencies, Set.of());</span>
+<span class="fc" id="L22">    }</span>
 
     public void write(Path outputFile, Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; recordedDependencies,
             Set&lt;String&gt; ambientDependencies) {
-<span class="nc" id="L26">        List&lt;DependencyRecord&gt; records = recordedDependencies.entrySet().stream()</span>
-<span class="nc" id="L27">                .map(entry -&gt; new DependencyRecord(entry.getKey(), entry.getValue()))</span>
-<span class="nc" id="L28">                .toList();</span>
+<span class="fc" id="L26">        List&lt;DependencyRecord&gt; records = recordedDependencies.entrySet().stream()</span>
+<span class="fc" id="L27">                .map(entry -&gt; new DependencyRecord(entry.getKey(), entry.getValue()))</span>
+<span class="fc" id="L28">                .toList();</span>
         try {
-<span class="nc" id="L30">            mapper.writeValue(outputFile.toFile(), new DependencyRecordFile(records, ambientDependencies));</span>
+<span class="fc" id="L30">            mapper.writeValue(outputFile.toFile(), new DependencyRecordFile(records, ambientDependencies));</span>
 <span class="nc" id="L31">        } catch (IOException e) {</span>
 <span class="nc" id="L32">            throw new UncheckedIOException(&quot;failed to write dependency record to &quot; + outputFile, e);</span>
-<span class="nc" id="L33">        }</span>
-<span class="nc" id="L34">    }</span>
+<span class="fc" id="L33">        }</span>
+<span class="fc" id="L34">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

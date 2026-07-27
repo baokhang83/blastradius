@@ -22,7 +22,7 @@ import org.junit.platform.launcher.TestIdentifier;
 
     /** The test currently executing on this thread, or {@code null} if none. */
     public static TestIdentity currentTest() {
-<span class="nc" id="L25">        return CURRENT_TEST.get();</span>
+<span class="fc" id="L25">        return CURRENT_TEST.get();</span>
     }
 
     @Override
@@ -47,7 +47,7 @@ import org.junit.platform.launcher.TestIdentifier;
     public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult testExecutionResult) {
 <span class="fc bfc" id="L48" title="All 2 branches covered.">        if (testIdentifier.isTest()) {</span>
 <span class="fc" id="L49">            TestIdentity currentTest = CURRENT_TEST.get();</span>
-<span class="pc bpc" id="L50" title="1 of 2 branches missed.">            if (currentTest != null) {</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">            if (currentTest != null) {</span>
 <span class="fc" id="L51">                DependencyTrackingAgent.recordHiddenClassesLoadedSince(</span>
 <span class="fc" id="L52">                        currentTest, CLASSES_AT_TEST_START.get());</span>
             }

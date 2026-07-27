@@ -23,8 +23,8 @@ public final class CommitIndexKey {
      * @return a slash-separated, root-relative key for that commit
      */
     public static String forCommit(String indexPathKey, String commit) {
-<span class="pc bpc" id="L26" title="2 of 4 branches missed.">        if (commit == null || !FULL_COMMIT_ID.matcher(commit).matches()) {</span>
-<span class="nc" id="L27">            throw new IllegalArgumentException(&quot;commit must be a full Git object ID: &quot; + commit);</span>
+<span class="pc bpc" id="L26" title="1 of 4 branches missed.">        if (commit == null || !FULL_COMMIT_ID.matcher(commit).matches()) {</span>
+<span class="fc" id="L27">            throw new IllegalArgumentException(&quot;commit must be a full Git object ID: &quot; + commit);</span>
         }
 <span class="fc" id="L29">        Path indexPath = relativeIndexPath(indexPathKey);</span>
 <span class="fc" id="L30">        List&lt;String&gt; parts = new ArrayList&lt;&gt;();</span>
@@ -42,12 +42,12 @@ public final class CommitIndexKey {
 <span class="fc" id="L42">        Path keyPath = relativeIndexPath(indexKey);</span>
 <span class="fc" id="L43">        Path indexParent = indexPath.getParent();</span>
 <span class="fc" id="L44">        Path keyParent = keyPath.getParent();</span>
-<span class="pc bpc" id="L45" title="2 of 4 branches missed.">        if (keyParent == null || !keyPath.getFileName().equals(indexPath.getFileName())) {</span>
-<span class="nc" id="L46">            return Optional.empty();</span>
+<span class="pc bpc" id="L45" title="1 of 4 branches missed.">        if (keyParent == null || !keyPath.getFileName().equals(indexPath.getFileName())) {</span>
+<span class="fc" id="L46">            return Optional.empty();</span>
         }
 <span class="fc" id="L48">        Path keyGrandparent = keyParent.getParent();</span>
-<span class="pc bpc" id="L49" title="4 of 6 branches missed.">        if (indexParent == null ? keyGrandparent != null : !indexParent.equals(keyGrandparent)) {</span>
-<span class="nc" id="L50">            return Optional.empty();</span>
+<span class="pc bpc" id="L49" title="3 of 6 branches missed.">        if (indexParent == null ? keyGrandparent != null : !indexParent.equals(keyGrandparent)) {</span>
+<span class="fc" id="L50">            return Optional.empty();</span>
         }
 <span class="fc" id="L52">        String commit = keyParent.getFileName().toString();</span>
 <span class="pc bpc" id="L53" title="1 of 2 branches missed.">        return FULL_COMMIT_ID.matcher(commit).matches() ? Optional.of(commit.toLowerCase(Locale.ROOT)) : Optional.empty();</span>

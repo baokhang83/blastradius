@@ -37,7 +37,7 @@ public record SelectionDecision(
     }
 
     public static SelectionDecision fallbackAmbientDependency(TestIdentity test) {
-<span class="nc" id="L40">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_AMBIENT_DEPENDENCY, null);</span>
+<span class="fc" id="L40">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_AMBIENT_DEPENDENCY, null);</span>
     }
 
     public static SelectionDecision newOrModifiedTest(TestIdentity test) {

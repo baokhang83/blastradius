@@ -14,11 +14,11 @@ import java.util.Set;
 <span class="fc" id="L14">public final class AmbientDependencySelector {</span>
 
     public boolean shouldFallback(Set&lt;String&gt; changedClassNames, Set&lt;String&gt; ambientDependencies) {
-<span class="pc bpc" id="L17" title="1 of 2 branches missed.">        return !Collections.disjoint(changedClassNames, ambientDependencies);</span>
+<span class="fc bfc" id="L17" title="All 2 branches covered.">        return !Collections.disjoint(changedClassNames, ambientDependencies);</span>
     }
 
     public SelectionDecision select(TestIdentity test) {
-<span class="nc" id="L21">        return SelectionDecision.fallbackAmbientDependency(test);</span>
+<span class="fc" id="L21">        return SelectionDecision.fallbackAmbientDependency(test);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
