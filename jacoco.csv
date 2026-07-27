@@ -32,8 +32,9 @@ coverage/blastradius-s3-index-store,io.github.baokhang83.blastradius.s3,AwsS3Obj
 coverage/blastradius-s3-index-store,io.github.baokhang83.blastradius.s3,S3IndexStoreFactory,37,0,2,0,7,0,2,0,1,0
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,PairStatus,0,15,0,0,0,3,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,CommitWindowResolver,17,102,3,7,3,23,2,5,0,2
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,CommitCheckout.new SimpleFileVisitor() {...},0,23,0,4,0,8,0,4,0,2
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,CommitPair,0,59,0,0,0,10,0,3,0,3
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,CommitCheckout,19,75,0,2,6,25,0,7,0,6
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,CommitCheckout,29,80,1,1,9,27,1,7,0,7
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,Main,169,0,21,0,42,0,15,0,3,0
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand.PairAnalysis,0,15,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunConfig,0,66,0,8,0,12,0,5,0,1
