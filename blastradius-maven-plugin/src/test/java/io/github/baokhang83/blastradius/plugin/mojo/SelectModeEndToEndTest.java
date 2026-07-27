@@ -64,6 +64,75 @@ class SelectModeEndToEndTest {
     }
 
     @Test
+    void narrowsSelectionForAClassThatJUnitLoadedBeforeTheFirstTest(@TempDir Path projectDir) throws Exception {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        fixture.writeClass("com.example.DiscoveryLoadedDependency", """
+                package com.example;
+                public final class DiscoveryLoadedDependency {
+                    public static final String VALUE = new String("tracked");
+                }
+                """);
+        fixture.writeTest("com.example.DiscoveryLoadedDependencyTest", """
+                package com.example;
+                import org.junit.jupiter.api.BeforeAll;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class DiscoveryLoadedDependencyTest {
+                    @BeforeAll static void preloadBeforeAnyTestBoundary() {
+                        assertEquals("tracked", DiscoveryLoadedDependency.VALUE);
+                    }
+                    @Test void readsThePreloadedDependency() {
+                        assertEquals("tracked", DiscoveryLoadedDependency.VALUE);
+                    }
+                }
+                """);
+        fixture.writeClass("com.example.Unrelated", """
+                package com.example;
+                public final class Unrelated { public static int value() { return 7; } }
+                """);
+        fixture.writeTest("com.example.UnrelatedTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class UnrelatedTest {
+                    @Test void remainsIndependent() { assertEquals(7, Unrelated.value()); }
+                }
+                """);
+        String initialCommit = fixture.commit("initial");
+
+        DependencyIndex trackedIndex = EndToEndTestSupport.trackDependencies(projectDir, initialCommit);
+        fixture.addBuildPlugin(null, EndToEndTestSupport.pluginXml("baseline"));
+        String anchorCommit = fixture.commit("bind selection plugin");
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.branchCreate().setName("baseline").setStartPoint(anchorCommit).call();
+            git.checkout().setCreateBranch(true).setName("feature").call();
+        }
+        fixture.writeClass("com.example.DiscoveryLoadedDependency", """
+                package com.example;
+                public final class DiscoveryLoadedDependency {
+                    public static final String VALUE = String.join("", "tr", "acked");
+                }
+                """);
+        fixture.commit("change discovery-loaded dependency");
+        // The persisted index is a CI workspace artifact, not a source change. Write it after
+        // committing the feature change so the fixture's broad git-add cannot classify it as
+        // a non-source change and deliberately trigger the safety fallback.
+        EndToEndTestSupport.writeIndex(projectDir, new DependencyIndex(
+                anchorCommit,
+                trackedIndex.builtAt(),
+                trackedIndex.testDependencies(),
+                trackedIndex.ambientDependencies()));
+
+        String output = EndToEndTestSupport.runMvnTest(projectDir);
+
+        assertTrue(output.contains("BUILD SUCCESS"), "expected the build to succeed:\n" + output);
+        assertTrue(output.contains("Running com.example.DiscoveryLoadedDependencyTest"),
+                "expected the runtime consumer to run:\n" + output);
+        assertFalse(output.contains("Running com.example.UnrelatedTest"),
+                "expected the independent test to be skipped:\n" + output);
+    }
+
+    @Test
     void kotlinFileFacadeChangeSelectsOnlyItsTrackedKotlinTest(@TempDir Path projectDir) throws Exception {
         FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
         fixture.enableKotlin();

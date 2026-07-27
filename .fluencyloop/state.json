@@ -1,8 +1,8 @@
 {
-  "feature": "surface-a-distinct-reason-when-the-stale-baseline-fallback-s",
-  "branch": "feature/surface-a-distinct-reason-when-the-stale-baseline-fallback-s",
+  "feature": "narrow-ambient-dependency-fallback-to-statically-identified",
+  "branch": "feature/narrow-ambient-dependency-fallback-to-statically-identified",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/surface-a-distinct-reason-when-the-stale-baseline-fallback-s/sessions/surface-format-version-mismatch-instead-of-bare-missing-and.md",
+  "last_session": "docs/fluencyloop/features/narrow-ambient-dependency-fallback-to-statically-identified/sessions/attribute-discovery-loaded-project-classes-by-runtime-execut.md",
   "base_ref": "main",
   "updated": "2026-07-27"
 }

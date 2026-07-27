@@ -1,5 +1,6 @@
 package io.github.baokhang83.blastradius.core.tracking;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -120,6 +121,48 @@ class DependencyTrackingIntegrationTest {
 
         assertTrue(recorded.containsKey(emptyTest),
                 "an executed test must have a baseline even without application class loads: " + recorded.keySet());
+    }
+
+    @Test
+    void executionOfAClassLoadedBeforeTheFirstTestIsAttributedToThatTest(
+            @TempDir Path projectDir, @TempDir Path outDir) throws Exception {
+        Path agentJar = findOwnAgentJar();
+        Path recordFile = outDir.resolve("deps.json");
+
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        fixture.addSystemDependency(null, agentJar);
+        fixture.writeClass("com.example.DiscoveryLoadedDependency", """
+                package com.example;
+                public final class DiscoveryLoadedDependency {
+                    public static final String VALUE = new String("tracked");
+                }
+                """);
+        fixture.writeTest("com.example.DiscoveryLoadedDependencyTest", """
+                package com.example;
+                import org.junit.jupiter.api.BeforeAll;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class DiscoveryLoadedDependencyTest {
+                    @BeforeAll static void preloadBeforeAnyTestBoundary() {
+                        assertEquals("tracked", DiscoveryLoadedDependency.VALUE);
+                    }
+                    @Test void readsThePreloadedDependency() {
+                        assertEquals("tracked", DiscoveryLoadedDependency.VALUE);
+                    }
+                }
+                """);
+        fixture.commit("initial");
+
+        runMvnTest(projectDir, agentJar, recordFile);
+
+        DependencyRecordSet recorded = new DependencyRecordReader().readAll(recordFile);
+        TestIdentity test = new TestIdentity(
+                "com.example.DiscoveryLoadedDependencyTest", "readsThePreloadedDependency");
+
+        assertTrue(recorded.tests().get(test).containsKey("com.example.DiscoveryLoadedDependency"),
+                "runtime field use after discovery must be attributed: " + recorded.tests().get(test));
+        assertFalse(recorded.ambientDependencies().contains("com.example.DiscoveryLoadedDependency"),
+                "a successfully instrumented project class must not keep the global ambient fallback");
     }
 
     @Test

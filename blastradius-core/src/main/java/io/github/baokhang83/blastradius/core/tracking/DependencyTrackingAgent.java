@@ -2,6 +2,8 @@ package io.github.baokhang83.blastradius.core.tracking;
 
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -18,11 +20,12 @@ import java.util.stream.Collectors;
  * A {@code -javaagent} that observes every class loaded in the JVM it's attached to,
  * attributes each load to the currently-executing test (via the injected supplier — in
  * production, {@link TestBoundaryListener#currentTest()}), and records the class name with a
- * SHA-256 checksum of the loaded bytecode. Bytecode is never modified — {@link #transform}
- * always returns {@code null}. Classes loaded while no test is running (JVM/Surefire bootstrap,
- * etc.) are not attributable to anything and are not recorded. Hidden classes are not class-loader
- * definitions, so the listener uses the agent's loaded-class list at test boundaries to record
- * their stable source name. The persisted selection index consumes class names only.
+ * SHA-256 checksum of the loaded bytecode. A project class that discovery loaded before the first
+ * test can be retransformed with runtime-use callbacks, so its later execution is attributed to
+ * the test that actually uses it. Classes loaded while no test is running (JVM/Surefire bootstrap,
+ * etc.) are retained as ambient when they cannot be safely instrumented. Hidden classes are not
+ * class-loader definitions, so the listener uses the agent's loaded-class list at test boundaries
+ * to record their stable source name. The persisted selection index consumes class names only.
  */
 public final class DependencyTrackingAgent implements ClassFileTransformer {
 
@@ -48,6 +51,10 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
     private final Supplier<TestIdentity> currentTestSupplier;
     private final Map<TestIdentity, Map<String, String>> checksumsByTest = new ConcurrentHashMap<>();
     private final Set<String> ambientDependencies = ConcurrentHashMap.newKeySet();
+    private final Set<String> pendingAmbientRetransformations = ConcurrentHashMap.newKeySet();
+    private final Set<String> transformedAmbientClasses = ConcurrentHashMap.newKeySet();
+    private final Map<String, String> ambientChecksums = new ConcurrentHashMap<>();
+    private final AmbientClassInstrumenter ambientClassInstrumenter = new AmbientClassInstrumenter();
     private final AtomicBoolean ambientSnapshotTaken = new AtomicBoolean(false);
 
     public DependencyTrackingAgent() {
@@ -82,7 +89,7 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         DependencyTrackingAgent agent = new DependencyTrackingAgent();
         installedAgent = agent;
         instrumentation = inst;
-        inst.addTransformer(agent);
+        inst.addTransformer(agent, true);
         if (agentArgs != null && !agentArgs.isBlank()) {
             Path outputFile = Path.of(agentArgs + "." + ProcessHandle.current().pid());
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -101,6 +108,21 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
             return null;
         }
 
+        String dottedClassName = className.replace('/', '.');
+        if (classBeingRedefined != null && pendingAmbientRetransformations.contains(dottedClassName)) {
+            try {
+                byte[] instrumented = ambientClassInstrumenter.instrument(dottedClassName, classfileBuffer);
+                if (instrumented != null) {
+                    ambientChecksums.put(dottedClassName, sha256Hex(classfileBuffer));
+                    transformedAmbientClasses.add(dottedClassName);
+                }
+                return instrumented;
+            } catch (RuntimeException ignored) {
+                // An uninstrumentable discovery-loaded class stays ambient and therefore safe.
+                return null;
+            }
+        }
+
         TestIdentity currentTest = currentTestSupplier.get();
         if (currentTest == null) {
             return null;
@@ -110,7 +132,7 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         try {
             checksumsByTest
                     .computeIfAbsent(currentTest, ignored -> new ConcurrentHashMap<>())
-                    .put(className.replace('/', '.'), sha256Hex(classfileBuffer));
+                    .put(dottedClassName, sha256Hex(classfileBuffer));
         } finally {
             RECORDING_CLASS_LOAD.remove();
         }
@@ -154,9 +176,73 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
 
     void snapshotAmbientDependencies() {
         if (ambientSnapshotTaken.compareAndSet(false, true)) {
-            for (Class<?> loadedClass : loadedClasses()) {
+            Set<Class<?>> loadedClasses = loadedClasses();
+            for (Class<?> loadedClass : loadedClasses) {
                 ambientDependencies.add(loadedClass.getName());
             }
+            retransformProjectAmbientClasses(loadedClasses);
+        }
+    }
+
+    /** Called from bytecode injected into an already-loaded project class. */
+    public static void recordAmbientExecution(String className) {
+        DependencyTrackingAgent currentAgent = installedAgent;
+        if (currentAgent != null) {
+            currentAgent.recordAmbientExecutionForCurrentTest(className);
+        }
+    }
+
+    private void recordAmbientExecutionForCurrentTest(String className) {
+        TestIdentity currentTest = currentTestSupplier.get();
+        String checksum = ambientChecksums.get(className);
+        if (currentTest != null && checksum != null) {
+            checksumsByTest
+                    .computeIfAbsent(currentTest, ignored -> new ConcurrentHashMap<>())
+                    .putIfAbsent(className, checksum);
+        }
+    }
+
+    private void retransformProjectAmbientClasses(Set<Class<?>> loadedClasses) {
+        Instrumentation currentInstrumentation = instrumentation;
+        if (currentInstrumentation == null || !currentInstrumentation.isRetransformClassesSupported()) {
+            return;
+        }
+        for (Class<?> loadedClass : loadedClasses) {
+            if (!isProjectClassOutput(loadedClass) || !currentInstrumentation.isModifiableClass(loadedClass)) {
+                continue;
+            }
+            String className = loadedClass.getName();
+            pendingAmbientRetransformations.add(className);
+            try {
+                currentInstrumentation.retransformClasses(loadedClass);
+                if (transformedAmbientClasses.remove(className)) {
+                    ambientDependencies.remove(className);
+                }
+            } catch (Exception | LinkageError ignored) {
+                // Retain the ambient class so selection continues to use its safe fallback.
+            } finally {
+                pendingAmbientRetransformations.remove(className);
+            }
+        }
+    }
+
+    private static boolean isProjectClassOutput(Class<?> loadedClass) {
+        if (loadedClass.isArray() || loadedClass.isPrimitive() || loadedClass.getProtectionDomain() == null
+                || loadedClass.getProtectionDomain().getCodeSource() == null) {
+            return false;
+        }
+        try {
+            URI location = loadedClass.getProtectionDomain().getCodeSource().getLocation().toURI();
+            if (!"file".equals(location.getScheme())) {
+                return false;
+            }
+            String path = Path.of(location).normalize().toString().replace('\\', '/');
+            return path.endsWith("/target/classes")
+                    || path.endsWith("/target/test-classes")
+                    || path.endsWith("/build/classes/java/main")
+                    || path.endsWith("/build/classes/java/test");
+        } catch (URISyntaxException | IllegalArgumentException ignored) {
+            return false;
         }
     }
 
