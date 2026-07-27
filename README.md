@@ -14,9 +14,12 @@
 <a target="_blank" href="https://github.com/baokhang83/blastradius/actions/workflows/build.yml">
    <img src="https://github.com/baokhang83/blastradius/actions/workflows/build.yml/badge.svg" />
 </a>
-
-[![Top language](https://img.shields.io/github/languages/top/baokhang83/blastradius?cacheSeconds=86400)](https://github.com/baokhang83/blastradius)
-[![coverage](https://raw.githubusercontent.com/baokhang83/blastradius/refs/heads/gh-pages/badges/jacoco.svg)](https://baokhang83.github.io/blastradius/)
+<a target="_blank" href="https://github.com/baokhang83/blastradius">
+   <img src="https://img.shields.io/github/languages/top/baokhang83/blastradius?cacheSeconds=86400" />
+</a>
+<a target="_blank" href="https://github.com/baokhang83/blastradius">
+   <img src="https://raw.githubusercontent.com/baokhang83/blastradius/refs/heads/gh-pages/badges/jacoco.svg" />
+</a>
 
 Most "test impact analysis" tools guess from a static, per-module dependency graph, or
 train something probabilistic on historical flakiness. Blastradius does neither: a
