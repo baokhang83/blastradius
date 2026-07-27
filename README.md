@@ -11,7 +11,10 @@
 <a target="_blank" href="https://www.oracle.com/technetwork/java/javase/downloads/index.html">
    <img src="https://img.shields.io/badge/JDK-21+-green.svg" />
 </a>
-[![build](https://github.com/baokhang83/blastradius/actions/workflows/build.yml/badge.svg)](https://github.com/baokhang83/blastradius/actions/workflows/build.yml)
+<a target="_blank" href="https://github.com/baokhang83/blastradius/actions/workflows/build.yml">
+   <img src="https://github.com/baokhang83/blastradius/actions/workflows/build.yml/badge.svg" />
+</a>
+
 [![Top language](https://img.shields.io/github/languages/top/baokhang83/blastradius?cacheSeconds=86400)](https://github.com/baokhang83/blastradius)
 [![coverage](https://raw.githubusercontent.com/baokhang83/blastradius/refs/heads/gh-pages/badges/jacoco.svg)](https://baokhang83.github.io/blastradius/)
 
