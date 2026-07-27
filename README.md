@@ -2,10 +2,25 @@
 
 # Blastradius
 
-[![build](https://github.com/baokhang83/blastradius/actions/workflows/build.yml/badge.svg)](https://github.com/baokhang83/blastradius/actions/workflows/build.yml)
-[![License](https://img.shields.io/github/license/baokhang83/blastradius)](LICENSE)
-[![Top language](https://img.shields.io/github/languages/top/baokhang83/blastradius?cacheSeconds=86400)](https://github.com/baokhang83/blastradius)
-[![coverage](https://raw.githubusercontent.com/baokhang83/blastradius/refs/heads/gh-pages/badges/jacoco.svg)](https://baokhang83.github.io/blastradius/)
+<a href="https://shenyu.apache.org/docs/">
+  <img src="https://img.shields.io/badge/document-English-blue.svg" alt="EN docs" />
+</a>
+<a target="_blank" href="https://central.sonatype.com/search?q=g:io.github.baokhang83.blastradius%20%20a:blastradius-maven-plugin">
+    <img src="https://img.shields.io/maven-central/v/io.github.baokhang83.blastradius/blastradius-maven-plugin.svg?label=maven%20central" />
+</a>
+<a target="_blank" href="https://www.oracle.com/technetwork/java/javase/downloads/index.html">
+   <img src="https://img.shields.io/badge/JDK-21+-green.svg" />
+</a>
+<a target="_blank" href="https://github.com/baokhang83/blastradius/actions/workflows/build.yml">
+   <img src="https://github.com/baokhang83/blastradius/actions/workflows/build.yml/badge.svg" />
+</a>
+<a target="_blank" href="https://github.com/baokhang83/blastradius">
+   <img src="https://img.shields.io/github/languages/top/baokhang83/blastradius?cacheSeconds=86400" />
+</a>
+<a target="_blank" href="https://github.com/baokhang83/blastradius">
+   <img src="https://raw.githubusercontent.com/baokhang83/blastradius/refs/heads/gh-pages/badges/jacoco.svg" />
+</a>
+
 
 Most "test impact analysis" tools guess from a static, per-module dependency graph, or
 train something probabilistic on historical flakiness. Blastradius does neither: a
