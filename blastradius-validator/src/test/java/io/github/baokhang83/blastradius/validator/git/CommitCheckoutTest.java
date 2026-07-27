@@ -96,6 +96,40 @@ class CommitCheckoutTest {
         }
     }
 
+    /**
+     * The gap {@link #checkoutClearsStaleTargetDirectoryFromThePreviousCommit} didn't cover:
+     * in a multi-module reactor, a build can fail in one module before ever reaching another
+     * that a prior commit successfully tested — leaving that other module's own
+     * {@code target/} stale even though the reactor root's was cleared. Found running the
+     * validator against apache/shenyu, a real multi-module project.
+     */
+    @Test
+    void checkoutClearsStaleTargetDirectoriesInEverySubmoduleNotJustTheReactorRoot(
+            @TempDir Path targetDir, @TempDir Path scratchParent) throws Exception {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.twoModuleReactor(targetDir);
+        String c1 = fixture.commit("initial");
+        fixture.writeClass("com.example.Bar", "package com.example; class Bar {}");
+        String c2 = fixture.commit("add Bar");
+
+        try (CommitCheckout checkout = CommitCheckout.forTargetProject(targetDir, scratchParent)) {
+            Path atC1 = checkout.checkoutCommit(c1);
+            Path staleReport =
+                    atC1.resolve("moduleB/target/surefire-reports/TEST-com.example.OldTest.xml");
+            Files.createDirectories(staleReport.getParent());
+            Files.writeString(staleReport, "<testsuite/>", StandardCharsets.UTF_8);
+            assertTrue(Files.exists(staleReport), "sanity check: stale report was actually created");
+
+            Path atC2 = checkout.checkoutCommit(c2);
+
+            assertTrue(
+                    Files.notExists(
+                            atC2.resolve("moduleB/target/surefire-reports/TEST-com.example.OldTest.xml")),
+                    "a stale test report from the previous commit's build must not survive a checkout "
+                            + "of a different commit, even when it lives in a submodule rather than "
+                            + "the reactor root");
+        }
+    }
+
     @Test
     void checkingOutMultipleCommitsSequentiallyReusesTheSameScratchClone(
             @TempDir Path targetDir, @TempDir Path scratchParent) throws Exception {
