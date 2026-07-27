@@ -5,6 +5,7 @@ import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
@@ -16,31 +17,31 @@ import org.eclipse.jgit.revwalk.RevWalk;
  * anchorCommit} is no longer reachable in the project's git history (e.g. after a history
  * rewrite), all fall back rather than risk an unsound selection (FR-007).
  */
-<span class="fc" id="L19">public final class IndexApplicabilityResolver {</span>
+<span class="fc" id="L20">public final class IndexApplicabilityResolver {</span>
 
     public IndexApplicability resolve(
             IndexStore&lt;DependencyIndex&gt; store, String indexKey, String expectedAnchorCommit, Path projectDir) {
         DependencyIndex index;
         try {
-<span class="fc" id="L25">            index = store.get(indexKey).orElse(null);</span>
-<span class="fc" id="L26">        } catch (UncheckedIOException e) {</span>
-<span class="fc" id="L27">            return IndexApplicability.unreadable();</span>
-<span class="fc" id="L28">        }</span>
-<span class="fc bfc" id="L29" title="All 2 branches covered.">        if (index == null) {</span>
-<span class="fc" id="L30">            return IndexApplicability.missing();</span>
+<span class="fc" id="L26">            index = store.get(indexKey).orElse(null);</span>
+<span class="fc" id="L27">        } catch (UncheckedIOException e) {</span>
+<span class="fc" id="L28">            return IndexApplicability.unreadable();</span>
+<span class="fc" id="L29">        }</span>
+<span class="fc bfc" id="L30" title="All 2 branches covered.">        if (index == null) {</span>
+<span class="fc" id="L31">            return IndexApplicability.missing();</span>
         }
-<span class="fc bfc" id="L32" title="All 2 branches covered.">        if (!index.hasCurrentFormat()) {</span>
-<span class="fc" id="L33">            return IndexApplicability.formatVersionMismatch();</span>
-        }
-
-<span class="fc bfc" id="L36" title="All 2 branches covered.">        if (!anchorIsReachable(index.anchorCommit(), projectDir)) {</span>
-<span class="fc" id="L37">            return IndexApplicability.anchorUnreachable();</span>
-        }
-<span class="fc bfc" id="L39" title="All 2 branches covered.">        if (!index.anchorCommit().equals(expectedAnchorCommit)) {</span>
-<span class="fc" id="L40">            return IndexApplicability.anchorMismatch();</span>
+<span class="fc bfc" id="L33" title="All 2 branches covered.">        if (!index.hasCurrentFormat()) {</span>
+<span class="fc" id="L34">            return IndexApplicability.formatVersionMismatch();</span>
         }
 
-<span class="fc" id="L43">        return IndexApplicability.applicable(index);</span>
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        if (!anchorIsReachable(index.anchorCommit(), projectDir)) {</span>
+<span class="fc" id="L38">            return IndexApplicability.anchorUnreachable();</span>
+        }
+<span class="fc bfc" id="L40" title="All 2 branches covered.">        if (!index.anchorCommit().equals(expectedAnchorCommit)) {</span>
+<span class="fc" id="L41">            return IndexApplicability.anchorMismatch();</span>
+        }
+
+<span class="fc" id="L44">        return IndexApplicability.applicable(index);</span>
     }
 
     /**
@@ -55,78 +56,99 @@ import org.eclipse.jgit.revwalk.RevWalk;
             String expectedAnchorCommit,
             String currentCommit,
             Path projectDir) {
-<span class="fc" id="L58">        IndexApplicability exact = resolve(store, exactIndexKey, expectedAnchorCommit, projectDir);</span>
-<span class="pc bpc" id="L59" title="1 of 2 branches missed.">        if (exact.status() != IndexApplicability.Status.MISSING) {</span>
-<span class="nc" id="L60">            return exact;</span>
+<span class="fc" id="L59">        IndexApplicability exact = resolve(store, exactIndexKey, expectedAnchorCommit, projectDir);</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">        if (exact.status() != IndexApplicability.Status.MISSING) {</span>
+<span class="nc" id="L61">            return exact;</span>
         }
 
         try {
-<span class="fc" id="L64">            return store.keys(parentPrefix(indexPathKey)).stream()</span>
-<span class="fc" id="L65">                    .map(key -&gt; CommitIndexKey.commitFromKey(indexPathKey, key)</span>
-<span class="fc" id="L66">                            .flatMap(commit -&gt; readCandidate(store, key, commit, currentCommit, projectDir)))</span>
-<span class="fc" id="L67">                    .flatMap(Optional::stream)</span>
-<span class="fc" id="L68">                .min(Comparator.comparingInt(Candidate::distanceFromHead))</span>
-<span class="fc" id="L69">                    .map(candidate -&gt; IndexApplicability.staleBaseline(candidate.index()))</span>
-<span class="fc" id="L70">                    .orElseGet(IndexApplicability::missing);</span>
-<span class="nc" id="L71">        } catch (UncheckedIOException e) {</span>
-<span class="nc" id="L72">            return IndexApplicability.unreadable();</span>
+<span class="fc" id="L65">            List&lt;KeyEvaluation&gt; evaluations = store.keys(parentPrefix(indexPathKey)).stream()</span>
+<span class="fc" id="L66">                    .map(key -&gt; CommitIndexKey.commitFromKey(indexPathKey, key)</span>
+<span class="fc" id="L67">                            .map(commit -&gt; evaluate(store, key, commit, currentCommit, projectDir)))</span>
+<span class="fc" id="L68">                    .flatMap(Optional::stream)</span>
+<span class="fc" id="L69">                    .toList();</span>
+
+<span class="fc" id="L71">            return evaluations.stream()</span>
+<span class="fc" id="L72">                    .flatMap(evaluation -&gt; evaluation.candidate().stream())</span>
+<span class="fc" id="L73">                    .min(Comparator.comparingInt(Candidate::distanceFromHead))</span>
+<span class="fc" id="L74">                    .map(candidate -&gt; IndexApplicability.staleBaseline(candidate.index()))</span>
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">                    .orElseGet(() -&gt; evaluations.stream().anyMatch(KeyEvaluation::formatIncompatible)</span>
+<span class="fc" id="L76">                            ? IndexApplicability.formatVersionMismatch()</span>
+<span class="nc" id="L77">                            : IndexApplicability.missing());</span>
+<span class="nc" id="L78">        } catch (UncheckedIOException e) {</span>
+<span class="nc" id="L79">            return IndexApplicability.unreadable();</span>
         }
     }
 
-    private static Optional&lt;Candidate&gt; readCandidate(IndexStore&lt;DependencyIndex&gt; store, String key, String keyCommit,
+    /**
+     * Evaluates one enumerated candidate key, distinguishing &quot;this key just doesn't
+     * qualify&quot; (empty candidate) from *why* — a format-incompatible index still means an
+     * index was found, which is more informative than the enumeration coming up
+     * completely empty (Constitution §V, Explainability): a stale baseline whose only
+     * candidate predates a format-version bump on {@code main} should say so, not report
+     * bare {@code MISSING} as if nothing had ever been cached.
+     */
+    private static KeyEvaluation evaluate(IndexStore&lt;DependencyIndex&gt; store, String key, String keyCommit,
             String currentCommit, Path projectDir) {
-<span class="fc" id="L78">        DependencyIndex index = store.get(key).orElse(null);</span>
-<span class="pc bpc" id="L79" title="3 of 6 branches missed.">        if (index == null || !index.hasCurrentFormat() || !index.anchorCommit().equals(keyCommit)) {</span>
-<span class="nc" id="L80">            return Optional.empty();</span>
+<span class="fc" id="L93">        DependencyIndex index = store.get(key).orElse(null);</span>
+<span class="pc bpc" id="L94" title="2 of 4 branches missed.">        if (index == null || !index.anchorCommit().equals(keyCommit)) {</span>
+<span class="nc" id="L95">            return new KeyEvaluation(Optional.empty(), false);</span>
         }
-<span class="fc" id="L82">        return distanceFromHead(index.anchorCommit(), currentCommit, projectDir)</span>
-<span class="fc" id="L83">                .map(distance -&gt; new Candidate(index, distance));</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        if (!index.hasCurrentFormat()) {</span>
+<span class="fc" id="L98">            return new KeyEvaluation(Optional.empty(), true);</span>
+        }
+<span class="fc" id="L100">        Optional&lt;Candidate&gt; candidate = distanceFromHead(index.anchorCommit(), currentCommit, projectDir)</span>
+<span class="fc" id="L101">                .map(distance -&gt; new Candidate(index, distance));</span>
+<span class="fc" id="L102">        return new KeyEvaluation(candidate, false);</span>
     }
 
     private static String parentPrefix(String indexPathKey) {
-<span class="fc" id="L87">        Path parent = Path.of(indexPathKey).normalize().getParent();</span>
-<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        return parent == null ? &quot;&quot; : parent.toString().replace('\\', '/');</span>
+<span class="fc" id="L106">        Path parent = Path.of(indexPathKey).normalize().getParent();</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">        return parent == null ? &quot;&quot; : parent.toString().replace('\\', '/');</span>
     }
 
     private static Optional&lt;Integer&gt; distanceFromHead(String anchorCommit, String currentCommit, Path projectDir) {
-<span class="fc" id="L92">        try (org.eclipse.jgit.api.Git git = org.eclipse.jgit.api.Git.open(projectDir.toFile())) {</span>
-<span class="fc" id="L93">            Repository repository = git.getRepository();</span>
-<span class="fc" id="L94">            ObjectId anchorId = repository.resolve(anchorCommit);</span>
-<span class="fc" id="L95">            ObjectId headId = repository.resolve(currentCommit);</span>
-<span class="pc bpc" id="L96" title="2 of 4 branches missed.">            if (anchorId == null || headId == null) {</span>
-<span class="nc" id="L97">                return Optional.empty();</span>
+<span class="fc" id="L111">        try (org.eclipse.jgit.api.Git git = org.eclipse.jgit.api.Git.open(projectDir.toFile())) {</span>
+<span class="fc" id="L112">            Repository repository = git.getRepository();</span>
+<span class="fc" id="L113">            ObjectId anchorId = repository.resolve(anchorCommit);</span>
+<span class="fc" id="L114">            ObjectId headId = repository.resolve(currentCommit);</span>
+<span class="pc bpc" id="L115" title="2 of 4 branches missed.">            if (anchorId == null || headId == null) {</span>
+<span class="nc" id="L116">                return Optional.empty();</span>
             }
-<span class="fc" id="L99">            try (RevWalk walk = new RevWalk(repository)) {</span>
-<span class="fc" id="L100">                var anchor = walk.parseCommit(anchorId);</span>
-<span class="fc" id="L101">                var head = walk.parseCommit(headId);</span>
-<span class="pc bpc" id="L102" title="1 of 2 branches missed.">                if (!walk.isMergedInto(anchor, head)) {</span>
-<span class="nc" id="L103">                    return Optional.empty();</span>
+<span class="fc" id="L118">            try (RevWalk walk = new RevWalk(repository)) {</span>
+<span class="fc" id="L119">                var anchor = walk.parseCommit(anchorId);</span>
+<span class="fc" id="L120">                var head = walk.parseCommit(headId);</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">                if (!walk.isMergedInto(anchor, head)) {</span>
+<span class="nc" id="L122">                    return Optional.empty();</span>
                 }
-<span class="nc" id="L105">            }</span>
-<span class="fc" id="L106">            try (RevWalk walk = new RevWalk(repository)) {</span>
-<span class="fc" id="L107">                return Optional.of(org.eclipse.jgit.revwalk.RevWalkUtils.count(</span>
-<span class="fc" id="L108">                        walk, walk.parseCommit(headId), walk.parseCommit(anchorId)));</span>
+<span class="nc" id="L124">            }</span>
+<span class="fc" id="L125">            try (RevWalk walk = new RevWalk(repository)) {</span>
+<span class="fc" id="L126">                return Optional.of(org.eclipse.jgit.revwalk.RevWalkUtils.count(</span>
+<span class="fc" id="L127">                        walk, walk.parseCommit(headId), walk.parseCommit(anchorId)));</span>
             }
-<span class="nc bnc" id="L110" title="All 4 branches missed.">        } catch (Exception e) {</span>
-<span class="nc" id="L111">            return Optional.empty();</span>
+<span class="nc bnc" id="L129" title="All 4 branches missed.">        } catch (Exception e) {</span>
+<span class="nc" id="L130">            return Optional.empty();</span>
         }
     }
 
-<span class="fc" id="L115">    private record Candidate(DependencyIndex index, int distanceFromHead) {}</span>
+<span class="fc" id="L134">    private record Candidate(DependencyIndex index, int distanceFromHead) {}</span>
+
+    /** A qualifying {@code candidate}, or a non-qualifying key flagged {@code formatIncompatible}. */
+<span class="fc" id="L137">    private record KeyEvaluation(Optional&lt;Candidate&gt; candidate, boolean formatIncompatible) {}</span>
 
     private static boolean anchorIsReachable(String anchorCommit, Path projectDir) {
-<span class="fc" id="L118">        try (org.eclipse.jgit.api.Git git = org.eclipse.jgit.api.Git.open(projectDir.toFile())) {</span>
-<span class="fc" id="L119">            Repository repository = git.getRepository();</span>
-<span class="fc" id="L120">            ObjectId anchorId = repository.resolve(anchorCommit);</span>
-<span class="pc bpc" id="L121" title="1 of 2 branches missed.">            if (anchorId == null) {</span>
-<span class="nc" id="L122">                return false;</span>
+<span class="fc" id="L140">        try (org.eclipse.jgit.api.Git git = org.eclipse.jgit.api.Git.open(projectDir.toFile())) {</span>
+<span class="fc" id="L141">            Repository repository = git.getRepository();</span>
+<span class="fc" id="L142">            ObjectId anchorId = repository.resolve(anchorCommit);</span>
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">            if (anchorId == null) {</span>
+<span class="nc" id="L144">                return false;</span>
             }
-<span class="fc" id="L124">            try (RevWalk revWalk = new RevWalk(repository)) {</span>
-<span class="fc" id="L125">                revWalk.parseCommit(anchorId);</span>
-<span class="fc" id="L126">                return true;</span>
+<span class="fc" id="L146">            try (RevWalk revWalk = new RevWalk(repository)) {</span>
+<span class="fc" id="L147">                revWalk.parseCommit(anchorId);</span>
+<span class="fc" id="L148">                return true;</span>
             }
-<span class="pc bnc" id="L128" title="All 2 branches missed.">        } catch (Exception e) {</span>
-<span class="fc" id="L129">            return false;</span>
+<span class="pc bnc" id="L150" title="All 2 branches missed.">        } catch (Exception e) {</span>
+<span class="fc" id="L151">            return false;</span>
         }
     }
 }
