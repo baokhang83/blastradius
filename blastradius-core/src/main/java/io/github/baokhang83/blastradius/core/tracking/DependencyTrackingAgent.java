@@ -30,6 +30,8 @@ import java.util.stream.Collectors;
 public final class DependencyTrackingAgent implements ClassFileTransformer {
 
     private static final String HIDDEN_CLASS_CHECKSUM = "hidden-class-bytecode-unavailable";
+    private static final String TRACKING_PACKAGE_PREFIX =
+            "io.github.baokhang83.blastradius.core.tracking.";
 
     /**
      * Computing a checksum can initialize JDK security-provider classes. Those class loads call
@@ -208,7 +210,8 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
             return;
         }
         for (Class<?> loadedClass : loadedClasses) {
-            if (!isProjectClassOutput(loadedClass) || !currentInstrumentation.isModifiableClass(loadedClass)) {
+            if (!isAmbientInstrumentationCandidate(loadedClass)
+                    || !currentInstrumentation.isModifiableClass(loadedClass)) {
                 continue;
             }
             String className = loadedClass.getName();
@@ -226,8 +229,11 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         }
     }
 
-    private static boolean isProjectClassOutput(Class<?> loadedClass) {
-        if (loadedClass.isArray() || loadedClass.isPrimitive() || loadedClass.getProtectionDomain() == null
+    static boolean isAmbientInstrumentationCandidate(Class<?> loadedClass) {
+        if (loadedClass.getName().startsWith(TRACKING_PACKAGE_PREFIX)
+                || loadedClass.isArray()
+                || loadedClass.isPrimitive()
+                || loadedClass.getProtectionDomain() == null
                 || loadedClass.getProtectionDomain().getCodeSource() == null) {
             return false;
         }
