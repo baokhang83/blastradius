@@ -1,6 +1,7 @@
 package io.github.baokhang83.blastradius.plugin.track;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -102,6 +103,61 @@ class TrackRunnerTest {
                 IllegalStateException.class, () -> trackRunner.track(projectDir, agentJar, anchorCommit));
         assertTrue(exception.getMessage().contains("intentional"),
                 "expected the tracking subprocess output in the failure diagnostic: " + exception.getMessage());
+    }
+
+    @Test
+    void classOfAnotherReactorModuleIsAttributedToTheTestUsingItRatherThanLeftAmbient(
+            @TempDir Path projectDir) throws Exception {
+        Path agentJar = findOwnAgentJar();
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.twoModuleReactor(projectDir);
+        fixture.addSystemDependency("moduleB", agentJar);
+        // moduleA packages before moduleB's tests run, so moduleB resolves it as a jar rather than
+        // as a target/classes directory — the shape every real multi-module build has, and the one
+        // that used to leave moduleA's classes permanently ambient.
+        fixture.addBuildPlugin("moduleA", """
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>package-early</id>
+                            <phase>process-test-classes</phase>
+                            <goals><goal>jar</goal></goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                """);
+        fixture.writeClassInModule("moduleA", "com.example.a.Shared",
+                "package com.example.a; public class Shared { public int value() { return 42; } }");
+        // Naming Shared in a method signature makes JUnit's discovery pass load it before any test
+        // starts, which is what puts it in the ambient snapshot in the first place.
+        fixture.writeTestInModule("moduleB", "com.example.b.SharedUserTest", """
+                package com.example.b;
+                import com.example.a.Shared;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class SharedUserTest {
+                    private Shared shared() {
+                        return new Shared();
+                    }
+
+                    @Test
+                    void usesShared() {
+                        assertEquals(42, shared().value());
+                    }
+                }
+                """);
+        String anchorCommit = fixture.commit("initial");
+
+        DependencyIndex index = trackRunner.track(projectDir, agentJar, anchorCommit);
+
+        assertFalse(index.ambientDependencies().contains("com.example.a.Shared"),
+                "a class built by this reactor must not stay ambient just because a downstream "
+                        + "module loads it from a jar");
+        assertTrue(index.testDependencies().stream()
+                        .filter(entry -> entry.test().className().equals("com.example.b.SharedUserTest"))
+                        .anyMatch(entry -> entry.dependsOnClasses().contains("com.example.a.Shared")),
+                "the test that uses it must own it as a dependency");
     }
 
     private static Path findOwnAgentJar() throws IOException {
