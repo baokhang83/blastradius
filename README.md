@@ -6,7 +6,6 @@
   <a href="https://shenyu.apache.org/docs/">
     <img src="https://img.shields.io/badge/document-English-blue.svg" alt="EN docs" />
   </a>
-   [![License](https://img.shields.io/github/license/baokhang83/blastradius)](LICENSE)
 </p>
 
 <a target="_blank" href="https://www.oracle.com/technetwork/java/javase/downloads/index.html">
