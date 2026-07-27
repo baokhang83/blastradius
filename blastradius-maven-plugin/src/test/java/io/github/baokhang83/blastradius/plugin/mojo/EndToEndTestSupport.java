@@ -151,7 +151,10 @@ final class EndToEndTestSupport {
             throws IOException, InterruptedException {
         Path agentJar = findCoreAgentJar();
         Path outputFile = Files.createTempFile("blastradius-e2e-track-", ".json");
-        String agentOption = "-javaagent:" + agentJar.toAbsolutePath() + "=" + outputFile.toAbsolutePath();
+        // Mirrors TrackRunner: without the reactor root the agent cannot recognise a class loaded
+        // from another module's built jar as belonging to this build, and leaves it ambient.
+        String agentOption = "-javaagent:" + agentJar.toAbsolutePath() + "=" + outputFile.toAbsolutePath()
+                + " -Dblastradius.projectRoot=" + projectDir.toAbsolutePath();
         ProcessBuilder pb = new ProcessBuilder("mvn", "-B", "--no-transfer-progress", "clean", "test")
                 .directory(projectDir.toFile());
         pb.environment().merge("JAVA_TOOL_OPTIONS", agentOption, (a, b) -> a + " " + b);

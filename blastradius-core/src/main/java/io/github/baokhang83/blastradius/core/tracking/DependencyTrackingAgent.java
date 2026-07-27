@@ -1,9 +1,11 @@
 package io.github.baokhang83.blastradius.core.tracking;
 
+import java.io.IOException;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -32,6 +34,23 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
     private static final String HIDDEN_CLASS_CHECKSUM = "hidden-class-bytecode-unavailable";
     private static final String TRACKING_PACKAGE_PREFIX =
             "io.github.baokhang83.blastradius.core.tracking.";
+
+    /**
+     * Set by {@code TrackRunner} on the forked Surefire JVM's command line. It names the reactor
+     * root of the build being tracked, which is the only reliable way to tell a project class from
+     * a third-party one: a module that depends on another reactor module loads it from that
+     * module's built <em>jar</em>, not from its {@code target/classes} directory, so a
+     * code-source path shape alone cannot recognise it.
+     */
+    private static final String PROJECT_ROOT_PROPERTY = "blastradius.projectRoot";
+
+    /**
+     * The bytecode library the agent instruments with. It ships inside the agent jar, so it must be
+     * excluded by package: excluding the agent's own code source instead would be wrong, because a
+     * module that depends on this one loads the agent classes from the ordinary core jar — the very
+     * jar that carries the project classes we are trying to attribute.
+     */
+    private static final String INSTRUMENTATION_LIBRARY_PACKAGE_PREFIX = "org.objectweb.asm.";
 
     /**
      * Computing a checksum can initialize JDK security-provider classes. Those class loads call
@@ -209,8 +228,9 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         if (currentInstrumentation == null || !currentInstrumentation.isRetransformClassesSupported()) {
             return;
         }
+        Path projectRoot = configuredProjectRoot();
         for (Class<?> loadedClass : loadedClasses) {
-            if (!isAmbientInstrumentationCandidate(loadedClass)
+            if (!isAmbientInstrumentationCandidate(loadedClass, projectRoot)
                     || !currentInstrumentation.isModifiableClass(loadedClass)) {
                 continue;
             }
@@ -230,25 +250,79 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
     }
 
     static boolean isAmbientInstrumentationCandidate(Class<?> loadedClass) {
+        return isAmbientInstrumentationCandidate(loadedClass, configuredProjectRoot());
+    }
+
+    static boolean isAmbientInstrumentationCandidate(Class<?> loadedClass, Path projectRoot) {
         if (loadedClass.getName().startsWith(TRACKING_PACKAGE_PREFIX)
+                || loadedClass.getName().startsWith(INSTRUMENTATION_LIBRARY_PACKAGE_PREFIX)
                 || loadedClass.isArray()
-                || loadedClass.isPrimitive()
-                || loadedClass.getProtectionDomain() == null
-                || loadedClass.getProtectionDomain().getCodeSource() == null) {
+                || loadedClass.isPrimitive()) {
             return false;
         }
+        Path codeSource = codeSourceOf(loadedClass);
+        return codeSource != null && isProjectCodeSource(codeSource, projectRoot);
+    }
+
+    /**
+     * A class belongs to the build under test when its code source lives under the reactor root —
+     * whether that is a module's {@code target/classes} directory or another module's built jar,
+     * which is how every downstream module sees its reactor dependencies. Without the reactor root
+     * the only safe answer is the class-output directory shape: a jar cannot then be told apart
+     * from a third-party one, so it stays ambient and selection keeps its conservative fallback.
+     */
+    static boolean isProjectCodeSource(Path codeSource, Path projectRoot) {
+        if (projectRoot != null && codeSource.startsWith(projectRoot)) {
+            return true;
+        }
+        String path = codeSource.toString().replace('\\', '/');
+        return path.endsWith("/target/classes")
+                || path.endsWith("/target/test-classes")
+                || path.endsWith("/build/classes/java/main")
+                || path.endsWith("/build/classes/java/test");
+    }
+
+    private static Path configuredProjectRoot() {
+        String configured = System.getProperty(PROJECT_ROOT_PROPERTY);
+        if (configured == null || configured.isBlank()) {
+            return null;
+        }
         try {
-            URI location = loadedClass.getProtectionDomain().getCodeSource().getLocation().toURI();
+            return canonicalize(Path.of(configured));
+        } catch (InvalidPathException ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Resolves symlinks so the reactor root and a code source under it stay comparable. They
+     * routinely disagree otherwise — a macOS temp directory is handed to the build as
+     * {@code /var/...} but reported by the class loader as {@code /private/var/...}, and a
+     * containment check between the two forms silently fails.
+     */
+    private static Path canonicalize(Path path) {
+        Path absolute = path.toAbsolutePath().normalize();
+        try {
+            return absolute.toRealPath();
+        } catch (IOException ignored) {
+            return absolute;
+        }
+    }
+
+    private static Path codeSourceOf(Class<?> loadedClass) {
+        ProtectionDomain protectionDomain = loadedClass.getProtectionDomain();
+        if (protectionDomain == null || protectionDomain.getCodeSource() == null
+                || protectionDomain.getCodeSource().getLocation() == null) {
+            return null;
+        }
+        try {
+            URI location = protectionDomain.getCodeSource().getLocation().toURI();
             if (!"file".equals(location.getScheme())) {
-                return false;
+                return null;
             }
-            String path = Path.of(location).normalize().toString().replace('\\', '/');
-            return path.endsWith("/target/classes")
-                    || path.endsWith("/target/test-classes")
-                    || path.endsWith("/build/classes/java/main")
-                    || path.endsWith("/build/classes/java/test");
+            return canonicalize(Path.of(location));
         } catch (URISyntaxException | IllegalArgumentException ignored) {
-            return false;
+            return null;
         }
     }
 

@@ -40,10 +40,21 @@ public final class TrackRunner {
         }
 
         String agentOption = "-javaagent:" + agentJar.toAbsolutePath() + "=" + outputFile.toAbsolutePath();
+        // The agent can only recognise a class as belonging to this build by its code source, and a
+        // module that depends on another reactor module loads it from that module's built jar
+        // rather than from a `target/classes` directory. Naming the reactor root here is what lets
+        // those classes be attributed to the tests that use them instead of staying ambient — one
+        // unattributed class is enough to force every module's whole suite to run.
+        String projectRootOption = "-Dblastradius.projectRoot=" + projectDir.toAbsolutePath();
+        String agentOptions = agentOption + " " + projectRootOption;
+        // Ours go last, not first: the surrounding build's argLine is inherited wholesale and may
+        // already name a `blastradius.projectRoot` of its own, and the last `-D` on a JVM command
+        // line is the one that takes effect. Appending ours keeps the tracked build's own reactor
+        // root authoritative rather than letting an outer build's root silently replace it.
         String existingArgLine = System.getProperty("argLine");
         String trackedArgLine = existingArgLine == null || existingArgLine.isBlank()
-                ? agentOption
-                : agentOption + " " + existingArgLine;
+                ? agentOptions
+                : existingArgLine + " " + agentOptions;
         // -Dblastradius.trackChild=true: this subprocess runs against the same pom that
         // binds this very goal, so without the flag its own SelectMojo execution would
         // resolve TRACK again (same commit, same baseRef) and recurse without bound — see

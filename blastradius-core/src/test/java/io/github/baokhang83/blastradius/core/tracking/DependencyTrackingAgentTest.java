@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Map;
@@ -166,6 +167,36 @@ class DependencyTrackingAgentTest {
         assertFalse(DependencyTrackingAgent.isAmbientInstrumentationCandidate(DependencyTrackingAgent.class));
         assertFalse(DependencyTrackingAgent.isAmbientInstrumentationCandidate(TestBoundaryListener.class));
         assertTrue(DependencyTrackingAgent.isAmbientInstrumentationCandidate(CommitIndexKey.class));
+    }
+
+    @Test
+    void reactorModuleJarIsAProjectCodeSourceEvenThoughItIsNotAClassOutputDirectory() {
+        // How every downstream module sees a reactor dependency: as a built jar, not as
+        // `target/classes`. Left unrecognised, such a class stays ambient in that module's fork and
+        // one ambient class forces every module's whole suite to run.
+        Path reactorRoot = Path.of("/build/repo");
+
+        assertTrue(DependencyTrackingAgent.isProjectCodeSource(
+                Path.of("/build/repo/core/target/core-1.0.0.jar"), reactorRoot));
+        assertTrue(DependencyTrackingAgent.isProjectCodeSource(
+                Path.of("/build/repo/core/target/classes"), reactorRoot));
+    }
+
+    @Test
+    void jarOutsideTheReactorRootIsNotAProjectCodeSource() {
+        // A dependency resolved from the local Maven repository rather than built by this reactor.
+        assertFalse(DependencyTrackingAgent.isProjectCodeSource(
+                Path.of("/elsewhere/junit-jupiter-api-5.14.0.jar"), Path.of("/build/repo")));
+    }
+
+    @Test
+    void aJarIsOnlyRecognisedWhenTheReactorRootIsKnown() {
+        // Without the reactor root a jar cannot be told apart from a third-party dependency, so it
+        // stays ambient and selection keeps its conservative fallback rather than guessing.
+        assertFalse(DependencyTrackingAgent.isProjectCodeSource(
+                Path.of("/build/repo/core/target/core-1.0.0.jar"), null));
+        assertTrue(DependencyTrackingAgent.isProjectCodeSource(
+                Path.of("/build/repo/core/target/classes"), null));
     }
 
     private static String sha256Hex(byte[] bytes) throws NoSuchAlgorithmException {
