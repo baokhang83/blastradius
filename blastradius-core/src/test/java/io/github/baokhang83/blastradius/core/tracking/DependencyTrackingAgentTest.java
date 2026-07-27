@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
 import java.io.InputStream;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
@@ -158,6 +159,13 @@ class DependencyTrackingAgentTest {
     void ambientDependenciesReturnsAnImmutableCopy() {
         Set<String> snapshot = agent.ambientDependencies();
         assertThrows(UnsupportedOperationException.class, () -> snapshot.add("com.example.Injected"));
+    }
+
+    @Test
+    void trackingInfrastructureIsNeverAnAmbientInstrumentationCandidate() {
+        assertFalse(DependencyTrackingAgent.isAmbientInstrumentationCandidate(DependencyTrackingAgent.class));
+        assertFalse(DependencyTrackingAgent.isAmbientInstrumentationCandidate(TestBoundaryListener.class));
+        assertTrue(DependencyTrackingAgent.isAmbientInstrumentationCandidate(CommitIndexKey.class));
     }
 
     private static String sha256Hex(byte[] bytes) throws NoSuchAlgorithmException {

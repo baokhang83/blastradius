@@ -1,8 +1,8 @@
 {
   "feature": "narrow-ambient-dependency-fallback-to-statically-identified",
-  "branch": "feature/narrow-ambient-dependency-fallback-to-statically-identified",
+  "branch": "fix/avoid-tracking-agent-callback-recursion",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/narrow-ambient-dependency-fallback-to-statically-identified/sessions/attribute-discovery-loaded-project-classes-by-runtime-execut.md",
+  "last_session": "docs/fluencyloop/features/narrow-ambient-dependency-fallback-to-statically-identified/sessions/protect-agent-infrastructure-from-runtime-probes.md",
   "base_ref": "main",
   "updated": "2026-07-27"
 }
