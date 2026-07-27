@@ -33,18 +33,48 @@ final class EndToEndTestSupport {
     private EndToEndTestSupport() {
     }
 
+    private static final Path REACTOR_ROOT = Path.of("..").toAbsolutePath().normalize();
+
     static void installThisPluginOnce() throws IOException, InterruptedException {
-        // `clean` is required, not cosmetic: without it, when blastradius-maven-plugin's own
-        // sources haven't changed, maven-jar-plugin's up-to-date check skips regenerating its
-        // plain jar, leaving the *previous* run's shaded uber-jar sitting at that same path —
-        // and the next shade execution bootstraps its assembly from that stale self-referential
-        // jar, silently keeping OLD embedded blastradius-core classes as "duplicates" over the
-        // freshly-rebuilt ones. A stale core fix would otherwise never make it into a real
-        // TRACK-mode build's classpath even after rebuilding blastradius-core.
-        PLUGIN_INSTALLER.installOnce(() -> runToCompletion(new ProcessBuilder(
-                "mvn", "-q", "-pl", "blastradius-maven-plugin", "-am", "clean", "install", "-DskipTests",
-                "-Dinvoker.skip=true")
-                .directory(Path.of("..").toAbsolutePath().normalize().toFile())));
+        PLUGIN_INSTALLER.installOnce(() -> {
+            deleteBuiltJars(REACTOR_ROOT.resolve("blastradius-maven-plugin").resolve("target"));
+            runToCompletion(new ProcessBuilder(pluginInstallCommand()).directory(REACTOR_ROOT.toFile()));
+        });
+    }
+
+    static List<String> pluginInstallCommand() {
+        return List.of("mvn", "-q", "-pl", "blastradius-maven-plugin", "-am", "install", "-DskipTests",
+                "-Dinvoker.skip=true");
+    }
+
+    /**
+     * Removes this module's built jars, deliberately in place of a {@code clean} goal.
+     *
+     * <p>Removing them is required, not cosmetic: when blastradius-maven-plugin's own sources
+     * haven't changed, maven-jar-plugin's up-to-date check skips regenerating its plain jar,
+     * leaving the <em>previous</em> run's shaded uber-jar sitting at that same path — and the
+     * next shade execution bootstraps its assembly from that stale self-referential jar,
+     * silently keeping OLD embedded blastradius-core classes as "duplicates" over the
+     * freshly-rebuilt ones. A stale core fix would otherwise never make it into a real
+     * TRACK-mode build's classpath even after rebuilding blastradius-core.
+     *
+     * <p>{@code clean} achieved that too, but it deleted the whole {@code target/} of this very
+     * module while the Surefire run that called this method was still in progress — taking that
+     * run's own {@code surefire-reports/} with it. {@code TimingHistoryRecorder} reads that
+     * directory when Surefire finishes, so every test class that had already completed lost its
+     * timing sample, and those missing samples made {@code BuildReport} withhold the time-saved
+     * estimate for the entire build. Being run with {@code -am}, it wiped the upstream modules'
+     * {@code target/} directories as well, JaCoCo execution data included.
+     */
+    static void deleteBuiltJars(Path targetDir) throws IOException {
+        if (!Files.isDirectory(targetDir)) {
+            return;
+        }
+        try (var entries = Files.list(targetDir)) {
+            for (Path jar : entries.filter(path -> path.getFileName().toString().endsWith(".jar")).toList()) {
+                Files.deleteIfExists(jar);
+            }
+        }
     }
 
     /** A single-module fixture with an independent Foo/FooTest and Bar/BarTest pair. */
