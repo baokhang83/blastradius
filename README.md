@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/document-English-blue.svg" alt="EN docs" />
 </a>
 <a target="_blank" href="https://central.sonatype.com/search?q=g:io.github.baokhang83.blastradius%20%20a:blastradius-maven-plugin">
-    <img src="https://img.shields.io/maven-central/v/org.apache.shenyu/shenyu.svg?label=maven%20central" />
+    <img src="https://img.shields.io/maven-central/v/io.github.baokhang83.blastradius/blastradius-maven-plugin.svg?label=maven%20central" />
 </a>
 <a target="_blank" href="https://www.oracle.com/technetwork/java/javase/downloads/index.html">
    <img src="https://img.shields.io/badge/JDK-21+-green.svg" />
