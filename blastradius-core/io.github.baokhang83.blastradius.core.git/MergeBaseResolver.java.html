@@ -43,7 +43,7 @@ import org.eclipse.jgit.revwalk.filter.RevFilter;
 <span class="fc" id="L43">            walk.markStart(walk.parseCommit(headId));</span>
 <span class="fc" id="L44">            walk.markStart(walk.parseCommit(baseId));</span>
 <span class="fc" id="L45">            RevCommit mergeBase = walk.next();</span>
-<span class="fc bfc" id="L46" title="All 2 branches covered.">            return mergeBase == null ? Optional.empty() : Optional.of(mergeBase.getName());</span>
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">            return mergeBase == null ? Optional.empty() : Optional.of(mergeBase.getName());</span>
         }
     }
 }

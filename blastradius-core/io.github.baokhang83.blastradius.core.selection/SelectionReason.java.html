@@ -6,9 +6,15 @@
 <span class="fc" id="L6">    DEPENDENCY_MATCH,</span>
     /** A non-Java-source change forced selection of every test (FR-006). */
 <span class="fc" id="L8">    FALLBACK_NON_SOURCE_CHANGE,</span>
+    /**
+     * A changed class was loaded before any test's tracking window opened in some fork
+     * (an &quot;ambient&quot; dependency), so no per-test dependency data can be trusted for it —
+     * every test was conservatively selected instead of risking a silent {@code NO_MATCH}.
+     */
+<span class="fc" id="L14">    FALLBACK_AMBIENT_DEPENDENCY,</span>
     /** The test is new or its own file was modified (FR-007). */
-<span class="fc" id="L10">    NEW_OR_MODIFIED_TEST,</span>
+<span class="fc" id="L16">    NEW_OR_MODIFIED_TEST,</span>
     /** Not selected — no changed class intersects its tracked dependencies. */
-<span class="fc" id="L12">    NO_MATCH</span>
+<span class="fc" id="L18">    NO_MATCH</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

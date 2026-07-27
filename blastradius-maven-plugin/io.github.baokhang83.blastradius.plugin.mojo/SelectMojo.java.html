@@ -399,7 +399,8 @@ import org.apache.maven.project.MavenProject;
 <span class="fc bfc" id="L399" title="All 2 branches covered.">                        test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))</span>
 <span class="fc" id="L400">                .collect(Collectors.toSet());</span>
 
-<span class="fc" id="L402">        return SELECTION_ENGINE.selectAll(allTests, testDependencies, newOrModifiedTests, changedFiles);</span>
+<span class="fc" id="L402">        return SELECTION_ENGINE.selectAll(</span>
+<span class="fc" id="L403">                allTests, testDependencies, newOrModifiedTests, changedFiles, index.ambientDependencies());</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

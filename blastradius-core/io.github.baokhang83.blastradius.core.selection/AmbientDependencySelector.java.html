@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>AmbientDependencySelector.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.selection</a> &gt; <span class="el_source">AmbientDependencySelector.java</span></div><h1>AmbientDependencySelector.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.selection;
+
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import java.util.Collections;
+import java.util.Set;
+
+/**
+ * A distinct, deliberately conservative fallback rule alongside {@link FallbackSelector}: a
+ * changed class that was loaded before any test's tracking window opened in some fork (see
+ * {@code DependencyTrackingAgent#ambientDependencies()}) has no trustworthy per-test
+ * dependency data — no test can be soundly ruled out for it, so every test is selected
+ * instead of risking a silent {@link SelectionReason#NO_MATCH}.
+ */
+<span class="fc" id="L14">public final class AmbientDependencySelector {</span>
+
+    public boolean shouldFallback(Set&lt;String&gt; changedClassNames, Set&lt;String&gt; ambientDependencies) {
+<span class="pc bpc" id="L17" title="1 of 2 branches missed.">        return !Collections.disjoint(changedClassNames, ambientDependencies);</span>
+    }
+
+    public SelectionDecision select(TestIdentity test) {
+<span class="nc" id="L21">        return SelectionDecision.fallbackAmbientDependency(test);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

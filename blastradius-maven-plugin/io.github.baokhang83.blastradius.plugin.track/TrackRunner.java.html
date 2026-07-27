@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>TrackRunner.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-maven-plugin</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.plugin.track</a> &gt; <span class="el_source">TrackRunner.java</span></div><h1>TrackRunner.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.plugin.track;
 
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
+import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDependencyEntry;
@@ -23,43 +24,43 @@ import java.util.concurrent.TimeUnit;
  * per-JVM, merge-on-read, {@code TestIdentity.baselineKey()} normalization). Deliberately
  * never instruments the live, currently-running build being gated (research.md #1).
  */
-<span class="fc" id="L26">public final class TrackRunner {</span>
+<span class="fc" id="L27">public final class TrackRunner {</span>
 
     private static final long TIMEOUT_MINUTES = 20;
     private static final int FAILURE_OUTPUT_TAIL_BYTES = 12 * 1024;
 
-<span class="fc" id="L31">    private final DependencyRecordReader recordReader = new DependencyRecordReader();</span>
+<span class="fc" id="L32">    private final DependencyRecordReader recordReader = new DependencyRecordReader();</span>
 
     public DependencyIndex track(Path projectDir, Path agentJar, String anchorCommit) {
         Path outputFile;
         try {
-<span class="fc" id="L36">            outputFile = Files.createTempFile(&quot;blastradius-track-&quot;, &quot;.json&quot;);</span>
-<span class="nc" id="L37">        } catch (IOException e) {</span>
-<span class="nc" id="L38">            throw new UncheckedIOException(&quot;failed to create a temp file for the track run's output&quot;, e);</span>
-<span class="fc" id="L39">        }</span>
+<span class="fc" id="L37">            outputFile = Files.createTempFile(&quot;blastradius-track-&quot;, &quot;.json&quot;);</span>
+<span class="nc" id="L38">        } catch (IOException e) {</span>
+<span class="nc" id="L39">            throw new UncheckedIOException(&quot;failed to create a temp file for the track run's output&quot;, e);</span>
+<span class="fc" id="L40">        }</span>
 
-<span class="fc" id="L41">        String agentOption = &quot;-javaagent:&quot; + agentJar.toAbsolutePath() + &quot;=&quot; + outputFile.toAbsolutePath();</span>
-<span class="fc" id="L42">        String existingArgLine = System.getProperty(&quot;argLine&quot;);</span>
-<span class="pc bpc" id="L43" title="3 of 4 branches missed.">        String trackedArgLine = existingArgLine == null || existingArgLine.isBlank()</span>
-<span class="fc" id="L44">                ? agentOption</span>
-<span class="pc" id="L45">                : agentOption + &quot; &quot; + existingArgLine;</span>
+<span class="fc" id="L42">        String agentOption = &quot;-javaagent:&quot; + agentJar.toAbsolutePath() + &quot;=&quot; + outputFile.toAbsolutePath();</span>
+<span class="fc" id="L43">        String existingArgLine = System.getProperty(&quot;argLine&quot;);</span>
+<span class="pc bpc" id="L44" title="3 of 4 branches missed.">        String trackedArgLine = existingArgLine == null || existingArgLine.isBlank()</span>
+<span class="fc" id="L45">                ? agentOption</span>
+<span class="pc" id="L46">                : agentOption + &quot; &quot; + existingArgLine;</span>
         // -Dblastradius.trackChild=true: this subprocess runs against the same pom that
         // binds this very goal, so without the flag its own SelectMojo execution would
         // resolve TRACK again (same commit, same baseRef) and recurse without bound — see
         // SelectMojo.trackChild's javadoc.
-<span class="fc" id="L50">        ProcessBuilder processBuilder = new ProcessBuilder(</span>
+<span class="fc" id="L51">        ProcessBuilder processBuilder = new ProcessBuilder(</span>
                 &quot;mvn&quot;, &quot;-B&quot;, &quot;--no-transfer-progress&quot;, &quot;-Dblastradius.trackChild=true&quot;,
                 &quot;-DargLine=&quot; + trackedArgLine, &quot;clean&quot;, &quot;test&quot;)
-<span class="fc" id="L53">                .directory(projectDir.toFile())</span>
-<span class="fc" id="L54">                .redirectErrorStream(true);</span>
+<span class="fc" id="L54">                .directory(projectDir.toFile())</span>
+<span class="fc" id="L55">                .redirectErrorStream(true);</span>
 
-<span class="fc" id="L56">        runToCompletion(processBuilder, projectDir);</span>
+<span class="fc" id="L57">        runToCompletion(processBuilder, projectDir);</span>
 
-<span class="fc" id="L58">        Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; recorded = recordReader.readAll(outputFile);</span>
-<span class="fc" id="L59">        List&lt;TestDependencyEntry&gt; entries = recorded.entrySet().stream()</span>
-<span class="fc" id="L60">                .map(entry -&gt; new TestDependencyEntry(entry.getKey(), entry.getValue().keySet()))</span>
-<span class="fc" id="L61">                .toList();</span>
-<span class="fc" id="L62">        return new DependencyIndex(anchorCommit, Instant.now().toString(), entries);</span>
+<span class="fc" id="L59">        DependencyRecordSet recorded = recordReader.readAll(outputFile);</span>
+<span class="fc" id="L60">        List&lt;TestDependencyEntry&gt; entries = recorded.tests().entrySet().stream()</span>
+<span class="fc" id="L61">                .map(entry -&gt; new TestDependencyEntry(entry.getKey(), entry.getValue().keySet()))</span>
+<span class="fc" id="L62">                .toList();</span>
+<span class="fc" id="L63">        return new DependencyIndex(anchorCommit, Instant.now().toString(), entries, recorded.ambientDependencies());</span>
     }
 
     /**
@@ -76,52 +77,52 @@ import java.util.concurrent.TimeUnit;
     private static void runToCompletion(ProcessBuilder processBuilder, Path projectDir) {
         Path outputFile;
         try {
-<span class="fc" id="L79">            outputFile = Files.createTempFile(&quot;blastradius-track-run-&quot;, &quot;.log&quot;);</span>
-<span class="nc" id="L80">        } catch (IOException e) {</span>
-<span class="nc" id="L81">            throw new UncheckedIOException(&quot;failed to create a temp file for the track run's output&quot;, e);</span>
-<span class="fc" id="L82">        }</span>
-<span class="fc" id="L83">        processBuilder.redirectErrorStream(true);</span>
-<span class="fc" id="L84">        processBuilder.redirectOutput(ProcessBuilder.Redirect.to(outputFile.toFile()));</span>
+<span class="fc" id="L80">            outputFile = Files.createTempFile(&quot;blastradius-track-run-&quot;, &quot;.log&quot;);</span>
+<span class="nc" id="L81">        } catch (IOException e) {</span>
+<span class="nc" id="L82">            throw new UncheckedIOException(&quot;failed to create a temp file for the track run's output&quot;, e);</span>
+<span class="fc" id="L83">        }</span>
+<span class="fc" id="L84">        processBuilder.redirectErrorStream(true);</span>
+<span class="fc" id="L85">        processBuilder.redirectOutput(ProcessBuilder.Redirect.to(outputFile.toFile()));</span>
         try {
-<span class="fc" id="L86">            Process process = processBuilder.start();</span>
-<span class="fc" id="L87">            boolean finished = process.waitFor(TIMEOUT_MINUTES, TimeUnit.MINUTES);</span>
-<span class="pc bpc" id="L88" title="1 of 2 branches missed.">            if (!finished) {</span>
-<span class="nc" id="L89">                process.descendants().forEach(ProcessHandle::destroyForcibly);</span>
-<span class="nc" id="L90">                process.destroyForcibly();</span>
-<span class="nc" id="L91">                throw new IllegalStateException(</span>
+<span class="fc" id="L87">            Process process = processBuilder.start();</span>
+<span class="fc" id="L88">            boolean finished = process.waitFor(TIMEOUT_MINUTES, TimeUnit.MINUTES);</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">            if (!finished) {</span>
+<span class="nc" id="L90">                process.descendants().forEach(ProcessHandle::destroyForcibly);</span>
+<span class="nc" id="L91">                process.destroyForcibly();</span>
+<span class="nc" id="L92">                throw new IllegalStateException(</span>
                         &quot;track run timed out against &quot; + projectDir + &quot; after &quot; + TIMEOUT_MINUTES + &quot;m&quot;);
             }
-<span class="fc bfc" id="L94" title="All 2 branches covered.">            if (process.exitValue() != 0) {</span>
-<span class="fc" id="L95">                throw new IllegalStateException(&quot;track run failed against &quot; + projectDir + &quot; with exit code &quot;</span>
-<span class="fc" id="L96">                        + process.exitValue() + &quot;; refusing to persist a partial dependency index.\n&quot;</span>
-<span class="fc" id="L97">                        + &quot;Last output from the tracking build:\n&quot; + readOutputTail(outputFile));</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">            if (process.exitValue() != 0) {</span>
+<span class="fc" id="L96">                throw new IllegalStateException(&quot;track run failed against &quot; + projectDir + &quot; with exit code &quot;</span>
+<span class="fc" id="L97">                        + process.exitValue() + &quot;; refusing to persist a partial dependency index.\n&quot;</span>
+<span class="fc" id="L98">                        + &quot;Last output from the tracking build:\n&quot; + readOutputTail(outputFile));</span>
             }
-<span class="nc" id="L99">        } catch (IOException e) {</span>
-<span class="nc" id="L100">            throw new UncheckedIOException(&quot;failed to invoke mvn test against &quot; + projectDir, e);</span>
-<span class="nc" id="L101">        } catch (InterruptedException e) {</span>
-<span class="nc" id="L102">            Thread.currentThread().interrupt();</span>
-<span class="nc" id="L103">            throw new IllegalStateException(&quot;interrupted while waiting for track run against &quot; + projectDir, e);</span>
+<span class="nc" id="L100">        } catch (IOException e) {</span>
+<span class="nc" id="L101">            throw new UncheckedIOException(&quot;failed to invoke mvn test against &quot; + projectDir, e);</span>
+<span class="nc" id="L102">        } catch (InterruptedException e) {</span>
+<span class="nc" id="L103">            Thread.currentThread().interrupt();</span>
+<span class="nc" id="L104">            throw new IllegalStateException(&quot;interrupted while waiting for track run against &quot; + projectDir, e);</span>
         } finally {
             try {
-<span class="fc" id="L106">                Files.deleteIfExists(outputFile);</span>
-<span class="nc" id="L107">            } catch (IOException ignored) {</span>
+<span class="fc" id="L107">                Files.deleteIfExists(outputFile);</span>
+<span class="nc" id="L108">            } catch (IOException ignored) {</span>
                 // Best-effort cleanup; a stray temp log is not worth failing the build over.
-<span class="fc" id="L109">            }</span>
+<span class="fc" id="L110">            }</span>
         }
-<span class="fc" id="L111">    }</span>
+<span class="fc" id="L112">    }</span>
 
     private static String readOutputTail(Path outputFile) {
-<span class="fc" id="L114">        try (SeekableByteChannel channel = Files.newByteChannel(outputFile)) {</span>
-<span class="fc" id="L115">            long size = channel.size();</span>
-<span class="fc" id="L116">            int length = (int) Math.min(size, FAILURE_OUTPUT_TAIL_BYTES);</span>
-<span class="fc" id="L117">            channel.position(Math.max(0, size - length));</span>
-<span class="fc" id="L118">            ByteBuffer buffer = ByteBuffer.allocate(length);</span>
-<span class="pc bpc" id="L119" title="1 of 4 branches missed.">            while (buffer.hasRemaining() &amp;&amp; channel.read(buffer) != -1) {</span>
+<span class="fc" id="L115">        try (SeekableByteChannel channel = Files.newByteChannel(outputFile)) {</span>
+<span class="fc" id="L116">            long size = channel.size();</span>
+<span class="fc" id="L117">            int length = (int) Math.min(size, FAILURE_OUTPUT_TAIL_BYTES);</span>
+<span class="fc" id="L118">            channel.position(Math.max(0, size - length));</span>
+<span class="fc" id="L119">            ByteBuffer buffer = ByteBuffer.allocate(length);</span>
+<span class="pc bpc" id="L120" title="1 of 4 branches missed.">            while (buffer.hasRemaining() &amp;&amp; channel.read(buffer) != -1) {</span>
                 // Continue until the requested tail is fully read or the file ends.
             }
-<span class="fc" id="L122">            return StandardCharsets.UTF_8.decode(buffer.flip()).toString();</span>
-<span class="nc" id="L123">        } catch (IOException e) {</span>
-<span class="nc" id="L124">            return &quot;(could not read tracking build output: &quot; + e.getMessage() + &quot;)&quot;;</span>
+<span class="fc" id="L123">            return StandardCharsets.UTF_8.decode(buffer.flip()).toString();</span>
+<span class="nc" id="L124">        } catch (IOException e) {</span>
+<span class="nc" id="L125">            return &quot;(could not read tracking build output: &quot; + e.getMessage() + &quot;)&quot;;</span>
         }
     }
 }

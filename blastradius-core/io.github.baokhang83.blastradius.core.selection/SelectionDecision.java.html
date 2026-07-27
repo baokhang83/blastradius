@@ -36,12 +36,16 @@ public record SelectionDecision(
 <span class="fc" id="L36">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_NON_SOURCE_CHANGE, null);</span>
     }
 
+    public static SelectionDecision fallbackAmbientDependency(TestIdentity test) {
+<span class="nc" id="L40">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_AMBIENT_DEPENDENCY, null);</span>
+    }
+
     public static SelectionDecision newOrModifiedTest(TestIdentity test) {
-<span class="fc" id="L40">        return new SelectionDecision(test, true, SelectionReason.NEW_OR_MODIFIED_TEST, null);</span>
+<span class="fc" id="L44">        return new SelectionDecision(test, true, SelectionReason.NEW_OR_MODIFIED_TEST, null);</span>
     }
 
     public static SelectionDecision noMatch(TestIdentity test) {
-<span class="fc" id="L44">        return new SelectionDecision(test, false, SelectionReason.NO_MATCH, null);</span>
+<span class="fc" id="L48">        return new SelectionDecision(test, false, SelectionReason.NO_MATCH, null);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

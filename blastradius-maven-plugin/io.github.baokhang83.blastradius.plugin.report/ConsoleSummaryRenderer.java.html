@@ -31,42 +31,44 @@ import java.util.List;
 <span class="fc" id="L31">            long dependencyMatched = countReason(report, SelectionReason.DEPENDENCY_MATCH);</span>
 <span class="fc" id="L32">            long newOrModified = countReason(report, SelectionReason.NEW_OR_MODIFIED_TEST);</span>
 <span class="fc" id="L33">            long fallback = countReason(report, SelectionReason.FALLBACK_NON_SOURCE_CHANGE);</span>
-<span class="fc" id="L34">            lines.add(String.format(&quot;[blastradius]   dependency-matched: %d, new-or-modified: %d, fallback: %d&quot;,</span>
-<span class="fc" id="L35">                    dependencyMatched, newOrModified, fallback));</span>
-<span class="fc" id="L36">            lines.add(&quot;[blastradius] Skipped test detail: run with -Dblastradius.explain=true for the full per-test reasoning&quot;);</span>
+<span class="fc" id="L34">            long fallbackAmbient = countReason(report, SelectionReason.FALLBACK_AMBIENT_DEPENDENCY);</span>
+<span class="fc" id="L35">            lines.add(String.format(</span>
+                    &quot;[blastradius]   dependency-matched: %d, new-or-modified: %d, fallback: %d, fallback-ambient: %d&quot;,
+<span class="fc" id="L37">                    dependencyMatched, newOrModified, fallback, fallbackAmbient));</span>
+<span class="fc" id="L38">            lines.add(&quot;[blastradius] Skipped test detail: run with -Dblastradius.explain=true for the full per-test reasoning&quot;);</span>
         }
-<span class="fc" id="L38">        return lines;</span>
+<span class="fc" id="L40">        return lines;</span>
     }
 
     private static String headerLine(BuildReport report, DependencyIndex usedIndex) {
-<span class="fc bfc" id="L42" title="All 3 branches covered.">        return switch (report.mode()) {</span>
-<span class="pc bpc" id="L43" title="1 of 2 branches missed.">            case SELECT -&gt; report.indexApplicability() == IndexApplicability.Status.STALE_BASELINE</span>
-<span class="nc" id="L44">                    ? &quot;SELECT — stale baseline index built from &quot; + shortSha(usedIndex.anchorCommit()) + &quot; (&quot; + usedIndex.builtAt() + &quot;)&quot;</span>
-<span class="fc" id="L45">                    : &quot;SELECT — index built from &quot; + shortSha(usedIndex.anchorCommit()) + &quot; (&quot; + usedIndex.builtAt() + &quot;)&quot;;</span>
-<span class="fc" id="L46">            case TRACK -&gt; &quot;TRACK — building a fresh index&quot;;</span>
-<span class="fc" id="L47">            case FALLBACK -&gt; &quot;FALLBACK — &quot; + fallbackReason(report.indexApplicability());</span>
+<span class="fc bfc" id="L44" title="All 3 branches covered.">        return switch (report.mode()) {</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">            case SELECT -&gt; report.indexApplicability() == IndexApplicability.Status.STALE_BASELINE</span>
+<span class="nc" id="L46">                    ? &quot;SELECT — stale baseline index built from &quot; + shortSha(usedIndex.anchorCommit()) + &quot; (&quot; + usedIndex.builtAt() + &quot;)&quot;</span>
+<span class="fc" id="L47">                    : &quot;SELECT — index built from &quot; + shortSha(usedIndex.anchorCommit()) + &quot; (&quot; + usedIndex.builtAt() + &quot;)&quot;;</span>
+<span class="fc" id="L48">            case TRACK -&gt; &quot;TRACK — building a fresh index&quot;;</span>
+<span class="fc" id="L49">            case FALLBACK -&gt; &quot;FALLBACK — &quot; + fallbackReason(report.indexApplicability());</span>
         };
     }
 
     private static String fallbackReason(IndexApplicability.Status status) {
-<span class="pc bpc" id="L52" title="6 of 8 branches missed.">        return switch (status) {</span>
-<span class="nc" id="L53">            case MISSING -&gt; &quot;no persisted index found (MISSING)&quot;;</span>
-<span class="nc" id="L54">            case UNREADABLE -&gt; &quot;persisted index could not be read (UNREADABLE)&quot;;</span>
-<span class="fc" id="L55">            case FORMAT_VERSION_MISMATCH -&gt; &quot;persisted index uses an unsupported format version (FORMAT_VERSION_MISMATCH)&quot;;</span>
-<span class="fc" id="L56">            case ANCHOR_UNREACHABLE -&gt; &quot;persisted index's anchor commit is no longer reachable (ANCHOR_UNREACHABLE)&quot;;</span>
-<span class="nc" id="L57">            case ANCHOR_MISMATCH -&gt; &quot;persisted index does not match the resolved comparison base (ANCHOR_MISMATCH)&quot;;</span>
-<span class="nc" id="L58">            case MERGE_BASE_UNAVAILABLE -&gt; &quot;Git could not establish a common comparison base (MERGE_BASE_UNAVAILABLE)&quot;;</span>
-<span class="nc" id="L59">            case INTERNAL_ERROR -&gt; &quot;an internal error occurred during selection computation (INTERNAL_ERROR)&quot;;</span>
-<span class="nc" id="L60">            case APPLICABLE, STALE_BASELINE -&gt; throw new IllegalStateException(&quot;FALLBACK mode never has an applicable index&quot;);</span>
+<span class="pc bpc" id="L54" title="6 of 8 branches missed.">        return switch (status) {</span>
+<span class="nc" id="L55">            case MISSING -&gt; &quot;no persisted index found (MISSING)&quot;;</span>
+<span class="nc" id="L56">            case UNREADABLE -&gt; &quot;persisted index could not be read (UNREADABLE)&quot;;</span>
+<span class="fc" id="L57">            case FORMAT_VERSION_MISMATCH -&gt; &quot;persisted index uses an unsupported format version (FORMAT_VERSION_MISMATCH)&quot;;</span>
+<span class="fc" id="L58">            case ANCHOR_UNREACHABLE -&gt; &quot;persisted index's anchor commit is no longer reachable (ANCHOR_UNREACHABLE)&quot;;</span>
+<span class="nc" id="L59">            case ANCHOR_MISMATCH -&gt; &quot;persisted index does not match the resolved comparison base (ANCHOR_MISMATCH)&quot;;</span>
+<span class="nc" id="L60">            case MERGE_BASE_UNAVAILABLE -&gt; &quot;Git could not establish a common comparison base (MERGE_BASE_UNAVAILABLE)&quot;;</span>
+<span class="nc" id="L61">            case INTERNAL_ERROR -&gt; &quot;an internal error occurred during selection computation (INTERNAL_ERROR)&quot;;</span>
+<span class="nc" id="L62">            case APPLICABLE, STALE_BASELINE -&gt; throw new IllegalStateException(&quot;FALLBACK mode never has an applicable index&quot;);</span>
         };
     }
 
     private static String shortSha(String sha) {
-<span class="pc bpc" id="L65" title="1 of 2 branches missed.">        return sha.length() &gt; 7 ? sha.substring(0, 7) : sha;</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">        return sha.length() &gt; 7 ? sha.substring(0, 7) : sha;</span>
     }
 
     private static long countReason(BuildReport report, SelectionReason reason) {
-<span class="fc bfc" id="L69" title="All 2 branches covered.">        return report.decisions().stream().filter(d -&gt; d.reason() == reason).count();</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        return report.decisions().stream().filter(d -&gt; d.reason() == reason).count();</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

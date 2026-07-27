@@ -67,30 +67,30 @@ import java.util.regex.Pattern;
     }
 
     private static ChangedFile classifyEntry(String path, DiffEntry entry, ObjectReader reader) throws IOException {
-<span class="fc bfc" id="L70" title="All 4 branches covered.">        if (path.endsWith(&quot;.kt&quot;) &amp;&amp; containsInlineFunction(entry, reader)) {</span>
-<span class="fc" id="L71">            return new ChangedFile(path, FileKind.NON_SOURCE, null);</span>
+<span class="pc bpc" id="L70" title="3 of 4 branches missed.">        if (path.endsWith(&quot;.kt&quot;) &amp;&amp; containsInlineFunction(entry, reader)) {</span>
+<span class="nc" id="L71">            return new ChangedFile(path, FileKind.NON_SOURCE, null);</span>
         }
 <span class="fc" id="L73">        String className = classNameFromPath(path);</span>
-<span class="fc bfc" id="L74" title="All 2 branches covered.">        if (className != null) {</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        if (className != null) {</span>
 <span class="fc" id="L75">            return new ChangedFile(path, FileKind.JAVA_SOURCE, className);</span>
         }
-<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (isInert(path)) {</span>
-<span class="fc" id="L78">            return new ChangedFile(path, FileKind.INERT, null);</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        if (isInert(path)) {</span>
+<span class="nc" id="L78">            return new ChangedFile(path, FileKind.INERT, null);</span>
         }
-<span class="fc" id="L80">        return new ChangedFile(path, FileKind.NON_SOURCE, null);</span>
+<span class="nc" id="L80">        return new ChangedFile(path, FileKind.NON_SOURCE, null);</span>
     }
 
     private static boolean containsInlineFunction(DiffEntry entry, ObjectReader reader) throws IOException {
-<span class="pc bpc" id="L84" title="1 of 2 branches missed.">        return sourceContainsInlineFunction(entry.getOldId().toObjectId(), reader)</span>
-<span class="fc bfc" id="L85" title="All 2 branches covered.">                || sourceContainsInlineFunction(entry.getNewId().toObjectId(), reader);</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        return sourceContainsInlineFunction(entry.getOldId().toObjectId(), reader)</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">                || sourceContainsInlineFunction(entry.getNewId().toObjectId(), reader);</span>
     }
 
     private static boolean sourceContainsInlineFunction(ObjectId sourceId, ObjectReader reader) throws IOException {
-<span class="fc bfc" id="L89" title="All 2 branches covered.">        if (ObjectId.zeroId().equals(sourceId)) {</span>
-<span class="fc" id="L90">            return false;</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">        if (ObjectId.zeroId().equals(sourceId)) {</span>
+<span class="nc" id="L90">            return false;</span>
         }
-<span class="fc" id="L92">        String source = new String(reader.open(sourceId).getBytes(), StandardCharsets.UTF_8);</span>
-<span class="fc" id="L93">        return INLINE_FUNCTION.matcher(source).find();</span>
+<span class="nc" id="L92">        String source = new String(reader.open(sourceId).getBytes(), StandardCharsets.UTF_8);</span>
+<span class="nc" id="L93">        return INLINE_FUNCTION.matcher(source).find();</span>
     }
 
     // Documentation and media extensions that cannot affect a test outcome.
@@ -116,43 +116,43 @@ import java.util.regex.Pattern;
      * loads, which class-load tracking cannot observe, so it must fall back.
      */
     private static boolean isInert(String path) {
-<span class="pc bpc" id="L119" title="1 of 4 branches missed.">        if (path.startsWith(&quot;resources/&quot;) || path.contains(&quot;/resources/&quot;)) {</span>
-<span class="fc" id="L120">            return false;</span>
+<span class="nc bnc" id="L119" title="All 4 branches missed.">        if (path.startsWith(&quot;resources/&quot;) || path.contains(&quot;/resources/&quot;)) {</span>
+<span class="nc" id="L120">            return false;</span>
         }
-<span class="pc bpc" id="L122" title="2 of 6 branches missed.">        if (path.startsWith(&quot;.github/&quot;) || path.startsWith(&quot;.idea/&quot;) || path.startsWith(&quot;.vscode/&quot;)</span>
-<span class="pc bpc" id="L123" title="1 of 4 branches missed.">                || path.startsWith(&quot;docs/&quot;) || path.contains(&quot;/docs/&quot;)) {</span>
-<span class="fc" id="L124">            return true;</span>
+<span class="nc bnc" id="L122" title="All 6 branches missed.">        if (path.startsWith(&quot;.github/&quot;) || path.startsWith(&quot;.idea/&quot;) || path.startsWith(&quot;.vscode/&quot;)</span>
+<span class="nc bnc" id="L123" title="All 4 branches missed.">                || path.startsWith(&quot;docs/&quot;) || path.contains(&quot;/docs/&quot;)) {</span>
+<span class="nc" id="L124">            return true;</span>
         }
-<span class="fc" id="L126">        String fileName = path.substring(path.lastIndexOf('/') + 1);</span>
-<span class="pc bpc" id="L127" title="2 of 4 branches missed.">        if (INERT_METADATA_FILES.contains(fileName) || fileName.endsWith(&quot;.iml&quot;)) {</span>
+<span class="nc" id="L126">        String fileName = path.substring(path.lastIndexOf('/') + 1);</span>
+<span class="nc bnc" id="L127" title="All 4 branches missed.">        if (INERT_METADATA_FILES.contains(fileName) || fileName.endsWith(&quot;.iml&quot;)) {</span>
 <span class="nc" id="L128">            return true;</span>
         }
-<span class="fc bfc" id="L130" title="All 2 branches covered.">        for (String stem : INERT_DOC_STEMS) {</span>
-<span class="pc bpc" id="L131" title="1 of 4 branches missed.">            if (fileName.equals(stem) || fileName.startsWith(stem + &quot;.&quot;)) {</span>
-<span class="fc" id="L132">                return true;</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        for (String stem : INERT_DOC_STEMS) {</span>
+<span class="nc bnc" id="L131" title="All 4 branches missed.">            if (fileName.equals(stem) || fileName.startsWith(stem + &quot;.&quot;)) {</span>
+<span class="nc" id="L132">                return true;</span>
             }
-<span class="fc" id="L134">        }</span>
-<span class="fc" id="L135">        String lower = fileName.toLowerCase(Locale.ROOT);</span>
-<span class="fc" id="L136">        return INERT_EXTENSIONS.stream().anyMatch(lower::endsWith);</span>
+<span class="nc" id="L134">        }</span>
+<span class="nc" id="L135">        String lower = fileName.toLowerCase(Locale.ROOT);</span>
+<span class="nc" id="L136">        return INERT_EXTENSIONS.stream().anyMatch(lower::endsWith);</span>
     }
 
     private static String classNameFromPath(String path) {
 <span class="fc" id="L140">        String marker = null;</span>
         String extension;
-<span class="pc bpc" id="L142" title="1 of 4 branches missed.">        if (path.contains(MAIN_JAVA_MARKER) &amp;&amp; path.endsWith(&quot;.java&quot;)) {</span>
+<span class="pc bpc" id="L142" title="2 of 4 branches missed.">        if (path.contains(MAIN_JAVA_MARKER) &amp;&amp; path.endsWith(&quot;.java&quot;)) {</span>
 <span class="fc" id="L143">            marker = MAIN_JAVA_MARKER;</span>
 <span class="fc" id="L144">            extension = &quot;.java&quot;;</span>
-<span class="pc bpc" id="L145" title="1 of 4 branches missed.">        } else if (path.contains(TEST_JAVA_MARKER) &amp;&amp; path.endsWith(&quot;.java&quot;)) {</span>
-<span class="fc" id="L146">            marker = TEST_JAVA_MARKER;</span>
-<span class="fc" id="L147">            extension = &quot;.java&quot;;</span>
-<span class="pc bpc" id="L148" title="1 of 4 branches missed.">        } else if (path.contains(MAIN_KOTLIN_MARKER) &amp;&amp; path.endsWith(&quot;.kt&quot;)) {</span>
-<span class="fc" id="L149">            marker = MAIN_KOTLIN_MARKER;</span>
-<span class="fc" id="L150">            extension = &quot;.kt&quot;;</span>
-<span class="pc bpc" id="L151" title="3 of 4 branches missed.">        } else if (path.contains(TEST_KOTLIN_MARKER) &amp;&amp; path.endsWith(&quot;.kt&quot;)) {</span>
+<span class="nc bnc" id="L145" title="All 4 branches missed.">        } else if (path.contains(TEST_JAVA_MARKER) &amp;&amp; path.endsWith(&quot;.java&quot;)) {</span>
+<span class="nc" id="L146">            marker = TEST_JAVA_MARKER;</span>
+<span class="nc" id="L147">            extension = &quot;.java&quot;;</span>
+<span class="nc bnc" id="L148" title="All 4 branches missed.">        } else if (path.contains(MAIN_KOTLIN_MARKER) &amp;&amp; path.endsWith(&quot;.kt&quot;)) {</span>
+<span class="nc" id="L149">            marker = MAIN_KOTLIN_MARKER;</span>
+<span class="nc" id="L150">            extension = &quot;.kt&quot;;</span>
+<span class="nc bnc" id="L151" title="All 4 branches missed.">        } else if (path.contains(TEST_KOTLIN_MARKER) &amp;&amp; path.endsWith(&quot;.kt&quot;)) {</span>
 <span class="nc" id="L152">            marker = TEST_KOTLIN_MARKER;</span>
 <span class="nc" id="L153">            extension = &quot;.kt&quot;;</span>
         } else {
-<span class="fc" id="L155">            return null;</span>
+<span class="nc" id="L155">            return null;</span>
         }
 <span class="fc" id="L157">        String relative = path.substring(path.indexOf(marker) + marker.length());</span>
 <span class="fc" id="L158">        String withoutExtension = relative.substring(0, relative.length() - extension.length());</span>

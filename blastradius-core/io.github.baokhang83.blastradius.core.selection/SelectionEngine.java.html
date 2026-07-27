@@ -20,39 +20,47 @@ import java.util.stream.Collectors;
 <span class="fc" id="L20">public final class SelectionEngine {</span>
 
 <span class="fc" id="L22">    private final FallbackSelector fallbackSelector = new FallbackSelector();</span>
-<span class="fc" id="L23">    private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();</span>
-<span class="fc" id="L24">    private final DependencyMatchSelector dependencyMatchSelector = new DependencyMatchSelector();</span>
+<span class="fc" id="L23">    private final AmbientDependencySelector ambientDependencySelector = new AmbientDependencySelector();</span>
+<span class="fc" id="L24">    private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();</span>
+<span class="fc" id="L25">    private final DependencyMatchSelector dependencyMatchSelector = new DependencyMatchSelector();</span>
 
     /**
      * @param allTests           every test in the suite
      * @param testDependencies   each test's previously-tracked dependency class names
      * @param newOrModifiedTests tests with no prior baseline or whose own file changed
      * @param changedFiles       this commit pair's changed files
+     * @param ambientDependencies classes loaded before any test's tracking window opened in
+     *                            some fork — never soundly attributable to a specific test
      */
     public List&lt;SelectionDecision&gt; selectAll(
             Set&lt;TestIdentity&gt; allTests,
             Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependencies,
             Set&lt;TestIdentity&gt; newOrModifiedTests,
-            List&lt;ChangedFile&gt; changedFiles) {
+            List&lt;ChangedFile&gt; changedFiles,
+            Set&lt;String&gt; ambientDependencies) {
 
-<span class="fc bfc" id="L38" title="All 2 branches covered.">        if (fallbackSelector.shouldFallback(changedFiles)) {</span>
-<span class="fc" id="L39">            return allTests.stream().map(fallbackSelector::select).toList();</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        if (fallbackSelector.shouldFallback(changedFiles)) {</span>
+<span class="nc" id="L43">            return allTests.stream().map(fallbackSelector::select).toList();</span>
         }
 
-<span class="fc" id="L42">        Set&lt;String&gt; changedClassNames = changedFiles.stream()</span>
-<span class="fc" id="L43">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
-<span class="fc" id="L44">                .collect(Collectors.toUnmodifiableSet());</span>
+<span class="fc" id="L46">        Set&lt;String&gt; changedClassNames = changedFiles.stream()</span>
+<span class="fc" id="L47">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
+<span class="fc" id="L48">                .collect(Collectors.toUnmodifiableSet());</span>
 
-<span class="fc" id="L46">        List&lt;SelectionDecision&gt; decisions = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L47" title="All 2 branches covered.">        for (TestIdentity test : allTests) {</span>
-<span class="fc bfc" id="L48" title="All 2 branches covered.">            if (newOrModifiedTests.contains(test)) {</span>
-<span class="fc" id="L49">                decisions.add(newOrModifiedTestSelector.select(test));</span>
-<span class="fc" id="L50">                continue;</span>
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">        if (ambientDependencySelector.shouldFallback(changedClassNames, ambientDependencies)) {</span>
+<span class="nc" id="L51">            return allTests.stream().map(ambientDependencySelector::select).toList();</span>
+        }
+
+<span class="fc" id="L54">        List&lt;SelectionDecision&gt; decisions = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        for (TestIdentity test : allTests) {</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">            if (newOrModifiedTests.contains(test)) {</span>
+<span class="fc" id="L57">                decisions.add(newOrModifiedTestSelector.select(test));</span>
+<span class="fc" id="L58">                continue;</span>
             }
-<span class="fc" id="L52">            Set&lt;String&gt; dependencies = testDependencies.getOrDefault(test.baselineKey(), Set.of());</span>
-<span class="fc" id="L53">            decisions.add(dependencyMatchSelector.select(test, dependencies, changedClassNames));</span>
-<span class="fc" id="L54">        }</span>
-<span class="fc" id="L55">        return decisions;</span>
+<span class="fc" id="L60">            Set&lt;String&gt; dependencies = testDependencies.getOrDefault(test.baselineKey(), Set.of());</span>
+<span class="fc" id="L61">            decisions.add(dependencyMatchSelector.select(test, dependencies, changedClassNames));</span>
+<span class="fc" id="L62">        }</span>
+<span class="fc" id="L63">        return decisions;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

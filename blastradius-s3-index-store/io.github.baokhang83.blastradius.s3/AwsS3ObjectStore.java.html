@@ -22,20 +22,20 @@ final class AwsS3ObjectStore implements S3ObjectStore {
     private final S3Client client;
     private final String bucket;
 
-<span class="fc" id="L25">    AwsS3ObjectStore(S3Client client, String bucket) {</span>
-<span class="fc" id="L26">        this.client = client;</span>
-<span class="pc bpc" id="L27" title="2 of 4 branches missed.">        if (bucket == null || bucket.isBlank()) {</span>
+<span class="nc" id="L25">    AwsS3ObjectStore(S3Client client, String bucket) {</span>
+<span class="nc" id="L26">        this.client = client;</span>
+<span class="nc bnc" id="L27" title="All 4 branches missed.">        if (bucket == null || bucket.isBlank()) {</span>
 <span class="nc" id="L28">            throw new IllegalArgumentException(&quot;S3 bucket must not be blank&quot;);</span>
         }
-<span class="fc" id="L30">        this.bucket = bucket;</span>
-<span class="fc" id="L31">    }</span>
+<span class="nc" id="L30">        this.bucket = bucket;</span>
+<span class="nc" id="L31">    }</span>
 
     @Override
     public Optional&lt;byte[]&gt; get(String key) {
         try {
-<span class="fc" id="L36">            ResponseBytes&lt;GetObjectResponse&gt; response = client.getObject(</span>
-<span class="fc" id="L37">                    GetObjectRequest.builder().bucket(bucket).key(key).build(), ResponseTransformer.toBytes());</span>
-<span class="fc" id="L38">            return Optional.of(response.asByteArray());</span>
+<span class="nc" id="L36">            ResponseBytes&lt;GetObjectResponse&gt; response = client.getObject(</span>
+<span class="nc" id="L37">                    GetObjectRequest.builder().bucket(bucket).key(key).build(), ResponseTransformer.toBytes());</span>
+<span class="nc" id="L38">            return Optional.of(response.asByteArray());</span>
 <span class="nc" id="L39">        } catch (NoSuchKeyException e) {</span>
 <span class="nc" id="L40">            return Optional.empty();</span>
 <span class="nc" id="L41">        } catch (S3Exception e) {</span>
@@ -65,12 +65,12 @@ final class AwsS3ObjectStore implements S3ObjectStore {
     @Override
     public void put(String key, byte[] value) {
         try {
-<span class="fc" id="L68">            client.putObject(PutObjectRequest.builder().bucket(bucket).key(key).contentType(&quot;application/json&quot;).build(),</span>
-<span class="fc" id="L69">                    RequestBody.fromBytes(value));</span>
+<span class="nc" id="L68">            client.putObject(PutObjectRequest.builder().bucket(bucket).key(key).contentType(&quot;application/json&quot;).build(),</span>
+<span class="nc" id="L69">                    RequestBody.fromBytes(value));</span>
 <span class="nc" id="L70">        } catch (SdkException e) {</span>
 <span class="nc" id="L71">            throw unavailable(&quot;write&quot;, key, e);</span>
-<span class="fc" id="L72">        }</span>
-<span class="fc" id="L73">    }</span>
+<span class="nc" id="L72">        }</span>
+<span class="nc" id="L73">    }</span>
 
     @Override
     public void close() {

@@ -18,26 +18,34 @@ import java.util.stream.Collectors;
  * checksums (data-model.md) — the proven {@code SelectionEngine}/{@code
  * DependencyMatchSelector} logic only ever consumes class names.
  */
-public record DependencyIndex(int formatVersion, String anchorCommit, String builtAt, List&lt;TestDependencyEntry&gt; testDependencies) {
+public record DependencyIndex(int formatVersion, String anchorCommit, String builtAt,
+        List&lt;TestDependencyEntry&gt; testDependencies, Set&lt;String&gt; ambientDependencies) {
 
-<span class="fc" id="L23">    public DependencyIndex {</span>
-<span class="fc" id="L24">        formatVersion = DependencyIndexFormat.migrateLegacyVersion(formatVersion);</span>
-<span class="fc" id="L25">    }</span>
+<span class="fc" id="L24">    public DependencyIndex {</span>
+<span class="fc" id="L25">        formatVersion = DependencyIndexFormat.migrateLegacyVersion(formatVersion);</span>
+<span class="fc bfc" id="L26" title="All 2 branches covered.">        ambientDependencies = ambientDependencies == null ? Set.of() : Set.copyOf(ambientDependencies);</span>
+<span class="fc" id="L27">    }</span>
 
+    public DependencyIndex(String anchorCommit, String builtAt, List&lt;TestDependencyEntry&gt; testDependencies,
+            Set&lt;String&gt; ambientDependencies) {
+<span class="fc" id="L31">        this(DependencyIndexFormat.CURRENT_VERSION, anchorCommit, builtAt, testDependencies, ambientDependencies);</span>
+<span class="fc" id="L32">    }</span>
+
+    /** Convenience for callers that don't populate {@code ambientDependencies} (mostly tests). */
     public DependencyIndex(String anchorCommit, String builtAt, List&lt;TestDependencyEntry&gt; testDependencies) {
-<span class="fc" id="L28">        this(DependencyIndexFormat.CURRENT_VERSION, anchorCommit, builtAt, testDependencies);</span>
-<span class="fc" id="L29">    }</span>
+<span class="fc" id="L36">        this(anchorCommit, builtAt, testDependencies, Set.of());</span>
+<span class="fc" id="L37">    }</span>
 
-<span class="fc" id="L31">    public record TestDependencyEntry(TestIdentity test, Set&lt;String&gt; dependsOnClasses) {}</span>
+<span class="fc" id="L39">    public record TestDependencyEntry(TestIdentity test, Set&lt;String&gt; dependsOnClasses) {}</span>
 
     /** {@code testDependencies}, reshaped into the map form the selection engine consumes. */
     public Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependenciesByTest() {
-<span class="fc" id="L35">        return testDependencies.stream()</span>
-<span class="fc" id="L36">                .collect(Collectors.toUnmodifiableMap(TestDependencyEntry::test, TestDependencyEntry::dependsOnClasses));</span>
+<span class="fc" id="L43">        return testDependencies.stream()</span>
+<span class="fc" id="L44">                .collect(Collectors.toUnmodifiableMap(TestDependencyEntry::test, TestDependencyEntry::dependsOnClasses));</span>
     }
 
     public boolean hasCurrentFormat() {
-<span class="fc" id="L40">        return DependencyIndexFormat.isCurrentVersion(formatVersion);</span>
+<span class="fc" id="L48">        return DependencyIndexFormat.isCurrentVersion(formatVersion);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
