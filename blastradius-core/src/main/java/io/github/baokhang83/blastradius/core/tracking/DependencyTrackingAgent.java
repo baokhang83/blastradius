@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -46,6 +47,8 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
 
     private final Supplier<TestIdentity> currentTestSupplier;
     private final Map<TestIdentity, Map<String, String>> checksumsByTest = new ConcurrentHashMap<>();
+    private final Set<String> ambientDependencies = ConcurrentHashMap.newKeySet();
+    private final AtomicBoolean ambientSnapshotTaken = new AtomicBoolean(false);
 
     public DependencyTrackingAgent() {
         this(TestBoundaryListener::currentTest);
@@ -85,7 +88,7 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 Map<TestIdentity, Map<String, String>> recorded = agent.recordedDependencies();
                 if (!recorded.isEmpty()) {
-                    new DependencyRecordWriter().write(outputFile, recorded);
+                    new DependencyRecordWriter().write(outputFile, recorded, agent.ambientDependencies());
                 }
             }));
         }
@@ -133,11 +136,40 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         checksumsByTest.computeIfAbsent(test, ignored -> new ConcurrentHashMap<>());
     }
 
+    /**
+     * Called once, before the very first test in a fork starts (see {@link TestBoundaryListener}).
+     * Everything already loaded at that point — JVM/Surefire bootstrap, JUnit Platform's
+     * discovery pass walking every test class's signatures — got exactly one, unattributed
+     * {@link #transform} call each and can never be re-observed, so no single test can be
+     * blamed for depending on them. Recording them as fork-wide {@code ambientDependencies}
+     * lets selection fall back rather than silently reporting {@code NO_MATCH} when one of
+     * them changes. Idempotent: only the first caller's snapshot is taken.
+     */
+    static void recordAmbientSnapshot() {
+        DependencyTrackingAgent currentAgent = installedAgent;
+        if (currentAgent != null) {
+            currentAgent.snapshotAmbientDependencies();
+        }
+    }
+
+    void snapshotAmbientDependencies() {
+        if (ambientSnapshotTaken.compareAndSet(false, true)) {
+            for (Class<?> loadedClass : loadedClasses()) {
+                ambientDependencies.add(loadedClass.getName());
+            }
+        }
+    }
+
     /** An immutable snapshot of {@code test -> {className -> tracking token}} recorded so far. */
     public Map<TestIdentity, Map<String, String>> recordedDependencies() {
         return checksumsByTest.entrySet().stream()
                 .collect(java.util.stream.Collectors.toUnmodifiableMap(
                         Map.Entry::getKey, e -> Map.copyOf(e.getValue())));
+    }
+
+    /** Class names loaded before the first test's tracking window opened in this fork. */
+    public Set<String> ambientDependencies() {
+        return Set.copyOf(ambientDependencies);
     }
 
     static Set<Class<?>> loadedClasses() {

@@ -44,6 +44,18 @@ class MultiWouldMissIntegrationTest {
         // before any test starts.
         fixture.writeClass("com.example.MarkerA", "package com.example; public class MarkerA {}");
         fixture.writeClass("com.example.MarkerB", "package com.example; public class MarkerB {}");
+        // Runs first (alphabetical runOrder, see FixtureProjectBuilder's pom), so the
+        // agent's once-per-fork ambient snapshot is already taken before GapATest's own
+        // @BeforeAll loads Shared — otherwise that first-in-fork timing would itself put
+        // Shared in the ambient set and mask the gap both Gap tests below rely on.
+        fixture.writeTest("com.example.AaaWarmupTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                class AaaWarmupTest {
+                    @Test
+                    void warmsUpTheFork() {}
+                }
+                """);
         fixture.writeTest("com.example.GapATest", """
                 package com.example;
                 import org.junit.jupiter.api.BeforeAll;

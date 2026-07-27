@@ -27,7 +27,8 @@ class SelectionEngineTest {
                 Set.of(MATCHED_TEST, UNRELATED_TEST),
                 Map.of(MATCHED_TEST, Set.of("com.example.Foo")),
                 Set.of(),
-                changed);
+                changed,
+                Set.of());
 
         assertTrue(decisions.stream().allMatch(SelectionDecision::selected));
         assertTrue(decisions.stream()
@@ -43,7 +44,8 @@ class SelectionEngineTest {
                 Set.of(NEW_TEST),
                 Map.of(),
                 Set.of(NEW_TEST),
-                changed);
+                changed,
+                Set.of());
 
         assertEquals(1, decisions.size());
         assertEquals(SelectionReason.NEW_OR_MODIFIED_TEST, decisions.get(0).reason());
@@ -58,7 +60,8 @@ class SelectionEngineTest {
                 Set.of(MATCHED_TEST, UNRELATED_TEST),
                 Map.of(MATCHED_TEST, Set.of("com.example.Foo"), UNRELATED_TEST, Set.of("com.example.Other")),
                 Set.of(),
-                changed);
+                changed,
+                Set.of());
 
         SelectionDecision matched = decisions.stream().filter(d -> d.test().equals(MATCHED_TEST)).findFirst().orElseThrow();
         SelectionDecision unrelated = decisions.stream().filter(d -> d.test().equals(UNRELATED_TEST)).findFirst().orElseThrow();
@@ -74,7 +77,8 @@ class SelectionEngineTest {
                 "src/main/kotlin/com/example/Greeting.kt", FileKind.JAVA_SOURCE, "com.example.Greeting"));
 
         List<SelectionDecision> decisions = engine.selectAll(
-                Set.of(MATCHED_TEST), Map.of(MATCHED_TEST, Set.of("com.example.GreetingKt")), Set.of(), changed);
+                Set.of(MATCHED_TEST), Map.of(MATCHED_TEST, Set.of("com.example.GreetingKt")), Set.of(), changed,
+                Set.of());
 
         assertTrue(decisions.getFirst().selected());
         assertEquals("com.example.GreetingKt", decisions.getFirst().matchedChangedClass());
@@ -83,9 +87,26 @@ class SelectionEngineTest {
     @Test
     void producesExactlyOneDecisionPerTest() {
         List<SelectionDecision> decisions = engine.selectAll(
-                Set.of(MATCHED_TEST, UNRELATED_TEST, NEW_TEST), Map.of(), Set.of(), List.of());
+                Set.of(MATCHED_TEST, UNRELATED_TEST, NEW_TEST), Map.of(), Set.of(), List.of(), Set.of());
 
         assertEquals(3, decisions.size());
+    }
+
+    @Test
+    void ambientFallbackTriggersWhenAChangedClassIsAmbient() {
+        List<ChangedFile> changed = List.of(
+                new ChangedFile("src/main/java/com/example/Foo.java", FileKind.JAVA_SOURCE, "com.example.Foo"));
+
+        List<SelectionDecision> decisions = engine.selectAll(
+                Set.of(MATCHED_TEST, UNRELATED_TEST),
+                Map.of(MATCHED_TEST, Set.of("com.example.Foo")),
+                Set.of(),
+                changed,
+                Set.of("com.example.Foo"));
+
+        assertTrue(decisions.stream().allMatch(SelectionDecision::selected));
+        assertTrue(decisions.stream()
+                .allMatch(d -> d.reason() == SelectionReason.FALLBACK_AMBIENT_DEPENDENCY));
     }
 
     @Test
@@ -98,7 +119,8 @@ class SelectionEngineTest {
                 Set.of(MATCHED_TEST, UNRELATED_TEST),
                 Map.of(MATCHED_TEST, Set.of("com.example.Foo")),
                 Set.of(),
-                changed);
+                changed,
+                Set.of());
 
         assertTrue(decisions.stream().noneMatch(SelectionDecision::selected));
         assertTrue(decisions.stream()

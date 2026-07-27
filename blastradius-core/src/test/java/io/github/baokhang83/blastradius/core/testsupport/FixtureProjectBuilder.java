@@ -310,6 +310,13 @@ public final class FixtureProjectBuilder {
                                 <groupId>org.apache.maven.plugins</groupId>
                                 <artifactId>maven-surefire-plugin</artifactId>
                                 <version>3.2.5</version>
+                                <configuration>
+                                    <!-- Deterministic cross-class execution order, so fixtures that rely on
+                                         one test class running before another (e.g. an ambient-dependency
+                                         warm-up class preceding a @BeforeAll-loaded-class gap scenario)
+                                         are reproducible instead of depending on filesystem enumeration. -->
+                                    <runOrder>alphabetical</runOrder>
+                                </configuration>
                             </plugin>
                         </plugins>
                     </build>

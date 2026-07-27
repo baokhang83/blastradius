@@ -18,14 +18,22 @@ import java.util.stream.Collectors;
  * checksums (data-model.md) — the proven {@code SelectionEngine}/{@code
  * DependencyMatchSelector} logic only ever consumes class names.
  */
-public record DependencyIndex(int formatVersion, String anchorCommit, String builtAt, List<TestDependencyEntry> testDependencies) {
+public record DependencyIndex(int formatVersion, String anchorCommit, String builtAt,
+        List<TestDependencyEntry> testDependencies, Set<String> ambientDependencies) {
 
     public DependencyIndex {
         formatVersion = DependencyIndexFormat.migrateLegacyVersion(formatVersion);
+        ambientDependencies = ambientDependencies == null ? Set.of() : Set.copyOf(ambientDependencies);
     }
 
+    public DependencyIndex(String anchorCommit, String builtAt, List<TestDependencyEntry> testDependencies,
+            Set<String> ambientDependencies) {
+        this(DependencyIndexFormat.CURRENT_VERSION, anchorCommit, builtAt, testDependencies, ambientDependencies);
+    }
+
+    /** Convenience for callers that don't populate {@code ambientDependencies} (mostly tests). */
     public DependencyIndex(String anchorCommit, String builtAt, List<TestDependencyEntry> testDependencies) {
-        this(DependencyIndexFormat.CURRENT_VERSION, anchorCommit, builtAt, testDependencies);
+        this(anchorCommit, builtAt, testDependencies, Set.of());
     }
 
     public record TestDependencyEntry(TestIdentity test, Set<String> dependsOnClasses) {}

@@ -45,7 +45,7 @@ class DependencyTrackingIntegrationTest {
 
         runMvnTest(projectDir, agentJar, recordFile);
 
-        Map<TestIdentity, Map<String, String>> recorded = new DependencyRecordReader().readAll(recordFile);
+        Map<TestIdentity, Map<String, String>> recorded = new DependencyRecordReader().readAll(recordFile).tests();
         TestIdentity fooTest = new TestIdentity("com.example.FooTest", "checksValue");
 
         assertTrue(recorded.containsKey(fooTest), "expected an entry for " + fooTest + " in " + recorded.keySet());
@@ -86,7 +86,7 @@ class DependencyTrackingIntegrationTest {
         // the reactor session itself, with no separate `mvn install` needed.
         runMvnTest(projectDir, agentJar, recordFile);
 
-        Map<TestIdentity, Map<String, String>> recorded = new DependencyRecordReader().readAll(recordFile);
+        Map<TestIdentity, Map<String, String>> recorded = new DependencyRecordReader().readAll(recordFile).tests();
         TestIdentity consumerTest = new TestIdentity("com.example.b.ConsumerTest", "checksConsume");
 
         assertTrue(recorded.containsKey(consumerTest),
@@ -115,7 +115,7 @@ class DependencyTrackingIntegrationTest {
 
         runMvnTest(projectDir, agentJar, recordFile);
 
-        Map<TestIdentity, Map<String, String>> recorded = new DependencyRecordReader().readAll(recordFile);
+        Map<TestIdentity, Map<String, String>> recorded = new DependencyRecordReader().readAll(recordFile).tests();
         TestIdentity emptyTest = new TestIdentity("com.example.EmptyTest", "doesNothing");
 
         assertTrue(recorded.containsKey(emptyTest),
@@ -186,7 +186,7 @@ class DependencyTrackingIntegrationTest {
 
         runMvnTest(projectDir, agentJar, recordFile);
 
-        Map<TestIdentity, Map<String, String>> recorded = new DependencyRecordReader().readAll(recordFile);
+        Map<TestIdentity, Map<String, String>> recorded = new DependencyRecordReader().readAll(recordFile).tests();
         TestIdentity jdk25Test = new TestIdentity(
                 "com.example.Jdk25TrackingTest", "tracksVirtualThreadSealedAndHiddenClassLoads");
 

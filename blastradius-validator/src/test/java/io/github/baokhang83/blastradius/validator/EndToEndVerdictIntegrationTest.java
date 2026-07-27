@@ -81,6 +81,18 @@ class EndToEndVerdictIntegrationTest {
         fixture.addSystemDependency(null, agentJar);
         fixture.writeClass("com.example.Shared",
                 "package com.example; public class Shared { public static int value() { return 1; } }");
+        // Runs first (alphabetical runOrder, see FixtureProjectBuilder's pom), so the
+        // agent's once-per-fork ambient snapshot is already taken by the time GapTest's
+        // own @BeforeAll loads Shared — otherwise that first-in-fork timing would itself
+        // put Shared in the ambient set and mask the very gap this test documents.
+        fixture.writeTest("com.example.AaaWarmupTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                class AaaWarmupTest {
+                    @Test
+                    void warmsUpTheFork() {}
+                }
+                """);
         fixture.writeTest("com.example.GapTest", """
                 package com.example;
                 import org.junit.jupiter.api.BeforeAll;

@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 public final class SelectionEngine {
 
     private final FallbackSelector fallbackSelector = new FallbackSelector();
+    private final AmbientDependencySelector ambientDependencySelector = new AmbientDependencySelector();
     private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();
     private final DependencyMatchSelector dependencyMatchSelector = new DependencyMatchSelector();
 
@@ -28,12 +29,15 @@ public final class SelectionEngine {
      * @param testDependencies   each test's previously-tracked dependency class names
      * @param newOrModifiedTests tests with no prior baseline or whose own file changed
      * @param changedFiles       this commit pair's changed files
+     * @param ambientDependencies classes loaded before any test's tracking window opened in
+     *                            some fork — never soundly attributable to a specific test
      */
     public List<SelectionDecision> selectAll(
             Set<TestIdentity> allTests,
             Map<TestIdentity, Set<String>> testDependencies,
             Set<TestIdentity> newOrModifiedTests,
-            List<ChangedFile> changedFiles) {
+            List<ChangedFile> changedFiles,
+            Set<String> ambientDependencies) {
 
         if (fallbackSelector.shouldFallback(changedFiles)) {
             return allTests.stream().map(fallbackSelector::select).toList();
@@ -42,6 +46,10 @@ public final class SelectionEngine {
         Set<String> changedClassNames = changedFiles.stream()
                 .flatMap(file -> file.candidateClassNames().stream())
                 .collect(Collectors.toUnmodifiableSet());
+
+        if (ambientDependencySelector.shouldFallback(changedClassNames, ambientDependencies)) {
+            return allTests.stream().map(ambientDependencySelector::select).toList();
+        }
 
         List<SelectionDecision> decisions = new ArrayList<>();
         for (TestIdentity test : allTests) {

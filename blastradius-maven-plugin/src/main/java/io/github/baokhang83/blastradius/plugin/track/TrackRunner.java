@@ -1,6 +1,7 @@
 package io.github.baokhang83.blastradius.plugin.track;
 
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
+import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDependencyEntry;
@@ -55,11 +56,11 @@ public final class TrackRunner {
 
         runToCompletion(processBuilder, projectDir);
 
-        Map<TestIdentity, Map<String, String>> recorded = recordReader.readAll(outputFile);
-        List<TestDependencyEntry> entries = recorded.entrySet().stream()
+        DependencyRecordSet recorded = recordReader.readAll(outputFile);
+        List<TestDependencyEntry> entries = recorded.tests().entrySet().stream()
                 .map(entry -> new TestDependencyEntry(entry.getKey(), entry.getValue().keySet()))
                 .toList();
-        return new DependencyIndex(anchorCommit, Instant.now().toString(), entries);
+        return new DependencyIndex(anchorCommit, Instant.now().toString(), entries, recorded.ambientDependencies());
     }
 
     /**

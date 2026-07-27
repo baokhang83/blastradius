@@ -36,6 +36,10 @@ public record SelectionDecision(
         return new SelectionDecision(test, true, SelectionReason.FALLBACK_NON_SOURCE_CHANGE, null);
     }
 
+    public static SelectionDecision fallbackAmbientDependency(TestIdentity test) {
+        return new SelectionDecision(test, true, SelectionReason.FALLBACK_AMBIENT_DEPENDENCY, null);
+    }
+
     public static SelectionDecision newOrModifiedTest(TestIdentity test) {
         return new SelectionDecision(test, true, SelectionReason.NEW_OR_MODIFIED_TEST, null);
     }

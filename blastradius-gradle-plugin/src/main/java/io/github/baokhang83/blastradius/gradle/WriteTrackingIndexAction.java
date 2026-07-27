@@ -3,12 +3,11 @@ package io.github.baokhang83.blastradius.gradle;
 import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
 import io.github.baokhang83.blastradius.core.index.IndexStore;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
-import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
 import java.io.File;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Task;
@@ -33,8 +32,8 @@ final class WriteTrackingIndexAction implements Action<Task> {
     @Override
     public void execute(Task task) {
         try {
-            Map<TestIdentity, Map<String, String>> recorded = new DependencyRecordReader().readAll(recordPrefix.toPath());
-            List<DependencyIndex.TestDependencyEntry> entries = recorded.entrySet().stream()
+            DependencyRecordSet recorded = new DependencyRecordReader().readAll(recordPrefix.toPath());
+            List<DependencyIndex.TestDependencyEntry> entries = recorded.tests().entrySet().stream()
                     .map(entry -> new DependencyIndex.TestDependencyEntry(entry.getKey(), entry.getValue().keySet()))
                     .toList();
             Path repositoryRoot = repositoryDirectory.toPath().toAbsolutePath().normalize();
