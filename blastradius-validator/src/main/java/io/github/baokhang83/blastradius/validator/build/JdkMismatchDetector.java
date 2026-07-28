@@ -23,8 +23,12 @@ import org.w3c.dom.NodeList;
  */
 public final class JdkMismatchDetector {
 
+    // Order matters: the standard maven.compiler.* elements are checked first, since a
+    // project can declare a custom java.version property for its own unrelated purposes.
+    // java.version is a fallback for projects like apache/shenyu that declare none of the
+    // standard elements and use only a custom property to drive plugin configuration.
     private static final List<String> JDK_VERSION_PROPERTIES =
-            List.of("maven.compiler.release", "maven.compiler.target", "maven.compiler.source");
+            List.of("maven.compiler.release", "maven.compiler.target", "maven.compiler.source", "java.version");
 
     /** Compares against the JDK actually running this validator process. */
     public Optional<String> detect(Path projectRoot) {
@@ -35,7 +39,7 @@ public final class JdkMismatchDetector {
         return declaredJdkVersion(projectRoot)
                 .filter(declared -> declared != runningJdkFeatureVersion)
                 .map(declared -> "warning: " + projectRoot + " declares JDK " + declared
-                        + " (via maven.compiler.release/target/source) but this run will build it "
+                        + " (via maven.compiler.release/target/source/java.version) but this run will build it "
                         + "with JDK " + runningJdkFeatureVersion + " — a mismatch here can make the "
                         + "target project's own build/coverage tooling fail in ways unrelated to the "
                         + "code under test.");

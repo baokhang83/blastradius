@@ -81,6 +81,32 @@ class JdkMismatchDetectorTest {
         assertEquals(Optional.empty(), detector.detect(projectRoot, 21));
     }
 
+    @Test
+    void fallsBackToTheJavaVersionPropertyWhenNoStandardCompilerPropertyIsDeclared(@TempDir Path projectRoot)
+            throws IOException {
+        // apache/shenyu's own convention: no maven.compiler.release/target/source at all,
+        // just a custom java.version property read by its own plugin configs.
+        writePom(projectRoot, "<java.version>17</java.version>");
+
+        Optional<String> warning = detector.detect(projectRoot, 25);
+
+        assertTrue(warning.isPresent());
+        assertTrue(warning.get().contains("17"), warning.get());
+        assertTrue(warning.get().contains("25"), warning.get());
+    }
+
+    @Test
+    void standardCompilerPropertyTakesPrecedenceOverJavaVersion(@TempDir Path projectRoot) throws IOException {
+        writePom(projectRoot, """
+                <maven.compiler.release>17</maven.compiler.release>
+                <java.version>11</java.version>
+                """);
+
+        Optional<String> warning = detector.detect(projectRoot, 17);
+
+        assertEquals(Optional.empty(), warning);
+    }
+
     private static void writePom(Path projectRoot, String properties) throws IOException {
         Files.writeString(projectRoot.resolve("pom.xml"), """
                 <project>
