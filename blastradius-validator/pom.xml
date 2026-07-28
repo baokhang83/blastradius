@@ -117,6 +117,58 @@
                             </excludes>
                         </filter>
                     </filters>
+                    <!-- This jar is attached via -javaagent to every JVM in a target
+                         build, including Maven's own launcher process (JAVA_TOOL_OPTIONS
+                         applies to all of them, not just forked test JVMs) — so its
+                         bundled dependencies must never collide with same-named classes
+                         Maven or the target project resolve themselves. Left unrelocated,
+                         a real run against apache/shenyu found this bundled slf4j-api
+                         (pulled in transitively by JGit) wins Maven's own parent-first
+                         classloader lookup for org.slf4j.LoggerFactory, since -javaagent
+                         jars land on the system classloader — a parent of Maven's own
+                         plexus-classworlds realm. SLF4J's provider binding happens once,
+                         globally, per JVM, so that one resolution silently locks Maven's
+                         own logger to a no-op backend for the rest of the build: every
+                         "[INFO] Scanning for projects..." line and any real build/test
+                         failure Maven would otherwise report vanish, leaving only "failed
+                         to read dependency record" with no clue why. org.junit,
+                         org.opentest4j and org.apiguardian are deliberately excluded here:
+                         TestBoundaryListener registers as a real
+                         org.junit.platform.launcher.TestExecutionListener via the
+                         target's own JUnit Platform SPI, which requires exact interface
+                         identity with the target's own (unrelocated) JUnit Platform
+                         classes — relocating them would silently break that registration. -->
+                    <relocations>
+                        <relocation>
+                            <pattern>org.slf4j</pattern>
+                            <shadedPattern>io.github.baokhang83.blastradius.shaded.slf4j</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.eclipse.jgit</pattern>
+                            <shadedPattern>io.github.baokhang83.blastradius.shaded.jgit</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>com.fasterxml.jackson</pattern>
+                            <shadedPattern>io.github.baokhang83.blastradius.shaded.jackson</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>com.googlecode</pattern>
+                            <shadedPattern>io.github.baokhang83.blastradius.shaded.googlecode</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.apache</pattern>
+                            <shadedPattern>io.github.baokhang83.blastradius.shaded.apache</shadedPattern>
+                        </relocation>
+                        <!-- Matched by fully-qualified class name, not just imports, so
+                             DependencyTrackingAgent's own string-literal prefix check
+                             (INSTRUMENTATION_LIBRARY_PACKAGE_PREFIX) must be kept in sync
+                             with this shadedPattern by hand — shade only rewrites actual
+                             class references, never string literals. -->
+                        <relocation>
+                            <pattern>org.objectweb.asm</pattern>
+                            <shadedPattern>io.github.baokhang83.blastradius.shaded.asm</shadedPattern>
+                        </relocation>
+                    </relocations>
                     <transformers>
                         <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                             <mainClass>io.github.baokhang83.blastradius.validator.cli.Main</mainClass>

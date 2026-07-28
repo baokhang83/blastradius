@@ -91,9 +91,12 @@ class DependencyRecordIoTest {
 
         UncheckedIOException thrown = assertThrows(UncheckedIOException.class, () -> reader.readAll(base));
 
-        assertTrue(thrown.getMessage().contains("dependencies.json")
-                || thrown.getCause().getMessage().contains("ClassCircularityError"),
-                "expected the crash reason to surface: " + thrown.getMessage() + " / " + thrown.getCause());
+        // The crash reason must be in the exception's own message, not just its cause: a
+        // caller that reports e.getMessage() alone (as RunCommand's exclusion reason does)
+        // would otherwise still show the generic, uninformative "failed to read dependency
+        // record from ..." with no clue that the agent actually ran and crashed.
+        assertTrue(thrown.getMessage().contains("ClassCircularityError"),
+                "expected the crash reason to surface in the exception's own message: " + thrown.getMessage());
     }
 
     @Test

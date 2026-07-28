@@ -82,8 +82,12 @@ public final class DependencyRecordReader {
                     ? "no files matching " + prefix + "* found in " + parent
                     : "the tracking agent's shutdown hook crashed before writing any data: "
                             + String.join("; ", crashReasons);
+            // The reason must be part of THIS exception's own message, not only its cause:
+            // a caller that reports getMessage() alone (as RunCommand's exclusion reason
+            // does) would otherwise still show a generic "failed to read..." with no hint
+            // that the agent actually ran and crashed, rather than never having attached.
             throw new UncheckedIOException(
-                    "failed to read dependency record from " + baseOutputFile, new IOException(reason));
+                    "failed to read dependency record from " + baseOutputFile + ": " + reason, new IOException(reason));
         }
         for (TestIdentity test : mergedTests.keySet()) {
             mergedAmbient.remove(test.className());

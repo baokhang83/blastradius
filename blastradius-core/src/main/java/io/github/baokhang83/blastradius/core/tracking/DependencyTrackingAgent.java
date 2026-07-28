@@ -49,8 +49,17 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
      * excluded by package: excluding the agent's own code source instead would be wrong, because a
      * module that depends on this one loads the agent classes from the ordinary core jar — the very
      * jar that carries the project classes we are trying to attribute.
+     *
+     * <p>The shaded blastradius-validator jar (the one actually attached via {@code -javaagent})
+     * relocates {@code org.objectweb.asm} to keep it from colliding with a target project's own
+     * classes; a string literal like this one is not bytecode-rewritten by the shade plugin, so it
+     * must name the relocated package explicitly rather than the original one. blastradius-core's
+     * own jar (used as an ordinary reactor dependency, not as the agent) never relocates ASM, so
+     * this prefix would be wrong there — but this check only ever matters when running as the
+     * agent, where the shaded prefix is the one actually in effect.
      */
-    private static final String INSTRUMENTATION_LIBRARY_PACKAGE_PREFIX = "org.objectweb.asm.";
+    private static final String INSTRUMENTATION_LIBRARY_PACKAGE_PREFIX =
+            "io.github.baokhang83.blastradius.shaded.asm.";
 
     /**
      * Computing a checksum can initialize JDK security-provider classes. Those class loads call
