@@ -7,28 +7,39 @@ import java.util.Objects;
 /**
  * The operator-supplied input for a single validator run (FR-001, FR-012).
  *
- * @param projectPath       local git working copy of the target project
- * @param commitWindowSize  number of most-recent commits to analyze; operator-chosen,
- *                          no fixed default (FR-012)
- * @param reportOutputPath  file path to write the JSON {@code AnalysisReport} to
+ * @param projectPath          local git working copy of the target project
+ * @param commitWindowSize     number of most-recent commits to analyze; operator-chosen,
+ *                             no fixed default (FR-012)
+ * @param reportOutputPath     file path to write the JSON {@code AnalysisReport} to
+ * @param mavenParallelThreads value for the target project's own {@code mvn -T} reactor
+ *                             parallelism, or {@code null} to build serially (the default)
  */
-public record RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath) {
+public record RunConfig(
+        Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads) {
 
-<span class="fc" id="L17">    public RunConfig {</span>
-<span class="fc" id="L18">        Objects.requireNonNull(projectPath, &quot;projectPath&quot;);</span>
-<span class="fc bfc" id="L19" title="All 2 branches covered.">        if (!Files.isDirectory(projectPath)) {</span>
-<span class="fc" id="L20">            throw new IllegalArgumentException(&quot;projectPath does not exist or is not a directory: &quot; + projectPath);</span>
+    public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath) {
+<span class="fc" id="L21">        this(projectPath, commitWindowSize, reportOutputPath, null);</span>
+<span class="fc" id="L22">    }</span>
+
+<span class="fc" id="L24">    public RunConfig {</span>
+<span class="fc" id="L25">        Objects.requireNonNull(projectPath, &quot;projectPath&quot;);</span>
+<span class="fc bfc" id="L26" title="All 2 branches covered.">        if (!Files.isDirectory(projectPath)) {</span>
+<span class="fc" id="L27">            throw new IllegalArgumentException(&quot;projectPath does not exist or is not a directory: &quot; + projectPath);</span>
         }
-<span class="fc bfc" id="L22" title="All 2 branches covered.">        if (!Files.isDirectory(projectPath.resolve(&quot;.git&quot;))) {</span>
-<span class="fc" id="L23">            throw new IllegalArgumentException(&quot;projectPath is not a git repository: &quot; + projectPath);</span>
+<span class="fc bfc" id="L29" title="All 2 branches covered.">        if (!Files.isDirectory(projectPath.resolve(&quot;.git&quot;))) {</span>
+<span class="fc" id="L30">            throw new IllegalArgumentException(&quot;projectPath is not a git repository: &quot; + projectPath);</span>
         }
-<span class="fc bfc" id="L25" title="All 2 branches covered.">        if (commitWindowSize &lt;= 0) {</span>
-<span class="fc" id="L26">            throw new IllegalArgumentException(&quot;commitWindowSize must be positive, got: &quot; + commitWindowSize);</span>
+<span class="fc bfc" id="L32" title="All 2 branches covered.">        if (commitWindowSize &lt;= 0) {</span>
+<span class="fc" id="L33">            throw new IllegalArgumentException(&quot;commitWindowSize must be positive, got: &quot; + commitWindowSize);</span>
         }
-<span class="fc" id="L28">        Objects.requireNonNull(reportOutputPath, &quot;reportOutputPath&quot;);</span>
-<span class="fc bfc" id="L29" title="All 2 branches covered.">        if (Files.isDirectory(reportOutputPath)) {</span>
-<span class="fc" id="L30">            throw new IllegalArgumentException(&quot;reportOutputPath must be a file path, not a directory: &quot; + reportOutputPath);</span>
+<span class="fc" id="L35">        Objects.requireNonNull(reportOutputPath, &quot;reportOutputPath&quot;);</span>
+<span class="fc bfc" id="L36" title="All 2 branches covered.">        if (Files.isDirectory(reportOutputPath)) {</span>
+<span class="fc" id="L37">            throw new IllegalArgumentException(&quot;reportOutputPath must be a file path, not a directory: &quot; + reportOutputPath);</span>
         }
-<span class="fc" id="L32">    }</span>
+<span class="pc bpc" id="L39" title="1 of 4 branches missed.">        if (mavenParallelThreads != null &amp;&amp; mavenParallelThreads &lt; 1) {</span>
+<span class="fc" id="L40">            throw new IllegalArgumentException(</span>
+                    &quot;mavenParallelThreads must be positive, got: &quot; + mavenParallelThreads);
+        }
+<span class="fc" id="L43">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -18,19 +18,41 @@ import java.util.Set;
  * the dependency-tracking agent via {@code -DargLine=-javaagent:...=&lt;outputFile&gt;}, which
  * Surefire and Failsafe both honor without any pom.xml changes to the target project.
  */
-<span class="fc" id="L21">public final class MavenBuildRunner {</span>
+public final class MavenBuildRunner {
 
     private static final long TIMEOUT_MINUTES = 5;
+
+    private final Integer parallelThreads;
+
+    /** No {@code -T} flag: the target project's reactor builds serially, as it always has. */
+    public MavenBuildRunner() {
+<span class="fc" id="L29">        this(null);</span>
+<span class="fc" id="L30">    }</span>
+
+    /**
+     * @param parallelThreads value passed to Maven's own {@code -T} reactor-parallelism
+     *                        flag (e.g. {@code 4}), or {@code null} to omit it and build
+     *                        serially. Each module still builds in dependency order and
+     *                        the tracking agent attaches identically per fork; the risk
+     *                        this trades in is target projects with non-thread-safe
+     *                        build plugins that only misbehave under a parallel reactor.
+     */
+<span class="fc" id="L40">    public MavenBuildRunner(Integer parallelThreads) {</span>
+<span class="fc bfc" id="L41" title="All 4 branches covered.">        if (parallelThreads != null &amp;&amp; parallelThreads &lt; 1) {</span>
+<span class="fc" id="L42">            throw new IllegalArgumentException(&quot;parallelThreads must be positive, got: &quot; + parallelThreads);</span>
+        }
+<span class="fc" id="L44">        this.parallelThreads = parallelThreads;</span>
+<span class="fc" id="L45">    }</span>
 
     /**
      * How long to wait for a Surefire-forked JVM that outlives {@code mvn} itself to exit
      * on its own before it gets forcibly killed (research.md #1 / apache/shenyu finding,
      * see {@link #reapStragglers}).
      */
-<span class="fc" id="L30">    private static final Duration DESCENDANT_GRACE_PERIOD = Duration.ofMinutes(5);</span>
+<span class="fc" id="L52">    private static final Duration DESCENDANT_GRACE_PERIOD = Duration.ofMinutes(5);</span>
 
-<span class="fc" id="L32">    private static final Duration DESCENDANT_KILL_GRACE_PERIOD = Duration.ofSeconds(30);</span>
-<span class="fc" id="L33">    private static final Duration DESCENDANT_POLL_INTERVAL = Duration.ofMillis(200);</span>
+<span class="fc" id="L54">    private static final Duration DESCENDANT_KILL_GRACE_PERIOD = Duration.ofSeconds(30);</span>
+<span class="fc" id="L55">    private static final Duration DESCENDANT_POLL_INTERVAL = Duration.ofMillis(200);</span>
 
     /**
      * @param projectDir       the (already checked-out) working copy to build
@@ -40,7 +62,7 @@ import java.util.Set;
      *                         dependencies, or {@code null} if {@code agentJar} is null
      */
     public BuildResult run(Path projectDir, Path agentJar, Path dependencyRecordOutputFile) {
-<span class="fc" id="L43">        return execute(projectDir, command(null), agentJar, dependencyRecordOutputFile);</span>
+<span class="fc" id="L65">        return execute(projectDir, command(null), agentJar, dependencyRecordOutputFile);</span>
     }
 
     /**
@@ -49,18 +71,18 @@ import java.util.Set;
      * dependencies, which the original full run already captured.
      */
     public BuildResult runSingleTest(Path projectDir, TestIdentity test) {
-<span class="pc bpc" id="L52" title="1 of 2 branches missed.">        String selector = test.methodName() == null</span>
-<span class="nc" id="L53">                ? test.className()</span>
-<span class="fc" id="L54">                : test.className() + &quot;#&quot; + test.methodName();</span>
-<span class="fc" id="L55">        return execute(projectDir, command(selector), null, null);</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        String selector = test.methodName() == null</span>
+<span class="nc" id="L75">                ? test.className()</span>
+<span class="fc" id="L76">                : test.className() + &quot;#&quot; + test.methodName();</span>
+<span class="fc" id="L77">        return execute(projectDir, command(selector), null, null);</span>
     }
 
     private BuildResult execute(Path projectDir, String[] command, Path agentJar, Path dependencyRecordOutputFile) {
         try {
-<span class="fc" id="L60">            ProcessBuilder pb = new ProcessBuilder(command)</span>
-<span class="fc" id="L61">                    .directory(projectDir.toFile())</span>
-<span class="fc" id="L62">                    .redirectErrorStream(true);</span>
-<span class="fc bfc" id="L63" title="All 2 branches covered.">            if (agentJar != null) {</span>
+<span class="fc" id="L82">            ProcessBuilder pb = new ProcessBuilder(command)</span>
+<span class="fc" id="L83">                    .directory(projectDir.toFile())</span>
+<span class="fc" id="L84">                    .redirectErrorStream(true);</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">            if (agentJar != null) {</span>
                 // JAVA_TOOL_OPTIONS is read directly by every JVM launch (Maven's own
                 // process AND any forked Surefire test JVMs it spawns), independent of
                 // Maven's argLine property — unlike -DargLine, which real target
@@ -71,32 +93,32 @@ import java.util.Set;
                 // runs any JUnit test, so DependencyTrackingAgent's shutdown hook sees
                 // an empty record and skips writing rather than clobbering the real
                 // data the forked test JVM already wrote.
-<span class="fc" id="L74">                String agentOpt = &quot;-javaagent:&quot; + agentJar.toAbsolutePath() + &quot;=&quot;</span>
-<span class="fc" id="L75">                        + dependencyRecordOutputFile.toAbsolutePath();</span>
-<span class="pc" id="L76">                pb.environment().merge(&quot;JAVA_TOOL_OPTIONS&quot;, agentOpt, (existing, added) -&gt; existing + &quot; &quot; + added);</span>
+<span class="fc" id="L96">                String agentOpt = &quot;-javaagent:&quot; + agentJar.toAbsolutePath() + &quot;=&quot;</span>
+<span class="fc" id="L97">                        + dependencyRecordOutputFile.toAbsolutePath();</span>
+<span class="pc" id="L98">                pb.environment().merge(&quot;JAVA_TOOL_OPTIONS&quot;, agentOpt, (existing, added) -&gt; existing + &quot; &quot; + added);</span>
             }
-<span class="fc" id="L78">            Process process = pb.start();</span>
+<span class="fc" id="L100">            Process process = pb.start();</span>
             // Read stdout on a separate thread: the descendant-tracking poll below must
             // run concurrently, not after, or a chatty child can fill the OS pipe buffer
             // and block forever with nobody draining it.
-<span class="fc" id="L82">            byte[][] outputHolder = new byte[1][];</span>
-<span class="fc" id="L83">            Thread outputReader = new Thread(() -&gt; {</span>
+<span class="fc" id="L104">            byte[][] outputHolder = new byte[1][];</span>
+<span class="fc" id="L105">            Thread outputReader = new Thread(() -&gt; {</span>
                 try {
-<span class="fc" id="L85">                    outputHolder[0] = process.getInputStream().readAllBytes();</span>
-<span class="nc" id="L86">                } catch (IOException e) {</span>
-<span class="nc" id="L87">                    outputHolder[0] = new byte[0];</span>
-<span class="fc" id="L88">                }</span>
-<span class="fc" id="L89">            });</span>
-<span class="fc" id="L90">            outputReader.start();</span>
+<span class="fc" id="L107">                    outputHolder[0] = process.getInputStream().readAllBytes();</span>
+<span class="nc" id="L108">                } catch (IOException e) {</span>
+<span class="nc" id="L109">                    outputHolder[0] = new byte[0];</span>
+<span class="fc" id="L110">                }</span>
+<span class="fc" id="L111">            });</span>
+<span class="fc" id="L112">            outputReader.start();</span>
 
-<span class="fc" id="L92">            Set&lt;ProcessHandle&gt; descendants =</span>
-<span class="fc" id="L93">                    awaitDescendantsWhileAlive(process, Duration.ofMinutes(TIMEOUT_MINUTES));</span>
-<span class="fc" id="L94">            outputReader.join();</span>
+<span class="fc" id="L114">            Set&lt;ProcessHandle&gt; descendants =</span>
+<span class="fc" id="L115">                    awaitDescendantsWhileAlive(process, Duration.ofMinutes(TIMEOUT_MINUTES));</span>
+<span class="fc" id="L116">            outputReader.join();</span>
 
-<span class="pc bpc" id="L96" title="1 of 2 branches missed.">            if (process.isAlive()) {</span>
-<span class="nc" id="L97">                process.destroyForcibly();</span>
-<span class="nc" id="L98">                descendants.forEach(ProcessHandle::destroyForcibly);</span>
-<span class="nc" id="L99">                throw new IllegalStateException(&quot;mvn test timed out against &quot; + projectDir);</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">            if (process.isAlive()) {</span>
+<span class="nc" id="L119">                process.destroyForcibly();</span>
+<span class="nc" id="L120">                descendants.forEach(ProcessHandle::destroyForcibly);</span>
+<span class="nc" id="L121">                throw new IllegalStateException(&quot;mvn test timed out against &quot; + projectDir);</span>
             }
             // mvn itself exiting is not proof every process it spawned has: Surefire can
             // give up on and report a broken/unresponsive fork as failed the instant its
@@ -104,15 +126,15 @@ import java.util.Set;
             // to exit (found running against apache/shenyu). An orphaned fork left alive
             // past this point hasn't run DependencyTrackingAgent's shutdown hook yet, so
             // reading its output immediately would race it and find nothing at all.
-<span class="fc" id="L107">            reapStragglers(descendants, DESCENDANT_GRACE_PERIOD);</span>
+<span class="fc" id="L129">            reapStragglers(descendants, DESCENDANT_GRACE_PERIOD);</span>
 
-<span class="fc" id="L109">            String output = new String(outputHolder[0], StandardCharsets.UTF_8);</span>
-<span class="fc" id="L110">            return new BuildResult(process.exitValue(), output);</span>
-<span class="nc" id="L111">        } catch (IOException e) {</span>
-<span class="nc" id="L112">            throw new UncheckedIOException(&quot;failed to invoke mvn test against &quot; + projectDir, e);</span>
-<span class="nc" id="L113">        } catch (InterruptedException e) {</span>
-<span class="nc" id="L114">            Thread.currentThread().interrupt();</span>
-<span class="nc" id="L115">            throw new IllegalStateException(&quot;interrupted while waiting for mvn test against &quot; + projectDir, e);</span>
+<span class="fc" id="L131">            String output = new String(outputHolder[0], StandardCharsets.UTF_8);</span>
+<span class="fc" id="L132">            return new BuildResult(process.exitValue(), output);</span>
+<span class="nc" id="L133">        } catch (IOException e) {</span>
+<span class="nc" id="L134">            throw new UncheckedIOException(&quot;failed to invoke mvn test against &quot; + projectDir, e);</span>
+<span class="nc" id="L135">        } catch (InterruptedException e) {</span>
+<span class="nc" id="L136">            Thread.currentThread().interrupt();</span>
+<span class="nc" id="L137">            throw new IllegalStateException(&quot;interrupted while waiting for mvn test against &quot; + projectDir, e);</span>
         }
     }
 
@@ -125,14 +147,14 @@ import java.util.Set;
      * already exited can miss a straggler entirely.
      */
     static Set&lt;ProcessHandle&gt; awaitDescendantsWhileAlive(Process process, Duration timeout) throws InterruptedException {
-<span class="fc" id="L128">        Set&lt;ProcessHandle&gt; descendants = new HashSet&lt;&gt;();</span>
-<span class="fc" id="L129">        Instant deadline = Instant.now().plus(timeout);</span>
-<span class="pc bpc" id="L130" title="1 of 4 branches missed.">        while (process.isAlive() &amp;&amp; Instant.now().isBefore(deadline)) {</span>
-<span class="fc" id="L131">            process.toHandle().descendants().forEach(descendants::add);</span>
-<span class="fc" id="L132">            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());</span>
+<span class="fc" id="L150">        Set&lt;ProcessHandle&gt; descendants = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L151">        Instant deadline = Instant.now().plus(timeout);</span>
+<span class="pc bpc" id="L152" title="1 of 4 branches missed.">        while (process.isAlive() &amp;&amp; Instant.now().isBefore(deadline)) {</span>
+<span class="fc" id="L153">            process.toHandle().descendants().forEach(descendants::add);</span>
+<span class="fc" id="L154">            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());</span>
         }
-<span class="fc" id="L134">        process.toHandle().descendants().forEach(descendants::add);</span>
-<span class="fc" id="L135">        return descendants;</span>
+<span class="fc" id="L156">        process.toHandle().descendants().forEach(descendants::add);</span>
+<span class="fc" id="L157">        return descendants;</span>
     }
 
     /**
@@ -143,29 +165,33 @@ import java.util.Set;
      * {@code destroyForcibly()} so no orphaned Surefire fork is left running indefinitely.
      */
     static void reapStragglers(Set&lt;ProcessHandle&gt; descendants, Duration gracePeriod) throws InterruptedException {
-<span class="fc" id="L146">        Instant deadline = Instant.now().plus(gracePeriod);</span>
-<span class="pc bpc" id="L147" title="3 of 4 branches missed.">        while (descendants.stream().anyMatch(ProcessHandle::isAlive) &amp;&amp; Instant.now().isBefore(deadline)) {</span>
-<span class="nc" id="L148">            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());</span>
+<span class="fc" id="L168">        Instant deadline = Instant.now().plus(gracePeriod);</span>
+<span class="pc bpc" id="L169" title="3 of 4 branches missed.">        while (descendants.stream().anyMatch(ProcessHandle::isAlive) &amp;&amp; Instant.now().isBefore(deadline)) {</span>
+<span class="nc" id="L170">            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());</span>
         }
-<span class="fc" id="L150">        descendants.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroy);</span>
+<span class="fc" id="L172">        descendants.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroy);</span>
 
-<span class="fc" id="L152">        Instant killDeadline = Instant.now().plus(DESCENDANT_KILL_GRACE_PERIOD);</span>
-<span class="pc bpc" id="L153" title="3 of 4 branches missed.">        while (descendants.stream().anyMatch(ProcessHandle::isAlive) &amp;&amp; Instant.now().isBefore(killDeadline)) {</span>
-<span class="nc" id="L154">            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());</span>
+<span class="fc" id="L174">        Instant killDeadline = Instant.now().plus(DESCENDANT_KILL_GRACE_PERIOD);</span>
+<span class="pc bpc" id="L175" title="3 of 4 branches missed.">        while (descendants.stream().anyMatch(ProcessHandle::isAlive) &amp;&amp; Instant.now().isBefore(killDeadline)) {</span>
+<span class="nc" id="L176">            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());</span>
         }
-<span class="fc" id="L156">        descendants.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroyForcibly);</span>
-<span class="fc" id="L157">    }</span>
+<span class="fc" id="L178">        descendants.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroyForcibly);</span>
+<span class="fc" id="L179">    }</span>
 
-    private static String[] command(String testSelector) {
+    String[] command(String testSelector) {
         // `clean` is required, not cosmetic: CommitCheckout reuses one scratch working
         // copy across every commit in the window, and `target/` is untracked — a
         // previous commit's build artifacts (including surefire-reports) would
         // otherwise silently survive a `git checkout` to a different commit.
-<span class="fc" id="L164">        List&lt;String&gt; args = new ArrayList&lt;&gt;(List.of(&quot;mvn&quot;, &quot;-B&quot;, &quot;--no-transfer-progress&quot;, &quot;clean&quot;, &quot;test&quot;));</span>
-<span class="fc bfc" id="L165" title="All 2 branches covered.">        if (testSelector != null) {</span>
-<span class="fc" id="L166">            args.add(&quot;-Dtest=&quot; + testSelector);</span>
+<span class="fc" id="L186">        List&lt;String&gt; args = new ArrayList&lt;&gt;(List.of(&quot;mvn&quot;, &quot;-B&quot;, &quot;--no-transfer-progress&quot;, &quot;clean&quot;, &quot;test&quot;));</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">        if (parallelThreads != null) {</span>
+<span class="fc" id="L188">            args.add(&quot;-T&quot;);</span>
+<span class="fc" id="L189">            args.add(String.valueOf(parallelThreads));</span>
         }
-<span class="fc" id="L168">        return args.toArray(new String[0]);</span>
+<span class="fc bfc" id="L191" title="All 2 branches covered.">        if (testSelector != null) {</span>
+<span class="fc" id="L192">            args.add(&quot;-Dtest=&quot; + testSelector);</span>
+        }
+<span class="fc" id="L194">        return args.toArray(new String[0]);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
