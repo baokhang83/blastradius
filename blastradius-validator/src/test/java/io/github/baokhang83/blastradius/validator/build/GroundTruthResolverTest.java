@@ -29,7 +29,7 @@ class GroundTruthResolverTest {
                 """);
         fixture.commit("initial");
 
-        List<GroundTruthResult> results = resolver.resolve(projectDir, null, null);
+        List<GroundTruthResult> results = resolver.resolve(projectDir, null, null).results();
 
         assertEquals(Outcome.PASSED, outcomeOf(results, "com.example.GoodTest", "alwaysPasses"));
     }
@@ -50,7 +50,7 @@ class GroundTruthResolverTest {
                 """);
         fixture.commit("initial");
 
-        List<GroundTruthResult> results = resolver.resolve(projectDir, null, null);
+        List<GroundTruthResult> results = resolver.resolve(projectDir, null, null).results();
 
         assertEquals(Outcome.CONFIRMED_FAILED, outcomeOf(results, "com.example.AlwaysFailsTest", "alwaysFails"));
     }
@@ -81,7 +81,7 @@ class GroundTruthResolverTest {
                 """.formatted(counterFile));
         fixture.commit("initial");
 
-        List<GroundTruthResult> results = resolver.resolve(projectDir, null, null);
+        List<GroundTruthResult> results = resolver.resolve(projectDir, null, null).results();
 
         assertEquals(Outcome.FLAKY, outcomeOf(results, "com.example.FlakyTest", "failsFirstThenPasses"));
     }
@@ -115,7 +115,7 @@ class GroundTruthResolverTest {
                 """);
         fixture.commit("initial");
 
-        List<GroundTruthResult> results = resolver.resolve(projectDir, null, null);
+        List<GroundTruthResult> results = resolver.resolve(projectDir, null, null).results();
 
         assertEquals(Outcome.PASSED, outcomeOf(results, "com.example.a.FooTest", "checksValue"));
         assertEquals(Outcome.PASSED, outcomeOf(results, "com.example.b.BarTest", "checksSomething"));

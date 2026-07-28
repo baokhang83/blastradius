@@ -1,8 +1,8 @@
 {
-  "feature": "attribute-a-project-class-s-runtime-use-to-every-test-that-e",
-  "branch": "feature/attribute-a-project-class-s-runtime-use-to-every-test-that-e",
+  "feature": "cache-commit-build-results-across-the-sliding-window-to-elim",
+  "branch": "feature/cache-commit-build-results-across-the-sliding-window-to-elim",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/attribute-a-project-class-s-runtime-use-to-every-test-that-e/sessions/fix-stale-would-miss-fixtures-broken-by-the-broadened-instru.md",
-  "base_ref": "feat/maven-parallel-build-threads",
+  "last_session": "docs/fluencyloop/features/cache-commit-build-results-across-the-sliding-window-to-elim/sessions/add-fast-ground-truth-integration-tests-and-verify-the-full.md",
+  "base_ref": "main",
   "updated": "2026-07-28"
 }
