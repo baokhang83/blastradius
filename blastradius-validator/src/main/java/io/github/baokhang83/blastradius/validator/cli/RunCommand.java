@@ -53,16 +53,19 @@ public final class RunCommand {
 
     private final CommitWindowResolver commitWindowResolver = new CommitWindowResolver();
     private final ChangedFileClassifier changedFileClassifier = new ChangedFileClassifier();
-    private final GroundTruthResolver groundTruthResolver = new GroundTruthResolver();
     private final SelectionEngine selectionEngine = new SelectionEngine();
     private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();
     private final WouldMissComparator wouldMissComparator = new WouldMissComparator();
     private final VerdictCalculator verdictCalculator = new VerdictCalculator();
     private final SavingsSummaryAggregator savingsSummaryAggregator = new SavingsSummaryAggregator();
     private final ReportWriter reportWriter = new ReportWriter();
-    private final MavenBuildRunner buildRunner = new MavenBuildRunner();
     private final BuildFailureDetector buildFailureDetector = new BuildFailureDetector();
     private final JdkMismatchDetector jdkMismatchDetector = new JdkMismatchDetector();
+
+    // Set at the start of each run() from RunConfig#mavenParallelThreads, so the base/head
+    // builds and GroundTruthResolver's own build all share one -T setting for that run.
+    private MavenBuildRunner buildRunner = new MavenBuildRunner();
+    private GroundTruthResolver groundTruthResolver = new GroundTruthResolver();
 
     /** Runs with this tool's own jar self-located for {@code -javaagent} attachment. */
     public int run(RunConfig config) {
@@ -77,6 +80,9 @@ public final class RunCommand {
      */
     public int run(RunConfig config, Path agentJar) {
         try {
+            buildRunner = new MavenBuildRunner(config.mavenParallelThreads());
+            groundTruthResolver = new GroundTruthResolver(buildRunner);
+
             jdkMismatchDetector.detect(config.projectPath()).ifPresent(System.err::println);
 
             List<CommitPair> window =

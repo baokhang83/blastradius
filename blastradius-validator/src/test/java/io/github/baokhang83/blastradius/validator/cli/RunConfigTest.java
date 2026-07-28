@@ -1,6 +1,7 @@
 package io.github.baokhang83.blastradius.validator.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.IOException;
@@ -55,6 +56,25 @@ class RunConfigTest {
         Files.createDirectories(aDirectory);
 
         assertThrows(IllegalArgumentException.class, () -> new RunConfig(repo, 10, aDirectory));
+    }
+
+    @Test
+    void mavenParallelThreadsDefaultsToNullWhenNotSupplied(@TempDir Path tempDir) throws Exception {
+        Path repo = initGitRepo(tempDir.resolve("repo"));
+
+        RunConfig config = new RunConfig(repo, 10, tempDir.resolve("report.json"));
+
+        assertNull(config.mavenParallelThreads());
+    }
+
+    @Test
+    void mavenParallelThreadsMustBePositiveWhenSupplied(@TempDir Path tempDir) throws Exception {
+        Path repo = initGitRepo(tempDir.resolve("repo"));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> new RunConfig(repo, 10, tempDir.resolve("report.json"), 0));
+        assertThrows(IllegalArgumentException.class,
+                () -> new RunConfig(repo, 10, tempDir.resolve("report.json"), -3));
     }
 
     private static Path initGitRepo(Path dir) throws Exception {

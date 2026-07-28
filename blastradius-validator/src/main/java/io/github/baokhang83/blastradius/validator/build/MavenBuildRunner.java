@@ -22,6 +22,28 @@ public final class MavenBuildRunner {
 
     private static final long TIMEOUT_MINUTES = 5;
 
+    private final Integer parallelThreads;
+
+    /** No {@code -T} flag: the target project's reactor builds serially, as it always has. */
+    public MavenBuildRunner() {
+        this(null);
+    }
+
+    /**
+     * @param parallelThreads value passed to Maven's own {@code -T} reactor-parallelism
+     *                        flag (e.g. {@code 4}), or {@code null} to omit it and build
+     *                        serially. Each module still builds in dependency order and
+     *                        the tracking agent attaches identically per fork; the risk
+     *                        this trades in is target projects with non-thread-safe
+     *                        build plugins that only misbehave under a parallel reactor.
+     */
+    public MavenBuildRunner(Integer parallelThreads) {
+        if (parallelThreads != null && parallelThreads < 1) {
+            throw new IllegalArgumentException("parallelThreads must be positive, got: " + parallelThreads);
+        }
+        this.parallelThreads = parallelThreads;
+    }
+
     /**
      * How long to wait for a Surefire-forked JVM that outlives {@code mvn} itself to exit
      * on its own before it gets forcibly killed (research.md #1 / apache/shenyu finding,
@@ -156,12 +178,16 @@ public final class MavenBuildRunner {
         descendants.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroyForcibly);
     }
 
-    private static String[] command(String testSelector) {
+    String[] command(String testSelector) {
         // `clean` is required, not cosmetic: CommitCheckout reuses one scratch working
         // copy across every commit in the window, and `target/` is untracked — a
         // previous commit's build artifacts (including surefire-reports) would
         // otherwise silently survive a `git checkout` to a different commit.
         List<String> args = new ArrayList<>(List.of("mvn", "-B", "--no-transfer-progress", "clean", "test"));
+        if (parallelThreads != null) {
+            args.add("-T");
+            args.add(String.valueOf(parallelThreads));
+        }
         if (testSelector != null) {
             args.add("-Dtest=" + testSelector);
         }
