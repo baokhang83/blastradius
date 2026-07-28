@@ -1,6 +1,8 @@
 package io.github.baokhang83.blastradius.validator.build;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
@@ -116,6 +118,26 @@ class MavenBuildRunnerTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.output().contains("Tests run: 1"),
                 "expected exactly one test to run:\n" + result.output());
+    }
+
+    @Test
+    void noParallelThreadsOmitsTheTFlag() {
+        assertArrayEquals(
+                new String[] {"mvn", "-B", "--no-transfer-progress", "clean", "test"},
+                new MavenBuildRunner().command(null));
+    }
+
+    @Test
+    void parallelThreadsAddsTheTFlagToTheMavenCommand() {
+        assertArrayEquals(
+                new String[] {"mvn", "-B", "--no-transfer-progress", "clean", "test", "-T", "4"},
+                new MavenBuildRunner(4).command(null));
+    }
+
+    @Test
+    void nonPositiveParallelThreadsIsRejected() {
+        assertThrows(IllegalArgumentException.class, () -> new MavenBuildRunner(0));
+        assertThrows(IllegalArgumentException.class, () -> new MavenBuildRunner(-1));
     }
 
     private static Path findOwnAgentJar() throws IOException {

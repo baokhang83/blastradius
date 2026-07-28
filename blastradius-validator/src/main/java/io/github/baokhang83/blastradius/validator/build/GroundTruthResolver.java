@@ -30,6 +30,11 @@ public final class GroundTruthResolver {
         this(new MavenBuildRunner(), new SurefireReportParser());
     }
 
+    /** Shares one {@link MavenBuildRunner} (e.g. its {@code -T} setting) with a caller's own. */
+    public GroundTruthResolver(MavenBuildRunner buildRunner) {
+        this(buildRunner, new SurefireReportParser());
+    }
+
     GroundTruthResolver(MavenBuildRunner buildRunner, SurefireReportParser reportParser) {
         this.buildRunner = buildRunner;
         this.reportParser = reportParser;

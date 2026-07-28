@@ -9,13 +9,15 @@ import java.nio.file.Path;
 
 /**
  * CLI entry point. Usage:
- * {@code blastradius-validator run --project-path <path> --commits <N> --report-out <path> [--summary-out <path>]}
+ * {@code blastradius-validator run --project-path <path> --commits <N> --report-out <path>
+ * [--summary-out <path>] [--maven-threads <N>]}
  */
 public final class Main {
 
     public static void main(String[] args) {
         if (args.length == 0 || !"run".equals(args[0])) {
-            System.err.println("usage: run --project-path <path> --commits <N> --report-out <path> [--summary-out <path>]");
+            System.err.println("usage: run --project-path <path> --commits <N> --report-out <path> "
+                    + "[--summary-out <path>] [--maven-threads <N>]");
             System.exit(2);
             return;
         }
@@ -24,6 +26,7 @@ public final class Main {
         Integer commits = null;
         Path reportOut = null;
         Path summaryOut = null;
+        Integer mavenThreads = null;
 
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
@@ -31,6 +34,7 @@ public final class Main {
                 case "--commits" -> commits = Integer.parseInt(args[++i]);
                 case "--report-out" -> reportOut = Path.of(args[++i]);
                 case "--summary-out" -> summaryOut = Path.of(args[++i]);
+                case "--maven-threads" -> mavenThreads = Integer.parseInt(args[++i]);
                 default -> {
                     System.err.println("unknown argument: " + args[i]);
                     System.exit(2);
@@ -46,7 +50,7 @@ public final class Main {
         }
 
         try {
-            RunConfig config = new RunConfig(projectPath, commits, reportOut);
+            RunConfig config = new RunConfig(projectPath, commits, reportOut, mavenThreads);
             int exitCode = new RunCommand().run(config);
             printSummary(reportOut, summaryOut, exitCode);
             System.exit(exitCode);

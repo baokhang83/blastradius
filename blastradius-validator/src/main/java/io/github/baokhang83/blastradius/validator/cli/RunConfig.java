@@ -7,12 +7,19 @@ import java.util.Objects;
 /**
  * The operator-supplied input for a single validator run (FR-001, FR-012).
  *
- * @param projectPath       local git working copy of the target project
- * @param commitWindowSize  number of most-recent commits to analyze; operator-chosen,
- *                          no fixed default (FR-012)
- * @param reportOutputPath  file path to write the JSON {@code AnalysisReport} to
+ * @param projectPath          local git working copy of the target project
+ * @param commitWindowSize     number of most-recent commits to analyze; operator-chosen,
+ *                             no fixed default (FR-012)
+ * @param reportOutputPath     file path to write the JSON {@code AnalysisReport} to
+ * @param mavenParallelThreads value for the target project's own {@code mvn -T} reactor
+ *                             parallelism, or {@code null} to build serially (the default)
  */
-public record RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath) {
+public record RunConfig(
+        Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads) {
+
+    public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath) {
+        this(projectPath, commitWindowSize, reportOutputPath, null);
+    }
 
     public RunConfig {
         Objects.requireNonNull(projectPath, "projectPath");
@@ -28,6 +35,10 @@ public record RunConfig(Path projectPath, int commitWindowSize, Path reportOutpu
         Objects.requireNonNull(reportOutputPath, "reportOutputPath");
         if (Files.isDirectory(reportOutputPath)) {
             throw new IllegalArgumentException("reportOutputPath must be a file path, not a directory: " + reportOutputPath);
+        }
+        if (mavenParallelThreads != null && mavenParallelThreads < 1) {
+            throw new IllegalArgumentException(
+                    "mavenParallelThreads must be positive, got: " + mavenParallelThreads);
         }
     }
 }
