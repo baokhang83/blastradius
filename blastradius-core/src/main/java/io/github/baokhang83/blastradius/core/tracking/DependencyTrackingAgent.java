@@ -113,12 +113,35 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         inst.addTransformer(agent, true);
         if (agentArgs != null && !agentArgs.isBlank()) {
             Path outputFile = Path.of(agentArgs + "." + ProcessHandle.current().pid());
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                Map<TestIdentity, Map<String, String>> recorded = agent.recordedDependencies();
-                if (!recorded.isEmpty()) {
-                    new DependencyRecordWriter().write(outputFile, recorded, agent.ambientDependencies());
-                }
-            }));
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> runShutdownHook(
+                    outputFile, agent::recordedDependencies, agent::ambientDependencies,
+                    new DependencyRecordWriter())));
+        }
+    }
+
+    /**
+     * The shutdown hook's actual work, factored out so a test can drive it with a
+     * deliberately-throwing supplier instead of forking a real JVM. Catches
+     * {@link Throwable}, not just {@link Exception}: the failure that motivated this
+     * (found running against apache/shenyu) was a {@link ClassCircularityError} — an
+     * unrelated javaagent's JDK-version mismatch corrupting class loading inside this
+     * JVM — which silently killed the shutdown-hook thread before it could write
+     * anything, leaving no trace beyond a build log nobody reads on success. A crash
+     * marker instead gives {@link DependencyRecordReader} a concrete reason to report.
+     */
+    static void runShutdownHook(Path outputFile, Supplier<Map<TestIdentity, Map<String, String>>> recordedDependencies,
+            Supplier<Set<String>> ambientDependencies, DependencyRecordWriter writer) {
+        try {
+            Map<TestIdentity, Map<String, String>> recorded = recordedDependencies.get();
+            if (!recorded.isEmpty()) {
+                writer.write(outputFile, recorded, ambientDependencies.get());
+            }
+        } catch (Throwable t) {
+            try {
+                writer.writeCrashMarker(outputFile, t);
+            } catch (Throwable ignored) {
+                // Best effort: a failure here must not itself crash the JVM's shutdown sequence.
+            }
         }
     }
 

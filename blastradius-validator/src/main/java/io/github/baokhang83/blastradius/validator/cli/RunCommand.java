@@ -4,6 +4,7 @@ import io.github.baokhang83.blastradius.validator.build.BuildFailureDetector;
 import io.github.baokhang83.blastradius.validator.build.BuildResult;
 import io.github.baokhang83.blastradius.validator.build.GroundTruthResolver;
 import io.github.baokhang83.blastradius.validator.build.GroundTruthResult;
+import io.github.baokhang83.blastradius.validator.build.JdkMismatchDetector;
 import io.github.baokhang83.blastradius.validator.build.MavenBuildRunner;
 import io.github.baokhang83.blastradius.validator.build.Outcome;
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
@@ -61,6 +62,7 @@ public final class RunCommand {
     private final ReportWriter reportWriter = new ReportWriter();
     private final MavenBuildRunner buildRunner = new MavenBuildRunner();
     private final BuildFailureDetector buildFailureDetector = new BuildFailureDetector();
+    private final JdkMismatchDetector jdkMismatchDetector = new JdkMismatchDetector();
 
     /** Runs with this tool's own jar self-located for {@code -javaagent} attachment. */
     public int run(RunConfig config) {
@@ -75,6 +77,8 @@ public final class RunCommand {
      */
     public int run(RunConfig config, Path agentJar) {
         try {
+            jdkMismatchDetector.detect(config.projectPath()).ifPresent(System.err::println);
+
             List<CommitPair> window =
                     commitWindowResolver.resolveWindow(config.projectPath(), config.commitWindowSize());
 

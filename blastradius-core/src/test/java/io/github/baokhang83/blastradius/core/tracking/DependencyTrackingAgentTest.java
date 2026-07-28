@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -18,6 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class DependencyTrackingAgentTest {
 
@@ -197,6 +199,43 @@ class DependencyTrackingAgentTest {
                 Path.of("/build/repo/core/target/core-1.0.0.jar"), null));
         assertTrue(DependencyTrackingAgent.isProjectCodeSource(
                 Path.of("/build/repo/core/target/classes"), null));
+    }
+
+    @Test
+    void shutdownHookWritesRecordedDependenciesWhenPresent(@TempDir Path tempDir) {
+        Path outputFile = tempDir.resolve("dependencies.json.111");
+        Map<TestIdentity, Map<String, String>> recorded = Map.of(FOO_TEST, Map.of("com.example.Foo", "abc123"));
+
+        DependencyTrackingAgent.runShutdownHook(
+                outputFile, () -> recorded, Set::of, new DependencyRecordWriter());
+
+        assertTrue(Files.exists(outputFile));
+    }
+
+    @Test
+    void shutdownHookWritesNothingWhenNoDependenciesWereRecorded(@TempDir Path tempDir) {
+        Path outputFile = tempDir.resolve("dependencies.json.111");
+
+        DependencyTrackingAgent.runShutdownHook(outputFile, Map::of, Set::of, new DependencyRecordWriter());
+
+        assertFalse(Files.exists(outputFile));
+    }
+
+    @Test
+    void shutdownHookWritesACrashMarkerInsteadOfSilentlyLosingDataWhenRecordingFails(@TempDir Path tempDir) {
+        // The real failure found running against apache/shenyu: a ClassCircularityError
+        // from an unrelated javaagent collision crashed the shutdown-hook thread before
+        // it wrote any output, with no trace left behind. A ClassCircularityError is an
+        // Error, not an Exception — the defensive catch must be broad enough to see it.
+        Path outputFile = tempDir.resolve("dependencies.json.111");
+
+        DependencyTrackingAgent.runShutdownHook(outputFile, () -> {
+            throw new ClassCircularityError("java/lang/invoke/MethodHandleImpl$CountingWrapper$1");
+        }, Set::of, new DependencyRecordWriter());
+
+        assertFalse(Files.exists(outputFile));
+        Path marker = Path.of(outputFile + DependencyRecordWriter.CRASH_MARKER_SUFFIX);
+        assertTrue(Files.exists(marker), "expected a crash marker at " + marker);
     }
 
     private static String sha256Hex(byte[] bytes) throws NoSuchAlgorithmException {

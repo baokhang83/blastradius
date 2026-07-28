@@ -6,8 +6,10 @@ import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -54,9 +56,14 @@ public final class DependencyRecordReader {
         String prefix = baseOutputFile.getFileName().toString() + ".";
         Map<TestIdentity, Map<String, String>> mergedTests = new HashMap<>();
         Set<String> mergedAmbient = new HashSet<>();
+        List<String> crashReasons = new ArrayList<>();
         boolean foundAny = false;
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(parent, prefix + "*")) {
             for (Path siblingFile : stream) {
+                if (siblingFile.getFileName().toString().endsWith(DependencyRecordWriter.CRASH_MARKER_SUFFIX)) {
+                    crashReasons.add(readCrashReason(siblingFile));
+                    continue;
+                }
                 foundAny = true;
                 DependencyRecordSet sibling = readFile(siblingFile);
                 sibling.tests().forEach((test, classes) -> mergedTests.merge(test, classes, (oldClasses, newClasses) -> {
@@ -71,13 +78,24 @@ public final class DependencyRecordReader {
                     + parent, e);
         }
         if (!foundAny) {
+            String reason = crashReasons.isEmpty()
+                    ? "no files matching " + prefix + "* found in " + parent
+                    : "the tracking agent's shutdown hook crashed before writing any data: "
+                            + String.join("; ", crashReasons);
             throw new UncheckedIOException(
-                    "failed to read dependency record from " + baseOutputFile,
-                    new IOException("no files matching " + prefix + "* found in " + parent));
+                    "failed to read dependency record from " + baseOutputFile, new IOException(reason));
         }
         for (TestIdentity test : mergedTests.keySet()) {
             mergedAmbient.remove(test.className());
         }
         return new DependencyRecordSet(Map.copyOf(mergedTests), Set.copyOf(mergedAmbient));
+    }
+
+    private static String readCrashReason(Path markerFile) {
+        try {
+            return Files.readString(markerFile);
+        } catch (IOException e) {
+            return "crash marker at " + markerFile + " could not be read: " + e.getMessage();
+        }
     }
 }
