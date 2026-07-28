@@ -1,13 +1,13 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestBoundaryListener,7,80,0,6,0,24,1,10,1,7
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordSet,0,9,0,0,0,1,0,1,0,1
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.new ClassVisitor() {...},36,0,2,0,6,0,3,0,2,0
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.new ClassVisitor() {...},2,34,1,1,1,5,1,2,0,2
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordFile,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordReader,36,167,0,10,9,34,1,11,1,6
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter,34,3,2,0,5,1,2,1,1,1
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyTrackingAgent,249,434,55,49,63,111,48,39,7,28
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter,1,36,1,1,0,6,1,2,0,2
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyTrackingAgent,223,531,56,66,56,138,48,51,4,34
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecord,0,9,0,0,0,1,0,1,0,1
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.1.new MethodVisitor() {...},83,0,6,0,21,0,10,0,7,0
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.1.new MethodVisitor() {...},14,69,3,3,3,18,3,7,1,6
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordWriter,18,65,0,0,4,15,0,5,0,5
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestIdentity,0,41,0,4,0,7,0,4,0,2
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,FallbackSelector,0,19,0,2,0,3,0,5,0,4
