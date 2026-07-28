@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.ProtectionDomain;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -119,6 +120,50 @@ class DependencyTrackingAgentTest {
         agent.transform(Object.class.getModule(), null, "com/example/Foo", null, null, "x".getBytes(StandardCharsets.UTF_8));
 
         assertTrue(agent.recordedDependencies().get(FOO_TEST).containsKey("com.example.Foo"));
+    }
+
+    @Test
+    void projectClassIsInstrumentedAtLoadEvenWithNoTestRunning() throws Exception {
+        currentTest.set(null);
+
+        byte[] instrumented = agent.transform(
+                null, "com/example/SpringBean", null, ownProtectionDomain(), ownClassBytes());
+
+        assertTrue(instrumented != null,
+                "a project class must be instrumented on its very first load, whether or not a "
+                        + "test window happens to be open at that moment");
+        assertTrue(agent.recordedDependencies().isEmpty(), "no test was running, so nothing is attributed yet");
+    }
+
+    @Test
+    void laterTestReusingAnAlreadyLoadedProjectClassGetsAttributed() throws Exception {
+        // Simulates a Spring-managed singleton: TestA's window is the one that happens to
+        // trigger the class's only real transform() call; TestB reuses the same already-loaded
+        // instance (e.g. via a cached ApplicationContext) without ever reloading it. Only the
+        // callback injected into the instrumented bytecode — not a second transform() call —
+        // can attribute that reuse to TestB.
+        TestIdentity testA = new TestIdentity("com.example.BeanCreatingTest", "buildsContext");
+        TestIdentity testB = new TestIdentity("com.example.BeanReusingTest", "reusesCachedContext");
+
+        currentTest.set(testA);
+        agent.transform(null, "com/example/SpringBean", null, ownProtectionDomain(), ownClassBytes());
+
+        Field installedAgentField = DependencyTrackingAgent.class.getDeclaredField("installedAgent");
+        installedAgentField.setAccessible(true);
+        Object previousInstalledAgent = installedAgentField.get(null);
+        installedAgentField.set(null, agent);
+        try {
+            currentTest.set(testB);
+            DependencyTrackingAgent.recordAmbientExecution("com.example.SpringBean");
+        } finally {
+            installedAgentField.set(null, previousInstalledAgent);
+        }
+
+        Map<TestIdentity, Map<String, String>> all = agent.recordedDependencies();
+        assertTrue(all.get(testA).containsKey("com.example.SpringBean"));
+        assertTrue(all.get(testB).containsKey("com.example.SpringBean"),
+                "testB must be attributed via the injected runtime-use callback, since it never "
+                        + "triggered a transform() call of its own");
     }
 
     @Test
@@ -252,6 +297,19 @@ class DependencyTrackingAgentTest {
         assertFalse(Files.exists(outputFile));
         Path marker = Path.of(outputFile + DependencyRecordWriter.CRASH_MARKER_SUFFIX);
         assertTrue(Files.exists(marker), "expected a crash marker at " + marker);
+    }
+
+    private static byte[] ownClassBytes() throws Exception {
+        try (InputStream stream = DependencyTrackingAgentTest.class
+                .getResourceAsStream("DependencyTrackingAgentTest.class")) {
+            assertTrue(stream != null, "test class bytes must be available as a resource");
+            return stream.readAllBytes();
+        }
+    }
+
+    /** Compiled to {@code target/test-classes}: a real project code source for the tests below. */
+    private static ProtectionDomain ownProtectionDomain() {
+        return DependencyTrackingAgentTest.class.getProtectionDomain();
     }
 
     private static String sha256Hex(byte[] bytes) throws NoSuchAlgorithmException {

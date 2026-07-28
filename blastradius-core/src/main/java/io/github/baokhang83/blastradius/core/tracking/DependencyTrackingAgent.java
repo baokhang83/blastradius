@@ -89,6 +89,16 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
     private static final MessageDigest SHA_256 = initializeSha256();
     private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
 
+    /**
+     * Resolved once, here, rather than freshly on every {@link #transform} call: it's a
+     * {@code -D} flag fixed for the JVM's whole lifetime (set once, on the command line, by
+     * {@code TrackRunner}), but resolving it touches the filesystem ({@link #canonicalize}
+     * calls {@code toRealPath()}). Since every project-class fix below now runs this check on
+     * every single class load in the JVM — not just once, before the first test — repeating
+     * that syscall per class load would be a real cost for no benefit.
+     */
+    private static final Path CONFIGURED_PROJECT_ROOT = resolveConfiguredProjectRoot();
+
     private static volatile DependencyTrackingAgent installedAgent;
     private static volatile Instrumentation instrumentation;
 
@@ -194,19 +204,38 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         }
 
         TestIdentity currentTest = currentTestSupplier.get();
-        if (currentTest == null) {
+        boolean isProjectClass = isAmbientInstrumentationCandidate(dottedClassName, protectionDomain);
+        if (currentTest == null && !isProjectClass) {
             return null;
         }
 
         RECORDING_CLASS_LOAD.set(true);
         try {
-            checksumsByTest
-                    .computeIfAbsent(currentTest, ignored -> new ConcurrentHashMap<>())
-                    .put(dottedClassName, sha256Hex(classfileBuffer));
+            String checksum = sha256Hex(classfileBuffer);
+            byte[] instrumented = null;
+            if (isProjectClass) {
+                // Every project class gets this at its first (and only) load — not just the
+                // ones the pre-first-test snapshot happens to catch — so a later test that
+                // reuses an already-loaded instance (e.g. a cached Spring bean) still gets
+                // attributed via the injected callback instead of silently missing it.
+                try {
+                    instrumented = ambientClassInstrumenter.instrument(dottedClassName, classfileBuffer);
+                    if (instrumented != null) {
+                        ambientChecksums.put(dottedClassName, checksum);
+                    }
+                } catch (RuntimeException ignored) {
+                    // Stays uninstrumented, same as any class the instrumenter can't rewrite.
+                }
+            }
+            if (currentTest != null) {
+                checksumsByTest
+                        .computeIfAbsent(currentTest, ignored -> new ConcurrentHashMap<>())
+                        .put(dottedClassName, checksum);
+            }
+            return instrumented;
         } finally {
             RECORDING_CLASS_LOAD.remove();
         }
-        return null;
     }
 
     /**
@@ -279,11 +308,18 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         }
         Path projectRoot = configuredProjectRoot();
         for (Class<?> loadedClass : loadedClasses) {
+            String className = loadedClass.getName();
+            if (ambientChecksums.containsKey(className)) {
+                // Already instrumented at its original class-load (see #transform): this
+                // snapshot pass now mostly only catches what that inline path missed.
+                // Retransforming it again here would double-inject the runtime-use callback.
+                ambientDependencies.remove(className);
+                continue;
+            }
             if (!isAmbientInstrumentationCandidate(loadedClass, projectRoot)
                     || !currentInstrumentation.isModifiableClass(loadedClass)) {
                 continue;
             }
-            String className = loadedClass.getName();
             pendingAmbientRetransformations.add(className);
             try {
                 currentInstrumentation.retransformClasses(loadedClass);
@@ -314,6 +350,22 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
     }
 
     /**
+     * Same test as {@link #isAmbientInstrumentationCandidate(Class, Path)}, but usable from
+     * {@link #transform} itself: a class being defined has no {@link Class} object yet, only
+     * the {@link ProtectionDomain} the JVM hands the transformer directly. Array and primitive
+     * types never reach {@link #transform} (they're never defined from a classfile buffer), so
+     * unlike the {@code Class}-based check, this one doesn't need to filter them out.
+     */
+    private static boolean isAmbientInstrumentationCandidate(String dottedClassName, ProtectionDomain protectionDomain) {
+        if (dottedClassName.startsWith(TRACKING_PACKAGE_PREFIX)
+                || dottedClassName.startsWith(INSTRUMENTATION_LIBRARY_PACKAGE_PREFIX)) {
+            return false;
+        }
+        Path codeSource = codeSourceOf(protectionDomain);
+        return codeSource != null && isProjectCodeSource(codeSource, CONFIGURED_PROJECT_ROOT);
+    }
+
+    /**
      * A class belongs to the build under test when its code source lives under the reactor root —
      * whether that is a module's {@code target/classes} directory or another module's built jar,
      * which is how every downstream module sees its reactor dependencies. Without the reactor root
@@ -332,6 +384,10 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
     }
 
     private static Path configuredProjectRoot() {
+        return CONFIGURED_PROJECT_ROOT;
+    }
+
+    private static Path resolveConfiguredProjectRoot() {
         String configured = System.getProperty(PROJECT_ROOT_PROPERTY);
         if (configured == null || configured.isBlank()) {
             return null;
@@ -359,7 +415,10 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
     }
 
     private static Path codeSourceOf(Class<?> loadedClass) {
-        ProtectionDomain protectionDomain = loadedClass.getProtectionDomain();
+        return codeSourceOf(loadedClass.getProtectionDomain());
+    }
+
+    private static Path codeSourceOf(ProtectionDomain protectionDomain) {
         if (protectionDomain == null || protectionDomain.getCodeSource() == null
                 || protectionDomain.getCodeSource().getLocation() == null) {
             return null;
