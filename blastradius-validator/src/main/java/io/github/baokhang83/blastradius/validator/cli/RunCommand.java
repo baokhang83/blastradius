@@ -2,6 +2,7 @@ package io.github.baokhang83.blastradius.validator.cli;
 
 import io.github.baokhang83.blastradius.validator.build.BuildFailureDetector;
 import io.github.baokhang83.blastradius.validator.build.BuildResult;
+import io.github.baokhang83.blastradius.validator.build.GroundTruthResolution;
 import io.github.baokhang83.blastradius.validator.build.GroundTruthResolver;
 import io.github.baokhang83.blastradius.validator.build.GroundTruthResult;
 import io.github.baokhang83.blastradius.validator.build.JdkMismatchDetector;
@@ -28,10 +29,13 @@ import io.github.baokhang83.blastradius.validator.verdict.Verdict;
 import io.github.baokhang83.blastradius.validator.verdict.VerdictCalculator;
 import io.github.baokhang83.blastradius.validator.verdict.WouldMissCase;
 import io.github.baokhang83.blastradius.validator.verdict.WouldMissComparator;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -93,13 +97,18 @@ public final class RunCommand {
             List<WouldMissCase> allMisses = new ArrayList<>();
             List<SelectionDecision> allDecisions = new ArrayList<>();
             List<FlakyFailure> allFlaky = new ArrayList<>();
+            // Only ever populated when config.fastGroundTruth() is true (§III — see
+            // RunConfig#fastGroundTruth): the safe, default path never unifies build types
+            // across pairs, so there is nothing to cache.
+            Map<String, CommitBuild> commitCache = new HashMap<>();
 
             Path scratchParent = Files.createTempDirectory("blastradius-scratch-");
             try (CommitCheckout checkout = CommitCheckout.forTargetProject(config.projectPath(), scratchParent)) {
                 for (CommitPair pair : window) {
                     PairAnalysis analysis;
                     try {
-                        analysis = analyzePair(pair, config.projectPath(), checkout, agentJar);
+                        analysis = analyzePair(
+                                pair, config.projectPath(), checkout, agentJar, config.fastGroundTruth(), commitCache);
                     } catch (Exception e) {
                         analysis = excluded(pair, "analysis failed: " + e.getMessage());
                     }
@@ -133,17 +142,55 @@ public final class RunCommand {
             List<SelectionDecision> decisions,
             List<FlakyFailure> flakyFailures) {}
 
-    private PairAnalysis analyzePair(CommitPair pair, Path targetRepo, CommitCheckout checkout, Path agentJar)
-            throws Exception {
-        // Baseline: build the BASE commit with the agent attached, to learn what each
-        // test depended on as of that commit.
-        Path baseWorkDir = checkout.checkoutCommit(pair.baseCommit());
-        Path baseDepsFile = Files.createTempFile("blastradius-base-deps-", ".json");
-        BuildResult baseResult = buildRunner.run(baseWorkDir, agentJar, baseDepsFile);
-        if (buildFailureDetector.isBuildFailure(baseResult, baseWorkDir)) {
-            return excluded(pair, "base commit " + pair.baseCommit() + " failed to build");
+    /**
+     * One commit's canonical build outcome under {@code --fast-ground-truth} (RunConfig
+     * #fastGroundTruth): a single agent-attached build serving both the "dependency
+     * baseline" role and the "ground truth" role, cached across every pair in the window
+     * that references this commit. Never populated in the safe, default mode.
+     */
+    private record CommitBuild(
+            boolean failed, String failureReason, DependencyRecordSet dependencyRecordSet,
+            List<GroundTruthResult> groundTruth) {}
+
+    private PairAnalysis analyzePair(
+            CommitPair pair, Path targetRepo, CommitCheckout checkout, Path agentJar,
+            boolean fastGroundTruth, Map<String, CommitBuild> commitCache) throws Exception {
+        DependencyRecordSet baseRecordSet;
+        List<GroundTruthResult> groundTruth;
+
+        if (fastGroundTruth) {
+            CommitBuild base = buildCommit(pair.baseCommit(), checkout, agentJar, commitCache);
+            if (base.failed()) {
+                return excluded(pair, base.failureReason());
+            }
+            CommitBuild head = buildCommit(pair.headCommit(), checkout, agentJar, commitCache);
+            if (head.failed()) {
+                return excluded(pair, head.failureReason());
+            }
+            baseRecordSet = base.dependencyRecordSet();
+            groundTruth = head.groundTruth();
+        } else {
+            // Baseline: build the BASE commit with the agent attached, to learn what each
+            // test depended on as of that commit.
+            Path baseWorkDir = checkout.checkoutCommit(pair.baseCommit());
+            Path baseDepsFile = Files.createTempFile("blastradius-base-deps-", ".json");
+            BuildResult baseResult = buildRunner.run(baseWorkDir, agentJar, baseDepsFile);
+            if (buildFailureDetector.isBuildFailure(baseResult, baseWorkDir)) {
+                return excluded(pair, "base commit " + pair.baseCommit() + " failed to build");
+            }
+            baseRecordSet = new DependencyRecordReader().readAll(baseDepsFile);
+
+            // Ground truth: GroundTruthResolver's own build result tells us whether the
+            // HEAD commit built at all, so a compile failure is caught here rather than
+            // silently looking like "zero tests" — without a second, separate probe build.
+            Path headWorkDir = checkout.checkoutCommit(pair.headCommit());
+            GroundTruthResolution resolution = groundTruthResolver.resolve(headWorkDir, null, null);
+            if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), headWorkDir)) {
+                return excluded(pair, "head commit " + pair.headCommit() + " failed to build");
+            }
+            groundTruth = resolution.results();
         }
-        DependencyRecordSet baseRecordSet = new DependencyRecordReader().readAll(baseDepsFile);
+
         Map<TestIdentity, Map<String, String>> baseRecord = baseRecordSet.tests();
         // Keyed by baselineKey(), not the raw tracked identity, so a ground-truth lookup
         // (which may carry a parameterized-test's Surefire-style invocation suffix) can
@@ -158,16 +205,6 @@ public final class RunCommand {
                             union.addAll(b);
                             return union;
                         }));
-
-        // Ground truth: check the HEAD commit builds before delegating to
-        // GroundTruthResolver's own (separate) full run, since a compile failure there
-        // would otherwise silently look like "zero tests" rather than EXCLUDED.
-        Path headWorkDir = checkout.checkoutCommit(pair.headCommit());
-        BuildResult headProbe = buildRunner.run(headWorkDir, null, null);
-        if (buildFailureDetector.isBuildFailure(headProbe, headWorkDir)) {
-            return excluded(pair, "head commit " + pair.headCommit() + " failed to build");
-        }
-        List<GroundTruthResult> groundTruth = groundTruthResolver.resolve(headWorkDir, null, null);
 
         // Changed files, classified, against the real target repo's git history.
         List<ChangedFile> changedFiles =
@@ -193,6 +230,33 @@ public final class RunCommand {
                 .toList();
 
         return new PairAnalysis(enrichedPair, misses, decisions, flakyFailures);
+    }
+
+    /**
+     * {@code --fast-ground-truth} only: one canonical, agent-attached build per commit,
+     * memoized in {@code commitCache} for the lifetime of this {@code run()} call. A cache
+     * hit means the commit was already checked out and built by an earlier pair — it is
+     * <em>not</em> re-checked-out (see {@link CommitCheckout}, which wipes {@code target/}
+     * on every checkout), so a hit returns the results extracted the first time, never a
+     * stale working directory.
+     */
+    private CommitBuild buildCommit(
+            String commitSha, CommitCheckout checkout, Path agentJar, Map<String, CommitBuild> commitCache) {
+        return commitCache.computeIfAbsent(commitSha, sha -> {
+            Path workDir = checkout.checkoutCommit(sha);
+            Path depsFile;
+            try {
+                depsFile = Files.createTempFile("blastradius-commit-deps-", ".json");
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            GroundTruthResolution resolution = groundTruthResolver.resolve(workDir, agentJar, depsFile);
+            if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), workDir)) {
+                return new CommitBuild(true, "commit " + sha + " failed to build", null, List.of());
+            }
+            DependencyRecordSet recordSet = new DependencyRecordReader().readAll(depsFile);
+            return new CommitBuild(false, null, recordSet, resolution.results());
+        });
     }
 
     private static PairAnalysis excluded(CommitPair pair, String reason) {

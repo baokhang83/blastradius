@@ -10,14 +10,14 @@ import java.nio.file.Path;
 /**
  * CLI entry point. Usage:
  * {@code blastradius-validator run --project-path <path> --commits <N> --report-out <path>
- * [--summary-out <path>] [--maven-threads <N>]}
+ * [--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth]}
  */
 public final class Main {
 
     public static void main(String[] args) {
         if (args.length == 0 || !"run".equals(args[0])) {
             System.err.println("usage: run --project-path <path> --commits <N> --report-out <path> "
-                    + "[--summary-out <path>] [--maven-threads <N>]");
+                    + "[--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth]");
             System.exit(2);
             return;
         }
@@ -27,6 +27,7 @@ public final class Main {
         Path reportOut = null;
         Path summaryOut = null;
         Integer mavenThreads = null;
+        boolean fastGroundTruth = false;
 
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
@@ -35,6 +36,7 @@ public final class Main {
                 case "--report-out" -> reportOut = Path.of(args[++i]);
                 case "--summary-out" -> summaryOut = Path.of(args[++i]);
                 case "--maven-threads" -> mavenThreads = Integer.parseInt(args[++i]);
+                case "--fast-ground-truth" -> fastGroundTruth = true;
                 default -> {
                     System.err.println("unknown argument: " + args[i]);
                     System.exit(2);
@@ -50,7 +52,7 @@ public final class Main {
         }
 
         try {
-            RunConfig config = new RunConfig(projectPath, commits, reportOut, mavenThreads);
+            RunConfig config = new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth);
             int exitCode = new RunCommand().run(config);
             printSummary(reportOut, summaryOut, exitCode);
             System.exit(exitCode);

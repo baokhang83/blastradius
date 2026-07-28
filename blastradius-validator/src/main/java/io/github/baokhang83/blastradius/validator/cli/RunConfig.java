@@ -13,12 +13,24 @@ import java.util.Objects;
  * @param reportOutputPath     file path to write the JSON {@code AnalysisReport} to
  * @param mavenParallelThreads value for the target project's own {@code mvn -T} reactor
  *                             parallelism, or {@code null} to build serially (the default)
+ * @param fastGroundTruth      opt-in, default {@code false}. When {@code true}, every commit
+ *                             in the window gets one canonical, agent-attached build cached
+ *                             and reused across every pair that references it — trading the
+ *                             ground-truth build's independence from the tracking agent for
+ *                             fewer builds. Never implied by anything else; must be requested
+ *                             explicitly (constitution §III — see design.md for the full
+ *                             reasoning).
  */
 public record RunConfig(
-        Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads) {
+        Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
+        boolean fastGroundTruth) {
 
     public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath) {
-        this(projectPath, commitWindowSize, reportOutputPath, null);
+        this(projectPath, commitWindowSize, reportOutputPath, null, false);
+    }
+
+    public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads) {
+        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, false);
     }
 
     public RunConfig {
