@@ -49,8 +49,17 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
      * excluded by package: excluding the agent's own code source instead would be wrong, because a
      * module that depends on this one loads the agent classes from the ordinary core jar — the very
      * jar that carries the project classes we are trying to attribute.
+     *
+     * <p>The shaded blastradius-validator jar (the one actually attached via {@code -javaagent})
+     * relocates {@code org.objectweb.asm} to keep it from colliding with a target project's own
+     * classes; a string literal like this one is not bytecode-rewritten by the shade plugin, so it
+     * must name the relocated package explicitly rather than the original one. blastradius-core's
+     * own jar (used as an ordinary reactor dependency, not as the agent) never relocates ASM, so
+     * this prefix would be wrong there — but this check only ever matters when running as the
+     * agent, where the shaded prefix is the one actually in effect.
      */
-    private static final String INSTRUMENTATION_LIBRARY_PACKAGE_PREFIX = "org.objectweb.asm.";
+    private static final String INSTRUMENTATION_LIBRARY_PACKAGE_PREFIX =
+            "io.github.baokhang83.blastradius.shaded.asm.";
 
     /**
      * Computing a checksum can initialize JDK security-provider classes. Those class loads call
@@ -113,12 +122,35 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         inst.addTransformer(agent, true);
         if (agentArgs != null && !agentArgs.isBlank()) {
             Path outputFile = Path.of(agentArgs + "." + ProcessHandle.current().pid());
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                Map<TestIdentity, Map<String, String>> recorded = agent.recordedDependencies();
-                if (!recorded.isEmpty()) {
-                    new DependencyRecordWriter().write(outputFile, recorded, agent.ambientDependencies());
-                }
-            }));
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> runShutdownHook(
+                    outputFile, agent::recordedDependencies, agent::ambientDependencies,
+                    new DependencyRecordWriter())));
+        }
+    }
+
+    /**
+     * The shutdown hook's actual work, factored out so a test can drive it with a
+     * deliberately-throwing supplier instead of forking a real JVM. Catches
+     * {@link Throwable}, not just {@link Exception}: the failure that motivated this
+     * (found running against apache/shenyu) was a {@link ClassCircularityError} — an
+     * unrelated javaagent's JDK-version mismatch corrupting class loading inside this
+     * JVM — which silently killed the shutdown-hook thread before it could write
+     * anything, leaving no trace beyond a build log nobody reads on success. A crash
+     * marker instead gives {@link DependencyRecordReader} a concrete reason to report.
+     */
+    static void runShutdownHook(Path outputFile, Supplier<Map<TestIdentity, Map<String, String>>> recordedDependencies,
+            Supplier<Set<String>> ambientDependencies, DependencyRecordWriter writer) {
+        try {
+            Map<TestIdentity, Map<String, String>> recorded = recordedDependencies.get();
+            if (!recorded.isEmpty()) {
+                writer.write(outputFile, recorded, ambientDependencies.get());
+            }
+        } catch (Throwable t) {
+            try {
+                writer.writeCrashMarker(outputFile, t);
+            } catch (Throwable ignored) {
+                // Best effort: a failure here must not itself crash the JVM's shutdown sequence.
+            }
         }
     }
 

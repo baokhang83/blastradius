@@ -2,8 +2,10 @@ package io.github.baokhang83.blastradius.core.tracking;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -74,6 +76,43 @@ class DependencyRecordIoTest {
                 "a test's own class name must never remain in the ambient set");
         assertTrue(merged.ambientDependencies().contains("com.example.Foo"));
         assertTrue(merged.ambientDependencies().contains("java.lang.String"));
+    }
+
+    @Test
+    void readAllExplainsAShutdownHookCrashWhenOnlyACrashMarkerExists(@TempDir Path tempDir) {
+        // Mirrors the real failure found running against apache/shenyu: the tracking
+        // agent's shutdown hook can crash (e.g. a ClassCircularityError from an unrelated
+        // javaagent collision) before it ever writes a data file. Without a crash marker,
+        // readAll's caller only sees "no files matching ... found", which gives no hint
+        // that the agent actually ran and crashed, rather than never having been attached.
+        Path base = tempDir.resolve("dependencies.json");
+        writer.writeCrashMarker(base.resolveSibling(base.getFileName() + ".111"),
+                new ClassCircularityError("java/lang/invoke/MethodHandleImpl$CountingWrapper$1"));
+
+        UncheckedIOException thrown = assertThrows(UncheckedIOException.class, () -> reader.readAll(base));
+
+        // The crash reason must be in the exception's own message, not just its cause: a
+        // caller that reports e.getMessage() alone (as RunCommand's exclusion reason does)
+        // would otherwise still show the generic, uninformative "failed to read dependency
+        // record from ..." with no clue that the agent actually ran and crashed.
+        assertTrue(thrown.getMessage().contains("ClassCircularityError"),
+                "expected the crash reason to surface in the exception's own message: " + thrown.getMessage());
+    }
+
+    @Test
+    void readAllMergesValidForksAndIgnoresASiblingCrashMarker(@TempDir Path tempDir) throws Exception {
+        // A multi-fork build where only one fork's agent crashed must not lose the data
+        // the other, healthy forks recorded.
+        Path base = tempDir.resolve("dependencies.json");
+        TestIdentity fooTest = new TestIdentity("com.example.FooTest", "checksFoo");
+        writer.write(base.resolveSibling(base.getFileName() + ".111"),
+                Map.of(fooTest, Map.of("com.example.Foo", "abc123")));
+        writer.writeCrashMarker(base.resolveSibling(base.getFileName() + ".222"),
+                new ClassCircularityError("boom"));
+
+        DependencyRecordSet merged = reader.readAll(base);
+
+        assertEquals(Map.of(fooTest, Map.of("com.example.Foo", "abc123")), merged.tests());
     }
 
     @Test

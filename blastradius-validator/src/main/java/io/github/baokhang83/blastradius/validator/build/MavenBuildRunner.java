@@ -5,9 +5,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.Set;
 
 /**
  * Invokes a target project's own {@code mvn test} as a subprocess — never reimplementing
@@ -18,6 +21,16 @@ import java.util.concurrent.TimeUnit;
 public final class MavenBuildRunner {
 
     private static final long TIMEOUT_MINUTES = 5;
+
+    /**
+     * How long to wait for a Surefire-forked JVM that outlives {@code mvn} itself to exit
+     * on its own before it gets forcibly killed (research.md #1 / apache/shenyu finding,
+     * see {@link #reapStragglers}).
+     */
+    private static final Duration DESCENDANT_GRACE_PERIOD = Duration.ofMinutes(5);
+
+    private static final Duration DESCENDANT_KILL_GRACE_PERIOD = Duration.ofSeconds(30);
+    private static final Duration DESCENDANT_POLL_INTERVAL = Duration.ofMillis(200);
 
     /**
      * @param projectDir       the (already checked-out) working copy to build
@@ -63,12 +76,37 @@ public final class MavenBuildRunner {
                 pb.environment().merge("JAVA_TOOL_OPTIONS", agentOpt, (existing, added) -> existing + " " + added);
             }
             Process process = pb.start();
-            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            boolean finished = process.waitFor(TIMEOUT_MINUTES, TimeUnit.MINUTES);
-            if (!finished) {
+            // Read stdout on a separate thread: the descendant-tracking poll below must
+            // run concurrently, not after, or a chatty child can fill the OS pipe buffer
+            // and block forever with nobody draining it.
+            byte[][] outputHolder = new byte[1][];
+            Thread outputReader = new Thread(() -> {
+                try {
+                    outputHolder[0] = process.getInputStream().readAllBytes();
+                } catch (IOException e) {
+                    outputHolder[0] = new byte[0];
+                }
+            });
+            outputReader.start();
+
+            Set<ProcessHandle> descendants =
+                    awaitDescendantsWhileAlive(process, Duration.ofMinutes(TIMEOUT_MINUTES));
+            outputReader.join();
+
+            if (process.isAlive()) {
                 process.destroyForcibly();
+                descendants.forEach(ProcessHandle::destroyForcibly);
                 throw new IllegalStateException("mvn test timed out against " + projectDir);
             }
+            // mvn itself exiting is not proof every process it spawned has: Surefire can
+            // give up on and report a broken/unresponsive fork as failed the instant its
+            // communication pipe breaks, without waiting for that fork's own OS process
+            // to exit (found running against apache/shenyu). An orphaned fork left alive
+            // past this point hasn't run DependencyTrackingAgent's shutdown hook yet, so
+            // reading its output immediately would race it and find nothing at all.
+            reapStragglers(descendants, DESCENDANT_GRACE_PERIOD);
+
+            String output = new String(outputHolder[0], StandardCharsets.UTF_8);
             return new BuildResult(process.exitValue(), output);
         } catch (IOException e) {
             throw new UncheckedIOException("failed to invoke mvn test against " + projectDir, e);
@@ -76,6 +114,46 @@ public final class MavenBuildRunner {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("interrupted while waiting for mvn test against " + projectDir, e);
         }
+    }
+
+    /**
+     * Polls {@code process}'s descendants while it's alive, accumulating every one ever
+     * observed, until it exits or {@code timeout} elapses. Descendants must be sampled
+     * <em>while</em> the parent is alive: once it exits, the OS reparents any surviving
+     * children away, and they silently drop out of {@link Process#toHandle()}'s
+     * {@code descendants()} from that point on — checking only after {@code process} has
+     * already exited can miss a straggler entirely.
+     */
+    static Set<ProcessHandle> awaitDescendantsWhileAlive(Process process, Duration timeout) throws InterruptedException {
+        Set<ProcessHandle> descendants = new HashSet<>();
+        Instant deadline = Instant.now().plus(timeout);
+        while (process.isAlive() && Instant.now().isBefore(deadline)) {
+            process.toHandle().descendants().forEach(descendants::add);
+            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());
+        }
+        process.toHandle().descendants().forEach(descendants::add);
+        return descendants;
+    }
+
+    /**
+     * Gives every still-alive descendant up to {@code gracePeriod} to exit on its own,
+     * then sends a graceful {@code destroy()} (which a JVM honors as a shutdown-hook
+     * trigger, giving {@code DependencyTrackingAgent} a last chance to write a crash
+     * marker) and, if it still hasn't exited after a short additional grace period,
+     * {@code destroyForcibly()} so no orphaned Surefire fork is left running indefinitely.
+     */
+    static void reapStragglers(Set<ProcessHandle> descendants, Duration gracePeriod) throws InterruptedException {
+        Instant deadline = Instant.now().plus(gracePeriod);
+        while (descendants.stream().anyMatch(ProcessHandle::isAlive) && Instant.now().isBefore(deadline)) {
+            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());
+        }
+        descendants.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroy);
+
+        Instant killDeadline = Instant.now().plus(DESCENDANT_KILL_GRACE_PERIOD);
+        while (descendants.stream().anyMatch(ProcessHandle::isAlive) && Instant.now().isBefore(killDeadline)) {
+            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());
+        }
+        descendants.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroyForcibly);
     }
 
     private static String[] command(String testSelector) {
