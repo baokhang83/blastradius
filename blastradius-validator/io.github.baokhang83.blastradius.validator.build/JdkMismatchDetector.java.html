@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>JdkMismatchDetector.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.build</a> &gt; <span class="el_source">JdkMismatchDetector.java</span></div><h1>JdkMismatchDetector.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.build;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
+import javax.xml.parsers.DocumentBuilderFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.NodeList;
+
+/**
+ * Warns, upfront, when the target project's own declared JDK requirement differs from the
+ * JDK that will actually run {@code mvn} — never selects or switches JDKs, only reports
+ * the mismatch. {@link MavenBuildRunner} applies no {@code JAVA_HOME} override, so the
+ * subprocess inherits whichever JDK is running the validator itself; a real-project run
+ * against apache/shenyu found that a mismatch here (JDK 25 vs. a project's own JaCoCo
+ * plugin unable to instrument JDK-25-generated class files) can crash the tracking
+ * agent's shutdown hook well before any error surfaces as an obvious build failure.
+ *
+ * &lt;p&gt;Best-effort only: reads the target's root {@code pom.xml} directly, not the fully
+ * resolved effective POM, and a declared value that isn't a plain integer (e.g. an
+ * unresolved {@code ${property}} expression) is silently skipped rather than warned about.
+ */
+<span class="fc" id="L24">public final class JdkMismatchDetector {</span>
+
+    // Order matters: the standard maven.compiler.* elements are checked first, since a
+    // project can declare a custom java.version property for its own unrelated purposes.
+    // java.version is a fallback for projects like apache/shenyu that declare none of the
+    // standard elements and use only a custom property to drive plugin configuration.
+<span class="fc" id="L30">    private static final List&lt;String&gt; JDK_VERSION_PROPERTIES =</span>
+<span class="fc" id="L31">            List.of(&quot;maven.compiler.release&quot;, &quot;maven.compiler.target&quot;, &quot;maven.compiler.source&quot;, &quot;java.version&quot;);</span>
+
+    /** Compares against the JDK actually running this validator process. */
+    public Optional&lt;String&gt; detect(Path projectRoot) {
+<span class="fc" id="L35">        return detect(projectRoot, Runtime.version().feature());</span>
+    }
+
+    Optional&lt;String&gt; detect(Path projectRoot, int runningJdkFeatureVersion) {
+<span class="fc" id="L39">        return declaredJdkVersion(projectRoot)</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">                .filter(declared -&gt; declared != runningJdkFeatureVersion)</span>
+<span class="fc" id="L41">                .map(declared -&gt; &quot;warning: &quot; + projectRoot + &quot; declares JDK &quot; + declared</span>
+                        + &quot; (via maven.compiler.release/target/source/java.version) but this run will build it &quot;
+                        + &quot;with JDK &quot; + runningJdkFeatureVersion + &quot; — a mismatch here can make the &quot;
+                        + &quot;target project's own build/coverage tooling fail in ways unrelated to the &quot;
+                        + &quot;code under test.&quot;);
+    }
+
+    private static Optional&lt;Integer&gt; declaredJdkVersion(Path projectRoot) {
+<span class="fc" id="L49">        Path pomFile = projectRoot.resolve(&quot;pom.xml&quot;);</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        if (!Files.isRegularFile(pomFile)) {</span>
+<span class="fc" id="L51">            return Optional.empty();</span>
+        }
+        Document doc;
+        try {
+<span class="fc" id="L55">            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();</span>
+<span class="fc" id="L56">            factory.setFeature(&quot;http://apache.org/xml/features/disallow-doctype-decl&quot;, true);</span>
+<span class="fc" id="L57">            doc = factory.newDocumentBuilder().parse(pomFile.toFile());</span>
+<span class="nc" id="L58">        } catch (Exception e) {</span>
+<span class="nc" id="L59">            return Optional.empty();</span>
+<span class="fc" id="L60">        }</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        for (String propertyName : JDK_VERSION_PROPERTIES) {</span>
+<span class="fc" id="L62">            NodeList nodes = doc.getElementsByTagName(propertyName);</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">            if (nodes.getLength() == 0) {</span>
+<span class="fc" id="L64">                continue;</span>
+            }
+<span class="fc" id="L66">            Integer parsed = parseFeatureVersion(nodes.item(0).getTextContent().trim());</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">            if (parsed != null) {</span>
+<span class="fc" id="L68">                return Optional.of(parsed);</span>
+            }
+<span class="fc" id="L70">        }</span>
+<span class="fc" id="L71">        return Optional.empty();</span>
+    }
+
+    private static Integer parseFeatureVersion(String raw) {
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">        if (raw.isBlank()) {</span>
+<span class="nc" id="L76">            return null;</span>
+        }
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        String normalized = raw.startsWith(&quot;1.&quot;) ? raw.substring(2) : raw;</span>
+        try {
+<span class="fc" id="L80">            return Integer.parseInt(normalized);</span>
+<span class="fc" id="L81">        } catch (NumberFormatException e) {</span>
+<span class="fc" id="L82">            return null;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
