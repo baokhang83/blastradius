@@ -5,7 +5,7 @@ coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,Ambient
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordFile,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordReader,36,167,0,10,9,34,1,11,1,6
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter,34,3,2,0,5,1,2,1,1,1
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyTrackingAgent,249,428,55,47,63,109,48,38,7,28
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyTrackingAgent,249,434,55,49,63,111,48,39,7,28
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecord,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.1.new MethodVisitor() {...},83,0,6,0,21,0,10,0,7,0
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordWriter,18,65,0,0,4,15,0,5,0,5
