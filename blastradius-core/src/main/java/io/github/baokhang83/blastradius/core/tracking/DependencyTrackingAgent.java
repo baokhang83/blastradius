@@ -62,6 +62,20 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
             "io.github.baokhang83.blastradius.shaded.asm.";
 
     /**
+     * Found running against a real apache/shenyu build: computing a checksum here (touching
+     * {@code MessageDigest} and {@code ConcurrentHashMap}) is reentrant class-loading work
+     * happening in the middle of the JVM's own {@code MethodHandle}/{@code invokedynamic}
+     * bootstrap sequence for a class shaped like this, which threw
+     * {@link ClassCircularityError} once a second, dynamically self-attached javaagent
+     * (Mockito's inline mock maker attaching its own byte-buddy agent at runtime) was also
+     * active in the same fork and racing to instrument the same machinery. These classes are
+     * pure JDK platform plumbing, identical for any two commits built with the same JDK, so
+     * tracking their checksums has no test-selection value — skipping them removes a real
+     * crash risk for free.
+     */
+    private static final String JDK_INVOKE_BOOTSTRAP_PACKAGE_PREFIX = "java.lang.invoke.";
+
+    /**
      * Computing a checksum can initialize JDK security-provider classes. Those class loads call
      * this transformer again, so they must not recursively trigger another checksum computation.
      */
@@ -162,6 +176,9 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         }
 
         String dottedClassName = className.replace('/', '.');
+        if (dottedClassName.startsWith(JDK_INVOKE_BOOTSTRAP_PACKAGE_PREFIX)) {
+            return null;
+        }
         if (classBeingRedefined != null && pendingAmbientRetransformations.contains(dottedClassName)) {
             try {
                 byte[] instrumented = ambientClassInstrumenter.instrument(dottedClassName, classfileBuffer);

@@ -73,6 +73,22 @@ class DependencyTrackingAgentTest {
     }
 
     @Test
+    void jdkInvokeBootstrapClassesAreNotTracked() {
+        // Found running against a real apache/shenyu build: computing a checksum here is
+        // reentrant class-loading work (MessageDigest, ConcurrentHashMap) happening in the
+        // middle of the JVM's own MethodHandle/invokedynamic bootstrap sequence for this
+        // exact class shape, which threw ClassCircularityError once a second, dynamically
+        // self-attached javaagent (Mockito's inline mock maker) was also active in the same
+        // fork. These classes are pure JDK platform plumbing, identical for any two commits
+        // built with the same JDK, so tracking their checksums has no test-selection value
+        // — skipping them removes a real crash risk for free.
+        currentTest.set(FOO_TEST);
+        agent.transform(null, "java/lang/invoke/MethodHandleImpl$CountingWrapper$1", null, null,
+                "x".getBytes(StandardCharsets.UTF_8));
+        assertTrue(agent.recordedDependencies().isEmpty());
+    }
+
+    @Test
     void executedTestWithNoClassLoadsHasAnEmptyBaseline() {
         agent.recordTestExecution(FOO_TEST);
 
