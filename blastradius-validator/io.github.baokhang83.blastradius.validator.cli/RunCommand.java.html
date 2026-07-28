@@ -2,6 +2,7 @@
 
 import io.github.baokhang83.blastradius.validator.build.BuildFailureDetector;
 import io.github.baokhang83.blastradius.validator.build.BuildResult;
+import io.github.baokhang83.blastradius.validator.build.GroundTruthResolution;
 import io.github.baokhang83.blastradius.validator.build.GroundTruthResolver;
 import io.github.baokhang83.blastradius.validator.build.GroundTruthResult;
 import io.github.baokhang83.blastradius.validator.build.JdkMismatchDetector;
@@ -28,10 +29,13 @@ import io.github.baokhang83.blastradius.validator.verdict.Verdict;
 import io.github.baokhang83.blastradius.validator.verdict.VerdictCalculator;
 import io.github.baokhang83.blastradius.validator.verdict.WouldMissCase;
 import io.github.baokhang83.blastradius.validator.verdict.WouldMissComparator;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,27 +53,27 @@ import java.util.stream.Collectors;
  * &lt;p&gt;Exit codes per the CLI contract: {@code 0} = PASS, {@code 1} = FAIL, {@code 2} =
  * the run itself could not complete.
  */
-<span class="fc" id="L52">public final class RunCommand {</span>
+<span class="fc" id="L56">public final class RunCommand {</span>
 
-<span class="fc" id="L54">    private final CommitWindowResolver commitWindowResolver = new CommitWindowResolver();</span>
-<span class="fc" id="L55">    private final ChangedFileClassifier changedFileClassifier = new ChangedFileClassifier();</span>
-<span class="fc" id="L56">    private final SelectionEngine selectionEngine = new SelectionEngine();</span>
-<span class="fc" id="L57">    private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();</span>
-<span class="fc" id="L58">    private final WouldMissComparator wouldMissComparator = new WouldMissComparator();</span>
-<span class="fc" id="L59">    private final VerdictCalculator verdictCalculator = new VerdictCalculator();</span>
-<span class="fc" id="L60">    private final SavingsSummaryAggregator savingsSummaryAggregator = new SavingsSummaryAggregator();</span>
-<span class="fc" id="L61">    private final ReportWriter reportWriter = new ReportWriter();</span>
-<span class="fc" id="L62">    private final BuildFailureDetector buildFailureDetector = new BuildFailureDetector();</span>
-<span class="fc" id="L63">    private final JdkMismatchDetector jdkMismatchDetector = new JdkMismatchDetector();</span>
+<span class="fc" id="L58">    private final CommitWindowResolver commitWindowResolver = new CommitWindowResolver();</span>
+<span class="fc" id="L59">    private final ChangedFileClassifier changedFileClassifier = new ChangedFileClassifier();</span>
+<span class="fc" id="L60">    private final SelectionEngine selectionEngine = new SelectionEngine();</span>
+<span class="fc" id="L61">    private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();</span>
+<span class="fc" id="L62">    private final WouldMissComparator wouldMissComparator = new WouldMissComparator();</span>
+<span class="fc" id="L63">    private final VerdictCalculator verdictCalculator = new VerdictCalculator();</span>
+<span class="fc" id="L64">    private final SavingsSummaryAggregator savingsSummaryAggregator = new SavingsSummaryAggregator();</span>
+<span class="fc" id="L65">    private final ReportWriter reportWriter = new ReportWriter();</span>
+<span class="fc" id="L66">    private final BuildFailureDetector buildFailureDetector = new BuildFailureDetector();</span>
+<span class="fc" id="L67">    private final JdkMismatchDetector jdkMismatchDetector = new JdkMismatchDetector();</span>
 
     // Set at the start of each run() from RunConfig#mavenParallelThreads, so the base/head
     // builds and GroundTruthResolver's own build all share one -T setting for that run.
-<span class="fc" id="L67">    private MavenBuildRunner buildRunner = new MavenBuildRunner();</span>
-<span class="fc" id="L68">    private GroundTruthResolver groundTruthResolver = new GroundTruthResolver();</span>
+<span class="fc" id="L71">    private MavenBuildRunner buildRunner = new MavenBuildRunner();</span>
+<span class="fc" id="L72">    private GroundTruthResolver groundTruthResolver = new GroundTruthResolver();</span>
 
     /** Runs with this tool's own jar self-located for {@code -javaagent} attachment. */
     public int run(RunConfig config) {
-<span class="nc" id="L72">        return run(config, locateOwnJar());</span>
+<span class="nc" id="L76">        return run(config, locateOwnJar());</span>
     }
 
     /**
@@ -80,132 +84,192 @@ import java.util.stream.Collectors;
      */
     public int run(RunConfig config, Path agentJar) {
         try {
-<span class="fc" id="L83">            buildRunner = new MavenBuildRunner(config.mavenParallelThreads());</span>
-<span class="fc" id="L84">            groundTruthResolver = new GroundTruthResolver(buildRunner);</span>
+<span class="fc" id="L87">            buildRunner = new MavenBuildRunner(config.mavenParallelThreads());</span>
+<span class="fc" id="L88">            groundTruthResolver = new GroundTruthResolver(buildRunner);</span>
 
-<span class="fc" id="L86">            jdkMismatchDetector.detect(config.projectPath()).ifPresent(System.err::println);</span>
+<span class="fc" id="L90">            jdkMismatchDetector.detect(config.projectPath()).ifPresent(System.err::println);</span>
 
-<span class="fc" id="L88">            List&lt;CommitPair&gt; window =</span>
-<span class="fc" id="L89">                    commitWindowResolver.resolveWindow(config.projectPath(), config.commitWindowSize());</span>
+<span class="fc" id="L92">            List&lt;CommitPair&gt; window =</span>
+<span class="fc" id="L93">                    commitWindowResolver.resolveWindow(config.projectPath(), config.commitWindowSize());</span>
 
-<span class="fc" id="L91">            List&lt;CommitPair&gt; analyzedPairs = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L92">            List&lt;CommitPair&gt; excludedPairs = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L93">            List&lt;WouldMissCase&gt; allMisses = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L94">            List&lt;SelectionDecision&gt; allDecisions = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L95">            List&lt;FlakyFailure&gt; allFlaky = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L95">            List&lt;CommitPair&gt; analyzedPairs = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L96">            List&lt;CommitPair&gt; excludedPairs = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L97">            List&lt;WouldMissCase&gt; allMisses = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L98">            List&lt;SelectionDecision&gt; allDecisions = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L99">            List&lt;FlakyFailure&gt; allFlaky = new ArrayList&lt;&gt;();</span>
+            // Only ever populated when config.fastGroundTruth() is true (§III — see
+            // RunConfig#fastGroundTruth): the safe, default path never unifies build types
+            // across pairs, so there is nothing to cache.
+<span class="fc" id="L103">            Map&lt;String, CommitBuild&gt; commitCache = new HashMap&lt;&gt;();</span>
 
-<span class="fc" id="L97">            Path scratchParent = Files.createTempDirectory(&quot;blastradius-scratch-&quot;);</span>
-<span class="fc" id="L98">            try (CommitCheckout checkout = CommitCheckout.forTargetProject(config.projectPath(), scratchParent)) {</span>
-<span class="fc bfc" id="L99" title="All 2 branches covered.">                for (CommitPair pair : window) {</span>
+<span class="fc" id="L105">            Path scratchParent = Files.createTempDirectory(&quot;blastradius-scratch-&quot;);</span>
+<span class="fc" id="L106">            try (CommitCheckout checkout = CommitCheckout.forTargetProject(config.projectPath(), scratchParent)) {</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">                for (CommitPair pair : window) {</span>
                     PairAnalysis analysis;
                     try {
-<span class="fc" id="L102">                        analysis = analyzePair(pair, config.projectPath(), checkout, agentJar);</span>
-<span class="fc" id="L103">                    } catch (Exception e) {</span>
-<span class="fc" id="L104">                        analysis = excluded(pair, &quot;analysis failed: &quot; + e.getMessage());</span>
-<span class="fc" id="L105">                    }</span>
-<span class="fc bfc" id="L106" title="All 2 branches covered.">                    if (analysis.pair().status() == PairStatus.EXCLUDED) {</span>
-<span class="fc" id="L107">                        excludedPairs.add(analysis.pair());</span>
+<span class="fc" id="L110">                        analysis = analyzePair(</span>
+<span class="fc" id="L111">                                pair, config.projectPath(), checkout, agentJar, config.fastGroundTruth(), commitCache);</span>
+<span class="fc" id="L112">                    } catch (Exception e) {</span>
+<span class="fc" id="L113">                        analysis = excluded(pair, &quot;analysis failed: &quot; + e.getMessage());</span>
+<span class="fc" id="L114">                    }</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">                    if (analysis.pair().status() == PairStatus.EXCLUDED) {</span>
+<span class="fc" id="L116">                        excludedPairs.add(analysis.pair());</span>
                     } else {
-<span class="fc" id="L109">                        analyzedPairs.add(analysis.pair());</span>
-<span class="fc" id="L110">                        allMisses.addAll(analysis.misses());</span>
-<span class="fc" id="L111">                        allDecisions.addAll(analysis.decisions());</span>
-<span class="fc" id="L112">                        allFlaky.addAll(analysis.flakyFailures());</span>
+<span class="fc" id="L118">                        analyzedPairs.add(analysis.pair());</span>
+<span class="fc" id="L119">                        allMisses.addAll(analysis.misses());</span>
+<span class="fc" id="L120">                        allDecisions.addAll(analysis.decisions());</span>
+<span class="fc" id="L121">                        allFlaky.addAll(analysis.flakyFailures());</span>
                     }
-<span class="fc" id="L114">                }</span>
+<span class="fc" id="L123">                }</span>
             }
 
-<span class="fc" id="L117">            Verdict verdict = verdictCalculator.calculate(allMisses);</span>
-<span class="fc" id="L118">            SavingsSummary savingsSummary = savingsSummaryAggregator.aggregate(allDecisions);</span>
-<span class="fc" id="L119">            AnalysisReport report = new AnalysisReport(</span>
+<span class="fc" id="L126">            Verdict verdict = verdictCalculator.calculate(allMisses);</span>
+<span class="fc" id="L127">            SavingsSummary savingsSummary = savingsSummaryAggregator.aggregate(allDecisions);</span>
+<span class="fc" id="L128">            AnalysisReport report = new AnalysisReport(</span>
                     verdict, analyzedPairs, excludedPairs, allMisses, allFlaky, savingsSummary);
-<span class="fc" id="L121">            reportWriter.write(config.reportOutputPath(), report);</span>
+<span class="fc" id="L130">            reportWriter.write(config.reportOutputPath(), report);</span>
 
-<span class="fc bfc" id="L123" title="All 2 branches covered.">            return verdict == Verdict.PASS ? 0 : 1;</span>
-<span class="fc" id="L124">        } catch (Exception e) {</span>
-<span class="fc" id="L125">            System.err.println(&quot;blastradius-validator: &quot; + e.getMessage());</span>
-<span class="fc" id="L126">            return 2;</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">            return verdict == Verdict.PASS ? 0 : 1;</span>
+<span class="fc" id="L133">        } catch (Exception e) {</span>
+<span class="fc" id="L134">            System.err.println(&quot;blastradius-validator: &quot; + e.getMessage());</span>
+<span class="fc" id="L135">            return 2;</span>
         }
     }
 
-<span class="fc" id="L130">    private record PairAnalysis(</span>
+<span class="fc" id="L139">    private record PairAnalysis(</span>
             CommitPair pair,
             List&lt;WouldMissCase&gt; misses,
             List&lt;SelectionDecision&gt; decisions,
             List&lt;FlakyFailure&gt; flakyFailures) {}
 
-    private PairAnalysis analyzePair(CommitPair pair, Path targetRepo, CommitCheckout checkout, Path agentJar)
-            throws Exception {
-        // Baseline: build the BASE commit with the agent attached, to learn what each
-        // test depended on as of that commit.
-<span class="fc" id="L140">        Path baseWorkDir = checkout.checkoutCommit(pair.baseCommit());</span>
-<span class="fc" id="L141">        Path baseDepsFile = Files.createTempFile(&quot;blastradius-base-deps-&quot;, &quot;.json&quot;);</span>
-<span class="fc" id="L142">        BuildResult baseResult = buildRunner.run(baseWorkDir, agentJar, baseDepsFile);</span>
-<span class="fc bfc" id="L143" title="All 2 branches covered.">        if (buildFailureDetector.isBuildFailure(baseResult, baseWorkDir)) {</span>
-<span class="fc" id="L144">            return excluded(pair, &quot;base commit &quot; + pair.baseCommit() + &quot; failed to build&quot;);</span>
+    /**
+     * One commit's canonical build outcome under {@code --fast-ground-truth} (RunConfig
+     * #fastGroundTruth): a single agent-attached build serving both the &quot;dependency
+     * baseline&quot; role and the &quot;ground truth&quot; role, cached across every pair in the window
+     * that references this commit. Never populated in the safe, default mode.
+     */
+<span class="fc" id="L151">    private record CommitBuild(</span>
+            boolean failed, String failureReason, DependencyRecordSet dependencyRecordSet,
+            List&lt;GroundTruthResult&gt; groundTruth) {}
+
+    private PairAnalysis analyzePair(
+            CommitPair pair, Path targetRepo, CommitCheckout checkout, Path agentJar,
+            boolean fastGroundTruth, Map&lt;String, CommitBuild&gt; commitCache) throws Exception {
+        DependencyRecordSet baseRecordSet;
+        List&lt;GroundTruthResult&gt; groundTruth;
+
+<span class="fc bfc" id="L161" title="All 2 branches covered.">        if (fastGroundTruth) {</span>
+<span class="fc" id="L162">            CommitBuild base = buildCommit(pair.baseCommit(), checkout, agentJar, commitCache);</span>
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">            if (base.failed()) {</span>
+<span class="nc" id="L164">                return excluded(pair, base.failureReason());</span>
+            }
+<span class="fc" id="L166">            CommitBuild head = buildCommit(pair.headCommit(), checkout, agentJar, commitCache);</span>
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">            if (head.failed()) {</span>
+<span class="nc" id="L168">                return excluded(pair, head.failureReason());</span>
+            }
+<span class="fc" id="L170">            baseRecordSet = base.dependencyRecordSet();</span>
+<span class="fc" id="L171">            groundTruth = head.groundTruth();</span>
+<span class="fc" id="L172">        } else {</span>
+            // Baseline: build the BASE commit with the agent attached, to learn what each
+            // test depended on as of that commit.
+<span class="fc" id="L175">            Path baseWorkDir = checkout.checkoutCommit(pair.baseCommit());</span>
+<span class="fc" id="L176">            Path baseDepsFile = Files.createTempFile(&quot;blastradius-base-deps-&quot;, &quot;.json&quot;);</span>
+<span class="fc" id="L177">            BuildResult baseResult = buildRunner.run(baseWorkDir, agentJar, baseDepsFile);</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">            if (buildFailureDetector.isBuildFailure(baseResult, baseWorkDir)) {</span>
+<span class="fc" id="L179">                return excluded(pair, &quot;base commit &quot; + pair.baseCommit() + &quot; failed to build&quot;);</span>
+            }
+<span class="fc" id="L181">            baseRecordSet = new DependencyRecordReader().readAll(baseDepsFile);</span>
+
+            // Ground truth: GroundTruthResolver's own build result tells us whether the
+            // HEAD commit built at all, so a compile failure is caught here rather than
+            // silently looking like &quot;zero tests&quot; — without a second, separate probe build.
+<span class="fc" id="L186">            Path headWorkDir = checkout.checkoutCommit(pair.headCommit());</span>
+<span class="fc" id="L187">            GroundTruthResolution resolution = groundTruthResolver.resolve(headWorkDir, null, null);</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">            if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), headWorkDir)) {</span>
+<span class="fc" id="L189">                return excluded(pair, &quot;head commit &quot; + pair.headCommit() + &quot; failed to build&quot;);</span>
+            }
+<span class="fc" id="L191">            groundTruth = resolution.results();</span>
         }
-<span class="fc" id="L146">        DependencyRecordSet baseRecordSet = new DependencyRecordReader().readAll(baseDepsFile);</span>
-<span class="fc" id="L147">        Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; baseRecord = baseRecordSet.tests();</span>
+
+<span class="fc" id="L194">        Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; baseRecord = baseRecordSet.tests();</span>
         // Keyed by baselineKey(), not the raw tracked identity, so a ground-truth lookup
         // (which may carry a parameterized-test's Surefire-style invocation suffix) can
         // still find the baseline the tracking agent recorded under the plain method
         // name. See TestIdentity#baselineKey for why the two pipelines disagree here.
-<span class="fc" id="L152">        Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependencies = baseRecord.entrySet().stream()</span>
-<span class="fc" id="L153">                .collect(Collectors.toMap(</span>
-<span class="fc" id="L154">                        e -&gt; e.getKey().baselineKey(),</span>
-<span class="fc" id="L155">                        e -&gt; e.getValue().keySet(),</span>
+<span class="fc" id="L199">        Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependencies = baseRecord.entrySet().stream()</span>
+<span class="fc" id="L200">                .collect(Collectors.toMap(</span>
+<span class="fc" id="L201">                        e -&gt; e.getKey().baselineKey(),</span>
+<span class="fc" id="L202">                        e -&gt; e.getValue().keySet(),</span>
                         (a, b) -&gt; {
-<span class="nc" id="L157">                            Set&lt;String&gt; union = new java.util.HashSet&lt;&gt;(a);</span>
-<span class="nc" id="L158">                            union.addAll(b);</span>
-<span class="nc" id="L159">                            return union;</span>
+<span class="nc" id="L204">                            Set&lt;String&gt; union = new java.util.HashSet&lt;&gt;(a);</span>
+<span class="nc" id="L205">                            union.addAll(b);</span>
+<span class="nc" id="L206">                            return union;</span>
                         }));
 
-        // Ground truth: check the HEAD commit builds before delegating to
-        // GroundTruthResolver's own (separate) full run, since a compile failure there
-        // would otherwise silently look like &quot;zero tests&quot; rather than EXCLUDED.
-<span class="fc" id="L165">        Path headWorkDir = checkout.checkoutCommit(pair.headCommit());</span>
-<span class="fc" id="L166">        BuildResult headProbe = buildRunner.run(headWorkDir, null, null);</span>
-<span class="fc bfc" id="L167" title="All 2 branches covered.">        if (buildFailureDetector.isBuildFailure(headProbe, headWorkDir)) {</span>
-<span class="fc" id="L168">            return excluded(pair, &quot;head commit &quot; + pair.headCommit() + &quot; failed to build&quot;);</span>
-        }
-<span class="fc" id="L170">        List&lt;GroundTruthResult&gt; groundTruth = groundTruthResolver.resolve(headWorkDir, null, null);</span>
-
         // Changed files, classified, against the real target repo's git history.
-<span class="fc" id="L173">        List&lt;ChangedFile&gt; changedFiles =</span>
-<span class="fc" id="L174">                changedFileClassifier.classify(targetRepo, pair.baseCommit(), pair.headCommit());</span>
-<span class="fc" id="L175">        Set&lt;String&gt; changedClassNames = changedFiles.stream()</span>
-<span class="fc" id="L176">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
-<span class="fc" id="L177">                .collect(Collectors.toUnmodifiableSet());</span>
+<span class="fc" id="L210">        List&lt;ChangedFile&gt; changedFiles =</span>
+<span class="fc" id="L211">                changedFileClassifier.classify(targetRepo, pair.baseCommit(), pair.headCommit());</span>
+<span class="fc" id="L212">        Set&lt;String&gt; changedClassNames = changedFiles.stream()</span>
+<span class="fc" id="L213">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
+<span class="fc" id="L214">                .collect(Collectors.toUnmodifiableSet());</span>
 
-<span class="fc" id="L179">        Set&lt;TestIdentity&gt; allTests = groundTruth.stream().map(GroundTruthResult::test).collect(Collectors.toSet());</span>
-<span class="fc" id="L180">        Set&lt;TestIdentity&gt; newOrModifiedTests = allTests.stream()</span>
-<span class="fc" id="L181">                .filter(test -&gt; newOrModifiedTestSelector.appliesTo(</span>
-<span class="pc bpc" id="L182" title="1 of 2 branches missed.">                        test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))</span>
-<span class="fc" id="L183">                .collect(Collectors.toSet());</span>
+<span class="fc" id="L216">        Set&lt;TestIdentity&gt; allTests = groundTruth.stream().map(GroundTruthResult::test).collect(Collectors.toSet());</span>
+<span class="fc" id="L217">        Set&lt;TestIdentity&gt; newOrModifiedTests = allTests.stream()</span>
+<span class="fc" id="L218">                .filter(test -&gt; newOrModifiedTestSelector.appliesTo(</span>
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">                        test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))</span>
+<span class="fc" id="L220">                .collect(Collectors.toSet());</span>
 
-<span class="fc" id="L185">        List&lt;SelectionDecision&gt; decisions = selectionEngine.selectAll(</span>
-<span class="fc" id="L186">                allTests, testDependencies, newOrModifiedTests, changedFiles, baseRecordSet.ambientDependencies());</span>
+<span class="fc" id="L222">        List&lt;SelectionDecision&gt; decisions = selectionEngine.selectAll(</span>
+<span class="fc" id="L223">                allTests, testDependencies, newOrModifiedTests, changedFiles, baseRecordSet.ambientDependencies());</span>
 
-<span class="fc" id="L188">        CommitPair enrichedPair = CommitPair.analyzed(pair.baseCommit(), pair.headCommit(), changedFiles);</span>
-<span class="fc" id="L189">        List&lt;WouldMissCase&gt; misses = wouldMissComparator.compare(enrichedPair, decisions, groundTruth);</span>
-<span class="fc" id="L190">        List&lt;FlakyFailure&gt; flakyFailures = groundTruth.stream()</span>
-<span class="pc bpc" id="L191" title="1 of 2 branches missed.">                .filter(r -&gt; r.outcome() == Outcome.FLAKY)</span>
-<span class="pc" id="L192">                .map(r -&gt; new FlakyFailure(enrichedPair, r.test()))</span>
-<span class="fc" id="L193">                .toList();</span>
+<span class="fc" id="L225">        CommitPair enrichedPair = CommitPair.analyzed(pair.baseCommit(), pair.headCommit(), changedFiles);</span>
+<span class="fc" id="L226">        List&lt;WouldMissCase&gt; misses = wouldMissComparator.compare(enrichedPair, decisions, groundTruth);</span>
+<span class="fc" id="L227">        List&lt;FlakyFailure&gt; flakyFailures = groundTruth.stream()</span>
+<span class="pc bpc" id="L228" title="1 of 2 branches missed.">                .filter(r -&gt; r.outcome() == Outcome.FLAKY)</span>
+<span class="pc" id="L229">                .map(r -&gt; new FlakyFailure(enrichedPair, r.test()))</span>
+<span class="fc" id="L230">                .toList();</span>
 
-<span class="fc" id="L195">        return new PairAnalysis(enrichedPair, misses, decisions, flakyFailures);</span>
+<span class="fc" id="L232">        return new PairAnalysis(enrichedPair, misses, decisions, flakyFailures);</span>
+    }
+
+    /**
+     * {@code --fast-ground-truth} only: one canonical, agent-attached build per commit,
+     * memoized in {@code commitCache} for the lifetime of this {@code run()} call. A cache
+     * hit means the commit was already checked out and built by an earlier pair — it is
+     * &lt;em&gt;not&lt;/em&gt; re-checked-out (see {@link CommitCheckout}, which wipes {@code target/}
+     * on every checkout), so a hit returns the results extracted the first time, never a
+     * stale working directory.
+     */
+    private CommitBuild buildCommit(
+            String commitSha, CommitCheckout checkout, Path agentJar, Map&lt;String, CommitBuild&gt; commitCache) {
+<span class="fc" id="L245">        return commitCache.computeIfAbsent(commitSha, sha -&gt; {</span>
+<span class="fc" id="L246">            Path workDir = checkout.checkoutCommit(sha);</span>
+            Path depsFile;
+            try {
+<span class="fc" id="L249">                depsFile = Files.createTempFile(&quot;blastradius-commit-deps-&quot;, &quot;.json&quot;);</span>
+<span class="nc" id="L250">            } catch (IOException e) {</span>
+<span class="nc" id="L251">                throw new UncheckedIOException(e);</span>
+<span class="fc" id="L252">            }</span>
+<span class="fc" id="L253">            GroundTruthResolution resolution = groundTruthResolver.resolve(workDir, agentJar, depsFile);</span>
+<span class="pc bpc" id="L254" title="1 of 2 branches missed.">            if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), workDir)) {</span>
+<span class="nc" id="L255">                return new CommitBuild(true, &quot;commit &quot; + sha + &quot; failed to build&quot;, null, List.of());</span>
+            }
+<span class="fc" id="L257">            DependencyRecordSet recordSet = new DependencyRecordReader().readAll(depsFile);</span>
+<span class="fc" id="L258">            return new CommitBuild(false, null, recordSet, resolution.results());</span>
+        });
     }
 
     private static PairAnalysis excluded(CommitPair pair, String reason) {
-<span class="fc" id="L199">        CommitPair excludedPair = CommitPair.excluded(pair.baseCommit(), pair.headCommit(), reason);</span>
-<span class="fc" id="L200">        return new PairAnalysis(excludedPair, List.of(), List.of(), List.of());</span>
+<span class="fc" id="L263">        CommitPair excludedPair = CommitPair.excluded(pair.baseCommit(), pair.headCommit(), reason);</span>
+<span class="fc" id="L264">        return new PairAnalysis(excludedPair, List.of(), List.of(), List.of());</span>
     }
 
     private static Path locateOwnJar() {
         try {
-<span class="nc" id="L205">            URI uri = RunCommand.class.getProtectionDomain().getCodeSource().getLocation().toURI();</span>
-<span class="nc" id="L206">            return Path.of(uri);</span>
-<span class="nc" id="L207">        } catch (Exception e) {</span>
-<span class="nc" id="L208">            throw new IllegalStateException(&quot;could not locate this tool's own jar for -javaagent attachment&quot;, e);</span>
+<span class="nc" id="L269">            URI uri = RunCommand.class.getProtectionDomain().getCodeSource().getLocation().toURI();</span>
+<span class="nc" id="L270">            return Path.of(uri);</span>
+<span class="nc" id="L271">        } catch (Exception e) {</span>
+<span class="nc" id="L272">            throw new IllegalStateException(&quot;could not locate this tool's own jar for -javaagent attachment&quot;, e);</span>
         }
     }
 }

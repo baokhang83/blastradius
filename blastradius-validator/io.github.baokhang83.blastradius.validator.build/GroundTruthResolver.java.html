@@ -40,8 +40,8 @@ public final class GroundTruthResolver {
 <span class="fc" id="L40">        this.reportParser = reportParser;</span>
 <span class="fc" id="L41">    }</span>
 
-    public List&lt;GroundTruthResult&gt; resolve(Path projectDir, Path agentJar, Path dependencyRecordOutputFile) {
-<span class="fc" id="L44">        buildRunner.run(projectDir, agentJar, dependencyRecordOutputFile);</span>
+    public GroundTruthResolution resolve(Path projectDir, Path agentJar, Path dependencyRecordOutputFile) {
+<span class="fc" id="L44">        BuildResult initialBuild = buildRunner.run(projectDir, agentJar, dependencyRecordOutputFile);</span>
 <span class="fc" id="L45">        Map&lt;TestIdentity, Boolean&gt; initialResults = parseAllReports(projectDir);</span>
 
 <span class="fc" id="L47">        List&lt;GroundTruthResult&gt; results = new ArrayList&lt;&gt;();</span>
@@ -54,7 +54,7 @@ public final class GroundTruthResolver {
             }
 <span class="fc" id="L55">            results.add(new GroundTruthResult(test, confirmFailure(projectDir, test)));</span>
 <span class="fc" id="L56">        }</span>
-<span class="fc" id="L57">        return results;</span>
+<span class="fc" id="L57">        return new GroundTruthResolution(initialBuild, results);</span>
     }
 
     private Outcome confirmFailure(Path projectDir, TestIdentity test) {
