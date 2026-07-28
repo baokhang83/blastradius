@@ -1,6 +1,27 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 2.2.0 → 2.3.0 (MINOR — new Principle VIII added)
+Added principles:
+  - VIII. No Avoidable Work on the Hot Path — code that runs once per class-load
+    event (DependencyTrackingAgent#transform and anything with a similar per-event
+    execution shape) MUST NOT do avoidable filesystem or syscall work on every
+    invocation; configuration fixed for a JVM's lifetime MUST be resolved once and
+    cached.
+    Rationale: found concretely when generalizing ambient-class instrumentation from
+    a one-time, pre-first-test snapshot to every project class's first load turned
+    configuredProjectRoot()'s System.getProperty + toRealPath() resolution from a
+    single call into one call per class load across the whole JVM — a real,
+    avoidable cost with no correctness benefit, since the underlying `-D` flag never
+    changes after JVM startup.
+Removed principles: none
+Added/removed sections: none
+Templates requiring updates:
+  - ✅ .specify/templates/plan-template.md — Constitution Check derived dynamically
+    from this file, no changes needed
+Follow-up TODOs: none
+
+Previous entry (2.1.0 → 2.2.0):
 Version change: 2.1.0 → 2.2.0 (MINOR — new Principle VII added)
 Added principles:
   - VII. Exhaustive Harness Cleanup — our own tooling that reuses a scratch/build
@@ -12,14 +33,8 @@ Added principles:
     a submodule's stale TEST-*.xml report survived into the next commit's failed
     build against a real multi-module project (apache/shenyu), fooling
     BuildFailureDetector's report-existence heuristic.
-Removed principles: none
-Added/removed sections: none
-Templates requiring updates:
-  - ✅ .specify/templates/plan-template.md — Constitution Check derived dynamically
-    from this file, no changes needed
-Follow-up TODOs: none
 
-Previous entry (2.0.0 → 2.1.0):
+Earlier entry (2.0.0 → 2.1.0):
 Version change: 2.0.0 → 2.1.0 (MINOR — Principle III materially refined)
 Modified principles:
   - III. Safety Over Speed — added the inert-change carve-out: a change that provably
@@ -169,6 +184,22 @@ concretely when `CommitCheckout` cleaned only the reactor root and a submodule's
 report survived into the next commit's (failed) build against a real multi-module
 project (apache/shenyu).
 
+### VIII. No Avoidable Work on the Hot Path
+
+Code that runs once per class-load event — `DependencyTrackingAgent#transform` and
+anything sharing that per-event execution shape — MUST NOT perform avoidable
+filesystem or syscall work on every invocation. Configuration that is fixed for a
+JVM's whole lifetime (e.g. a `-D` flag read once at startup) MUST be resolved once
+and cached, not re-resolved on each call.
+
+**Rationale**: found concretely when generalizing ambient-class instrumentation from
+a one-time, pre-first-test snapshot to every project class's first load turned
+`configuredProjectRoot()`'s `System.getProperty` + `toRealPath()` resolution from a
+single call into one call per class load across the whole JVM — a real, avoidable
+cost with no correctness benefit, since the underlying flag never changes after JVM
+startup. A class-load-frequency hot path is exactly where a small per-call cost
+compounds into a measurable build-time regression.
+
 ## Technology & Architecture Constraints
 
 - **Test execution model**: JUnit 5 Platform (Jupiter) is the primary, native
@@ -222,4 +253,4 @@ gate defined in `.specify/templates/plan-template.md`. Any violation MUST be
 explicitly justified in that plan's Complexity Tracking section or the design MUST
 be simplified until it complies.
 
-**Version**: 2.2.0 | **Ratified**: 2026-07-08 | **Last Amended**: 2026-07-28
+**Version**: 2.3.0 | **Ratified**: 2026-07-08 | **Last Amended**: 2026-07-28

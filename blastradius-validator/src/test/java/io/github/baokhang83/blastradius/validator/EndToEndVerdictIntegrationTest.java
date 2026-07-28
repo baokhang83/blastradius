@@ -64,12 +64,16 @@ class EndToEndVerdictIntegrationTest {
 
     /**
      * A deterministic, honest way to trigger a real would-miss through the actual
-     * pipeline: a class loaded only inside {@code @BeforeAll} (a container-level
-     * callback, not a test) is never attributed to any test by
-     * {@code TestBoundaryListener} (its {@code executionStarted} only fires for actual
-     * tests) — so a dependency established solely during class-level setup is invisible
-     * to tracking. This is a real, narrow, documented limitation of container-level
-     * setup, not a contrived test artifact.
+     * pipeline: {@code Shared} is invoked <em>only</em> from {@code @BeforeAll} (a
+     * container-level callback, not a test) and its result cached into a static field —
+     * the {@code @Test} itself never calls {@code Shared} again, so the class never
+     * executes while {@code TestBoundaryListener} reports a current test. The agent's
+     * runtime-use callback (injected into every project class at its first load,
+     * regardless of whether a test is running) only attributes an execution when a test
+     * is actually current, so a dependency exercised solely during class-level setup
+     * stays invisible to tracking. This is a real, narrow, documented limitation of
+     * container-level setup, not a contrived test artifact — it would stop being
+     * "untracked" the moment the test body itself calls {@code Shared} again.
      */
     @Test
     void untrackedBeforeAllDependencyProducesAFailVerdict(@TempDir Path projectDir, @TempDir Path outDir)
@@ -99,13 +103,14 @@ class EndToEndVerdictIntegrationTest {
                 import org.junit.jupiter.api.Test;
                 import static org.junit.jupiter.api.Assertions.assertEquals;
                 class GapTest {
+                    static int cached;
                     @BeforeAll
                     static void warmUp() {
-                        Shared.value(); // loads Shared before any @Test's executionStarted fires
+                        cached = Shared.value(); // the only place Shared is ever invoked
                     }
                     @Test
                     void checksSharedValue() {
-                        assertEquals(1, Shared.value()); // already loaded; transform() won't refire
+                        assertEquals(1, cached); // reads the cached value; never calls Shared again
                     }
                 }
                 """);

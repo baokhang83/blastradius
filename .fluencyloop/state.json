@@ -1,8 +1,8 @@
 {
-  "feature": "fix-commitcheckout-to-clear-stale-target-dirs-in-every-submo",
-  "branch": "feature/fix-commitcheckout-to-clear-stale-target-dirs-in-every-submo",
+  "feature": "attribute-a-project-class-s-runtime-use-to-every-test-that-e",
+  "branch": "feature/attribute-a-project-class-s-runtime-use-to-every-test-that-e",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/fix-commitcheckout-to-clear-stale-target-dirs-in-every-submo/sessions/walk-the-whole-scratch-tree-pruning-git-and-target-subtrees.md",
-  "base_ref": "main",
-  "updated": "2026-07-27"
+  "last_session": "docs/fluencyloop/features/attribute-a-project-class-s-runtime-use-to-every-test-that-e/sessions/fix-stale-would-miss-fixtures-broken-by-the-broadened-instru.md",
+  "base_ref": "feat/maven-parallel-build-threads",
+  "updated": "2026-07-28"
 }

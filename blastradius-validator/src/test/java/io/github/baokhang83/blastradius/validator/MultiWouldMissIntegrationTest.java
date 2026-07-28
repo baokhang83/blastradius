@@ -40,8 +40,12 @@ class MultiWouldMissIntegrationTest {
         // safety-net-selected as "new/no baseline"). They are loaded with Class.forName
         // inside the test bodies: a direct bytecode reference can be eagerly resolved
         // while the test class is discovered, before the agent has a current test
-        // identity. Shared remains untracked because each class's @BeforeAll loads it
-        // before any test starts.
+        // identity. Shared remains untracked because each class's @BeforeAll is the
+        // only place that ever invokes it — its result is cached into a static field, so
+        // the @Test body itself never calls Shared again. The agent's runtime-use
+        // callback (injected at every project class's first load) only attributes an
+        // execution when a test is current, so a dependency exercised solely from
+        // @BeforeAll never re-fires it once a test starts.
         fixture.writeClass("com.example.MarkerA", "package com.example; public class MarkerA {}");
         fixture.writeClass("com.example.MarkerB", "package com.example; public class MarkerB {}");
         // Runs first (alphabetical runOrder, see FixtureProjectBuilder's pom), so the
@@ -62,12 +66,13 @@ class MultiWouldMissIntegrationTest {
                 import org.junit.jupiter.api.Test;
                 import static org.junit.jupiter.api.Assertions.assertEquals;
                 class GapATest {
+                    static int cached;
                     @BeforeAll
-                    static void warmUp() { Shared.value(); }
+                    static void warmUp() { cached = Shared.value(); }
                     @Test
                     void checksSharedA() throws ClassNotFoundException {
                         Class.forName("com.example.MarkerA");
-                        assertEquals(1, Shared.value());
+                        assertEquals(1, cached);
                     }
                 }
                 """);
@@ -77,12 +82,13 @@ class MultiWouldMissIntegrationTest {
                 import org.junit.jupiter.api.Test;
                 import static org.junit.jupiter.api.Assertions.assertEquals;
                 class GapBTest {
+                    static int cached;
                     @BeforeAll
-                    static void warmUp() { Shared.value(); }
+                    static void warmUp() { cached = Shared.value(); }
                     @Test
                     void checksSharedB() throws ClassNotFoundException {
                         Class.forName("com.example.MarkerB");
-                        assertEquals(1, Shared.value());
+                        assertEquals(1, cached);
                     }
                 }
                 """);
