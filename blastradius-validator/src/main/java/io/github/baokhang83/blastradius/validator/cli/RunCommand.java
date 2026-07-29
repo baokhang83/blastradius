@@ -162,6 +162,7 @@ public final class RunCommand {
             boolean fastGroundTruth, Map<String, CommitBuild> commitCache) throws Exception {
         DependencyRecordSet baseRecordSet;
         List<GroundTruthResult> groundTruth;
+        List<GroundTruthResult> baseGroundTruth;
 
         if (fastGroundTruth) {
             CommitBuild base = buildCommit(pair.baseCommit(), checkout, agentJar, commitCache);
@@ -174,16 +175,22 @@ public final class RunCommand {
             }
             baseRecordSet = base.dependencyRecordSet();
             groundTruth = head.groundTruth();
+            baseGroundTruth = base.groundTruth();
         } else {
             // Baseline: build the BASE commit with the agent attached, to learn what each
-            // test depended on as of that commit.
+            // test depended on as of that commit. Routed through GroundTruthResolver
+            // (rather than a plain buildRunner.run()) so a test that's already broken at
+            // the base commit — for reasons unrelated to this pair's diff — is confirmed
+            // and recorded as such (WouldMissComparator#compare needs it to avoid flagging
+            // a pre-existing failure as something selection should have caught).
             Path baseWorkDir = checkout.checkoutCommit(pair.baseCommit());
             Path baseDepsFile = Files.createTempFile("blastradius-base-deps-", ".json");
-            BuildResult baseResult = buildRunner.run(baseWorkDir, agentJar, baseDepsFile);
-            if (buildFailureDetector.isBuildFailure(baseResult, baseWorkDir)) {
+            GroundTruthResolution baseResolution = groundTruthResolver.resolve(baseWorkDir, agentJar, baseDepsFile);
+            if (buildFailureDetector.isBuildFailure(baseResolution.initialBuild(), baseWorkDir)) {
                 return excluded(pair, "base commit " + pair.baseCommit() + " failed to build");
             }
             baseRecordSet = new DependencyRecordReader().readAll(baseDepsFile);
+            baseGroundTruth = baseResolution.results();
 
             // Ground truth: GroundTruthResolver's own build result tells us whether the
             // HEAD commit built at all, so a compile failure is caught here rather than
@@ -237,7 +244,7 @@ public final class RunCommand {
                 baseRecordSet.ambientDependencies(), reactorScope);
 
         CommitPair enrichedPair = CommitPair.analyzed(pair.baseCommit(), pair.headCommit(), changedFiles);
-        List<WouldMissCase> misses = wouldMissComparator.compare(enrichedPair, decisions, groundTruth);
+        List<WouldMissCase> misses = wouldMissComparator.compare(enrichedPair, decisions, groundTruth, baseGroundTruth);
         List<FlakyFailure> flakyFailures = groundTruth.stream()
                 .filter(r -> r.outcome() == Outcome.FLAKY)
                 .map(r -> new FlakyFailure(enrichedPair, r.test()))
