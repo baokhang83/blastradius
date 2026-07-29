@@ -18,9 +18,29 @@ final class AmbientClassInstrumenter {
     private static final String AGENT_INTERNAL_NAME =
             "io/github/baokhang83/blastradius/core/tracking/DependencyTrackingAgent";
 
-    byte[] instrument(String className, byte[] bytecode) {
+    byte[] instrument(String className, byte[] bytecode, ClassLoader loader) {
         ClassReader reader = new ClassReader(bytecode);
-        ClassWriter writer = new ClassWriter(reader, ClassWriter.COMPUTE_MAXS);
+        // COMPUTE_FRAMES, not just COMPUTE_MAXS: every NEW/CHECKCAST/etc. we rewrite in
+        // visitTypeInsn shifts bytecode offsets, and COMPUTE_MAXS leaves the class's existing
+        // StackMapTable untouched — its Uninitialized(offset) entries (tracking an object
+        // between NEW and its <init> call) then point past the instructions ASM just inserted,
+        // which JDK 21/25's stricter verifier rejects as "bad offset for Uninitialized" (found
+        // self-hosting: SelectMojo.registerTimingRecorder()'s
+        // `new TimingHistoryRecorder(existing == null ? new AbstractExecutionListener() : existing, ...)`
+        // leaves the outer NEW's Uninitialized(offset) on the stack across the ternary's branch —
+        // see AmbientClassInstrumenterTest for a minimal repro of this exact shape). COMPUTE_FRAMES
+        // recomputes the whole table from the rewritten bytecode instead of patching stale
+        // offsets, at the cost of needing loader to resolve common superclasses below.
+        ClassWriter writer = new ClassWriter(reader, ClassWriter.COMPUTE_FRAMES) {
+            @Override
+            protected ClassLoader getClassLoader() {
+                // Defaults to this ClassWriter's own (agent/ASM) loader, which can't see a
+                // target project's classes when the agent jar and the instrumented class live
+                // in different classloader realms (e.g. a Maven plugin realm during self-host)
+                // — resolving common superclasses would then throw ClassNotFoundException.
+                return loader != null ? loader : super.getClassLoader();
+            }
+        };
         AtomicBoolean changed = new AtomicBoolean();
         reader.accept(new ClassVisitor(Opcodes.ASM9, writer) {
             @Override

@@ -191,7 +191,7 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         }
         if (classBeingRedefined != null && pendingAmbientRetransformations.contains(dottedClassName)) {
             try {
-                byte[] instrumented = ambientClassInstrumenter.instrument(dottedClassName, classfileBuffer);
+                byte[] instrumented = ambientClassInstrumenter.instrument(dottedClassName, classfileBuffer, loader);
                 if (instrumented != null) {
                     ambientChecksums.put(dottedClassName, sha256Hex(classfileBuffer));
                     transformedAmbientClasses.add(dottedClassName);
@@ -219,7 +219,7 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
                 // reuses an already-loaded instance (e.g. a cached Spring bean) still gets
                 // attributed via the injected callback instead of silently missing it.
                 try {
-                    instrumented = ambientClassInstrumenter.instrument(dottedClassName, classfileBuffer);
+                    instrumented = ambientClassInstrumenter.instrument(dottedClassName, classfileBuffer, loader);
                     if (instrumented != null) {
                         ambientChecksums.put(dottedClassName, checksum);
                     }
