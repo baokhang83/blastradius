@@ -43,7 +43,7 @@ coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,Ru
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,SurefireReportParser,18,151,0,18,4,36,0,15,0,6
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResult,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,Outcome,0,21,0,0,0,4,0,1,0,1
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,MavenBuildRunner,62,243,9,17,13,56,8,16,1,10
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,MavenBuildRunner,62,251,9,17,13,58,8,16,1,10
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,JdkMismatchDetector,5,117,1,13,3,28,1,14,0,8
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResolver,9,169,1,11,2,35,1,14,0,9
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResolution,0,9,0,0,0,1,0,1,0,1

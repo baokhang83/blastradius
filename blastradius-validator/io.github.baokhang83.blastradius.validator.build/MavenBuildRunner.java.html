@@ -190,8 +190,17 @@ public final class MavenBuildRunner {
         }
 <span class="fc bfc" id="L191" title="All 2 branches covered.">        if (testSelector != null) {</span>
 <span class="fc" id="L192">            args.add(&quot;-Dtest=&quot; + testSelector);</span>
+            // Without this, a multi-module reactor aborts the whole build at the first
+            // module that has test sources but none matching testSelector (found running
+            // against apache/shenyu, whose shenyu-common module has no test named after
+            // any admin-module class) — the named test's own module is never reached, so
+            // confirmFailure (FR-013) always reads back no report and misclassifies a
+            // genuinely flaky test as CONFIRMED_FAILED. Two properties because Surefire
+            // has used both names for this switch across versions.
+<span class="fc" id="L200">            args.add(&quot;-DfailIfNoTests=false&quot;);</span>
+<span class="fc" id="L201">            args.add(&quot;-Dsurefire.failIfNoSpecifiedTests=false&quot;);</span>
         }
-<span class="fc" id="L194">        return args.toArray(new String[0]);</span>
+<span class="fc" id="L203">        return args.toArray(new String[0]);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
