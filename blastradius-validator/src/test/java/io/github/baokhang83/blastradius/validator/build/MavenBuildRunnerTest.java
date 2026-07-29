@@ -121,6 +121,48 @@ class MavenBuildRunnerTest {
     }
 
     @Test
+    void runSingleTestFindsAndPassesAMatchInTheCorrectModuleOfAReactorWhereOtherModulesHaveUnrelatedTests(
+            @TempDir Path projectDir) {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.twoModuleReactor(projectDir);
+        fixture.writeClassInModule("moduleA", "com.example.a.Widget",
+                "package com.example.a; public class Widget { public int value() { return 1; } }");
+        fixture.writeTestInModule("moduleA", "com.example.a.WidgetTest", """
+                package com.example.a;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class WidgetTest {
+                    @Test
+                    void passes() {
+                        assertEquals(1, new Widget().value());
+                    }
+                }
+                """);
+        fixture.writeClassInModule("moduleB", "com.example.b.Gadget",
+                "package com.example.b; public class Gadget { public int value() { return 2; } }");
+        fixture.writeTestInModule("moduleB", "com.example.b.GadgetTest", """
+                package com.example.b;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class GadgetTest {
+                    @Test
+                    void passes() {
+                        assertEquals(2, new Gadget().value());
+                    }
+                }
+                """);
+        fixture.commit("initial");
+
+        // moduleA has test sources but none named GadgetTest — without failIfNoTests=false
+        // this aborts the whole reactor at moduleA before moduleB (the test's real home)
+        // is ever reached.
+        BuildResult result = runner.runSingleTest(projectDir, new TestIdentity("com.example.b.GadgetTest", "passes"));
+
+        assertEquals(0, result.exitCode(), "expected the reactor build to reach moduleB and pass:\n" + result.output());
+        assertTrue(result.output().contains("Tests run: 1"),
+                "expected exactly one test to run:\n" + result.output());
+    }
+
+    @Test
     void noParallelThreadsOmitsTheTFlag() {
         assertArrayEquals(
                 new String[] {"mvn", "-B", "--no-transfer-progress", "clean", "test"},
