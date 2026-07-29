@@ -190,6 +190,15 @@ public final class MavenBuildRunner {
         }
         if (testSelector != null) {
             args.add("-Dtest=" + testSelector);
+            // Without this, a multi-module reactor aborts the whole build at the first
+            // module that has test sources but none matching testSelector (found running
+            // against apache/shenyu, whose shenyu-common module has no test named after
+            // any admin-module class) — the named test's own module is never reached, so
+            // confirmFailure (FR-013) always reads back no report and misclassifies a
+            // genuinely flaky test as CONFIRMED_FAILED. Two properties because Surefire
+            // has used both names for this switch across versions.
+            args.add("-DfailIfNoTests=false");
+            args.add("-Dsurefire.failIfNoSpecifiedTests=false");
         }
         return args.toArray(new String[0]);
     }
