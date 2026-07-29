@@ -68,13 +68,45 @@ public final class MavenBuildRunner {
     /**
      * Runs only the named test (via Surefire's {@code -Dtest=} selector), with no agent
      * attached — used to confirm a failure isn't flaky (FR-013) without re-deriving
-     * dependencies, which the original full run already captured.
+     * dependencies, which the original full run already captured. Unscoped: walks the
+     * whole reactor. Prefer {@link #runSingleTest(Path, TestIdentity, Path)} when the
+     * test's module is known.
      */
     public BuildResult runSingleTest(Path projectDir, TestIdentity test) {
+        return runSingleTest(projectDir, test, null);
+    }
+
+    /**
+     * Like {@link #runSingleTest(Path, TestIdentity)}, but scopes the rebuild to
+     * {@code moduleDir} (plus its upstream dependencies via {@code -am}) instead of the
+     * whole reactor, via Maven's {@code -pl}.
+     *
+     * @param moduleDir the reactor module that actually contains {@code test}, or
+     *                   {@code null} to build unscoped (e.g. a single-module target
+     *                   project, or when the caller hasn't resolved which module the test
+     *                   lives in)
+     */
+    public BuildResult runSingleTest(Path projectDir, TestIdentity test, Path moduleDir) {
         String selector = test.methodName() == null
                 ? test.className()
                 : test.className() + "#" + test.methodName();
-        return execute(projectDir, command(selector), null, null);
+        return execute(projectDir, command(selector, relativeModulePath(projectDir, moduleDir)), null, null);
+    }
+
+    /**
+     * @return {@code moduleDir}'s path relative to {@code projectDir} for use as an
+     *         {@code -pl} argument, or {@code null} if {@code moduleDir} is {@code null}
+     *         or equals {@code projectDir} itself (a single-module target project, where
+     *         {@code -pl} would be redundant).
+     */
+    private static String relativeModulePath(Path projectDir, Path moduleDir) {
+        if (moduleDir == null) {
+            return null;
+        }
+        String relative = projectDir.toAbsolutePath().normalize()
+                .relativize(moduleDir.toAbsolutePath().normalize())
+                .toString();
+        return relative.isEmpty() ? null : relative;
     }
 
     private BuildResult execute(Path projectDir, String[] command, Path agentJar, Path dependencyRecordOutputFile) {
@@ -179,10 +211,16 @@ public final class MavenBuildRunner {
     }
 
     String[] command(String testSelector) {
+        return command(testSelector, null);
+    }
+
+    String[] command(String testSelector, String modulePath) {
         // `clean` is required, not cosmetic: CommitCheckout reuses one scratch working
         // copy across every commit in the window, and `target/` is untracked — a
         // previous commit's build artifacts (including surefire-reports) would
-        // otherwise silently survive a `git checkout` to a different commit.
+        // otherwise silently survive a `git checkout` to a different commit. With
+        // modulePath set, -pl scopes `clean` (and everything else below) to just the
+        // modules that are actually about to be rebuilt.
         List<String> args = new ArrayList<>(List.of("mvn", "-B", "--no-transfer-progress", "clean", "test"));
         if (parallelThreads != null) {
             args.add("-T");
@@ -199,6 +237,19 @@ public final class MavenBuildRunner {
             // has used both names for this switch across versions.
             args.add("-DfailIfNoTests=false");
             args.add("-Dsurefire.failIfNoSpecifiedTests=false");
+        }
+        if (modulePath != null) {
+            // Scopes the rebuild to just the module that actually contains testSelector
+            // (plus its upstream dependencies via -am) instead of walking every module in
+            // the reactor. Without this, confirming one flaky test in a large multi-module
+            // project means a full serial rebuild of every module per candidate — for
+            // --fast-ground-truth's N+1 confirmation reruns against apache/shenyu's
+            // ~230-candidate mapper suite, that turned a ~30 minute validator run into
+            // many hours once the failIfNoTests fix above stopped the (wrong but fast)
+            // early abort.
+            args.add("-pl");
+            args.add(modulePath);
+            args.add("-am");
         }
         return args.toArray(new String[0]);
     }
