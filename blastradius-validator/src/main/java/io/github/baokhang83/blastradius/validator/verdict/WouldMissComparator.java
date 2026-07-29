@@ -9,6 +9,7 @@ import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -20,10 +21,26 @@ import java.util.stream.Collectors;
  */
 public final class WouldMissComparator {
 
+    /**
+     * @param baseGroundTruth the same commit pair's BASE commit ground truth, so a test
+     *                        that was already {@link Outcome#CONFIRMED_FAILED} before this
+     *                        pair's change — broken for reasons unrelated to it, e.g.
+     *                        shenyu-admin's {@code RoleMapperTest#testSelectAll} asserting
+     *                        an exact row count against a table schema.sql always seeds
+     *                        with two default roles — is never reported as a would-miss.
+     *                        Selection had nothing to catch: the failure predates the
+     *                        diff, so no dependency edge could have flagged it.
+     */
     public List<WouldMissCase> compare(
-            CommitPair pair, List<SelectionDecision> decisions, List<GroundTruthResult> groundTruth) {
+            CommitPair pair, List<SelectionDecision> decisions, List<GroundTruthResult> groundTruth,
+            List<GroundTruthResult> baseGroundTruth) {
         Map<TestIdentity, SelectionDecision> decisionByTest =
                 decisions.stream().collect(Collectors.toMap(SelectionDecision::test, Function.identity()));
+
+        Set<TestIdentity> preExistingFailures = baseGroundTruth.stream()
+                .filter(result -> result.outcome() == Outcome.CONFIRMED_FAILED)
+                .map(GroundTruthResult::test)
+                .collect(Collectors.toSet());
 
         List<String> changedClasses = pair.changedFiles().stream()
                 .flatMap(file -> file.candidateClassNames().stream())
@@ -32,6 +49,9 @@ public final class WouldMissComparator {
         List<WouldMissCase> misses = new ArrayList<>();
         for (GroundTruthResult result : groundTruth) {
             if (result.outcome() != Outcome.CONFIRMED_FAILED) {
+                continue;
+            }
+            if (preExistingFailures.contains(result.test())) {
                 continue;
             }
             SelectionDecision decision = decisionByTest.get(result.test());
