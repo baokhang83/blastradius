@@ -11,11 +11,14 @@ public final class SavingsSummaryAggregator {
         int total = allDecisions.size();
         int selected = (int) allDecisions.stream().filter(SelectionDecision::selected).count();
         int fallback = countByReason(allDecisions, SelectionReason.FALLBACK_NON_SOURCE_CHANGE);
+        int moduleScopedFallback =
+                countByReason(allDecisions, SelectionReason.FALLBACK_NON_SOURCE_DEPENDENT_MODULE);
         int dependencyMatched = countByReason(allDecisions, SelectionReason.DEPENDENCY_MATCH);
         int newOrModified = countByReason(allDecisions, SelectionReason.NEW_OR_MODIFIED_TEST);
         double proportionSkipped = total == 0 ? 0.0 : 1.0 - ((double) selected / total);
 
-        return new SavingsSummary(total, selected, proportionSkipped, fallback, dependencyMatched, newOrModified);
+        return new SavingsSummary(
+                total, selected, proportionSkipped, fallback, moduleScopedFallback, dependencyMatched, newOrModified);
     }
 
     private static int countByReason(List<SelectionDecision> decisions, SelectionReason reason) {

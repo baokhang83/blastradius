@@ -1,8 +1,8 @@
 {
-  "feature": "cache-commit-build-results-across-the-sliding-window-to-elim",
-  "branch": "feature/cache-commit-build-results-across-the-sliding-window-to-elim",
+  "feature": "scope-the-non-source-fallback-to-the-changed-module-plus-its",
+  "branch": "feature/scope-the-non-source-fallback-to-the-changed-module-plus-its",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/cache-commit-build-results-across-the-sliding-window-to-elim/sessions/add-fast-ground-truth-integration-tests-and-verify-the-full.md",
+  "last_session": "docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/sessions/surface-module-scoped-fallback-in-the-savings-summary.md",
   "base_ref": "main",
-  "updated": "2026-07-28"
+  "updated": "2026-07-29"
 }

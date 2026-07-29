@@ -10,6 +10,10 @@ import io.github.baokhang83.blastradius.validator.build.MavenBuildRunner;
 import io.github.baokhang83.blastradius.validator.build.Outcome;
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
+import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraph;
+import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraphBuilder;
+import io.github.baokhang83.blastradius.core.reactor.ReactorScope;
+import io.github.baokhang83.blastradius.core.reactor.TestModuleIndex;
 import io.github.baokhang83.blastradius.validator.git.CommitCheckout;
 import io.github.baokhang83.blastradius.validator.git.CommitPair;
 import io.github.baokhang83.blastradius.validator.git.CommitWindowResolver;
@@ -57,6 +61,7 @@ public final class RunCommand {
 
     private final CommitWindowResolver commitWindowResolver = new CommitWindowResolver();
     private final ChangedFileClassifier changedFileClassifier = new ChangedFileClassifier();
+    private final ReactorModuleGraphBuilder reactorModuleGraphBuilder = new ReactorModuleGraphBuilder();
     private final SelectionEngine selectionEngine = new SelectionEngine();
     private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();
     private final WouldMissComparator wouldMissComparator = new WouldMissComparator();
@@ -219,8 +224,17 @@ public final class RunCommand {
                         test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))
                 .collect(Collectors.toSet());
 
+        // Reactor scope for the NON_SOURCE fallback: built from the HEAD tree so module layout
+        // and inter-module edges reflect the commit selection runs against. Explicitly re-check
+        // out head — in --fast-ground-truth mode the scratch clone may still reflect base (a
+        // cached head build skips its checkout), and building the graph from the wrong tree
+        // could silently mis-scope. The build results are already extracted, so wiping target/
+        // here is harmless; a git checkout is negligible next to a Maven build.
+        ReactorScope reactorScope = buildReactorScope(checkout, pair.headCommit());
+
         List<SelectionDecision> decisions = selectionEngine.selectAll(
-                allTests, testDependencies, newOrModifiedTests, changedFiles, baseRecordSet.ambientDependencies());
+                allTests, testDependencies, newOrModifiedTests, changedFiles,
+                baseRecordSet.ambientDependencies(), reactorScope);
 
         CommitPair enrichedPair = CommitPair.analyzed(pair.baseCommit(), pair.headCommit(), changedFiles);
         List<WouldMissCase> misses = wouldMissComparator.compare(enrichedPair, decisions, groundTruth);
@@ -257,6 +271,22 @@ public final class RunCommand {
             DependencyRecordSet recordSet = new DependencyRecordReader().readAll(depsFile);
             return new CommitBuild(false, null, recordSet, resolution.results());
         });
+    }
+
+    /**
+     * Builds the reactor scope from {@code headCommit}'s tree. Best-effort: if the tree can't
+     * be parsed into a graph (a malformed or unusual POM in some historical commit), returns
+     * {@code null} so selection falls back to the safe whole-suite behavior rather than
+     * aborting the pair — never a narrower scope on uncertainty (Constitution §III).
+     */
+    private ReactorScope buildReactorScope(CommitCheckout checkout, String headCommit) {
+        try {
+            Path headTree = checkout.checkoutCommit(headCommit);
+            ReactorModuleGraph graph = reactorModuleGraphBuilder.fromRepoTree(headTree);
+            return new ReactorScope(graph, TestModuleIndex.fromRepoTree(headTree, graph));
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     private static PairAnalysis excluded(CommitPair pair, String reason) {
