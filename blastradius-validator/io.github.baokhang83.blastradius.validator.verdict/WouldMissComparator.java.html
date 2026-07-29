@@ -9,6 +9,7 @@ import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -18,30 +19,49 @@ import java.util.stream.Collectors;
  * (FR-004) — the mechanism that makes an unsound selection approach visible rather than
  * silently shipping a bug.
  */
-<span class="fc" id="L21">public final class WouldMissComparator {</span>
+<span class="fc" id="L22">public final class WouldMissComparator {</span>
 
+    /**
+     * @param baseGroundTruth the same commit pair's BASE commit ground truth, so a test
+     *                        that was already {@link Outcome#CONFIRMED_FAILED} before this
+     *                        pair's change — broken for reasons unrelated to it, e.g.
+     *                        shenyu-admin's {@code RoleMapperTest#testSelectAll} asserting
+     *                        an exact row count against a table schema.sql always seeds
+     *                        with two default roles — is never reported as a would-miss.
+     *                        Selection had nothing to catch: the failure predates the
+     *                        diff, so no dependency edge could have flagged it.
+     */
     public List&lt;WouldMissCase&gt; compare(
-            CommitPair pair, List&lt;SelectionDecision&gt; decisions, List&lt;GroundTruthResult&gt; groundTruth) {
-<span class="fc" id="L25">        Map&lt;TestIdentity, SelectionDecision&gt; decisionByTest =</span>
-<span class="fc" id="L26">                decisions.stream().collect(Collectors.toMap(SelectionDecision::test, Function.identity()));</span>
+            CommitPair pair, List&lt;SelectionDecision&gt; decisions, List&lt;GroundTruthResult&gt; groundTruth,
+            List&lt;GroundTruthResult&gt; baseGroundTruth) {
+<span class="fc" id="L37">        Map&lt;TestIdentity, SelectionDecision&gt; decisionByTest =</span>
+<span class="fc" id="L38">                decisions.stream().collect(Collectors.toMap(SelectionDecision::test, Function.identity()));</span>
 
-<span class="fc" id="L28">        List&lt;String&gt; changedClasses = pair.changedFiles().stream()</span>
-<span class="fc" id="L29">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
-<span class="fc" id="L30">                .toList();</span>
+<span class="fc" id="L40">        Set&lt;TestIdentity&gt; preExistingFailures = baseGroundTruth.stream()</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">                .filter(result -&gt; result.outcome() == Outcome.CONFIRMED_FAILED)</span>
+<span class="fc" id="L42">                .map(GroundTruthResult::test)</span>
+<span class="fc" id="L43">                .collect(Collectors.toSet());</span>
 
-<span class="fc" id="L32">        List&lt;WouldMissCase&gt; misses = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L33" title="All 2 branches covered.">        for (GroundTruthResult result : groundTruth) {</span>
-<span class="fc bfc" id="L34" title="All 2 branches covered.">            if (result.outcome() != Outcome.CONFIRMED_FAILED) {</span>
-<span class="fc" id="L35">                continue;</span>
+<span class="fc" id="L45">        List&lt;String&gt; changedClasses = pair.changedFiles().stream()</span>
+<span class="fc" id="L46">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
+<span class="fc" id="L47">                .toList();</span>
+
+<span class="fc" id="L49">        List&lt;WouldMissCase&gt; misses = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        for (GroundTruthResult result : groundTruth) {</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">            if (result.outcome() != Outcome.CONFIRMED_FAILED) {</span>
+<span class="fc" id="L52">                continue;</span>
             }
-<span class="fc" id="L37">            SelectionDecision decision = decisionByTest.get(result.test());</span>
-<span class="fc bfc" id="L38" title="All 4 branches covered.">            if (decision != null &amp;&amp; decision.selected()) {</span>
-<span class="fc" id="L39">                continue;</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">            if (preExistingFailures.contains(result.test())) {</span>
+<span class="fc" id="L55">                continue;</span>
             }
-<span class="fc bfc" id="L41" title="All 2 branches covered.">            String reason = decision == null ? &quot;no selection decision recorded&quot; : decision.reason().name();</span>
-<span class="fc" id="L42">            misses.add(new WouldMissCase(pair, result.test(), changedClasses, reason));</span>
-<span class="fc" id="L43">        }</span>
-<span class="fc" id="L44">        return misses;</span>
+<span class="fc" id="L57">            SelectionDecision decision = decisionByTest.get(result.test());</span>
+<span class="fc bfc" id="L58" title="All 4 branches covered.">            if (decision != null &amp;&amp; decision.selected()) {</span>
+<span class="fc" id="L59">                continue;</span>
+            }
+<span class="fc bfc" id="L61" title="All 2 branches covered.">            String reason = decision == null ? &quot;no selection decision recorded&quot; : decision.reason().name();</span>
+<span class="fc" id="L62">            misses.add(new WouldMissCase(pair, result.test(), changedClasses, reason));</span>
+<span class="fc" id="L63">        }</span>
+<span class="fc" id="L64">        return misses;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

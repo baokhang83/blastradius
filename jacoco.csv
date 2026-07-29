@@ -40,13 +40,13 @@ coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,Ma
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand.PairAnalysis,0,15,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunConfig,8,92,1,11,2,16,2,7,1,2
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand.CommitBuild,0,15,0,0,0,1,0,1,0,1
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand,68,513,5,17,13,100,9,17,4,11
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand,68,521,5,17,13,102,9,17,4,11
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,SurefireReportParser,18,151,0,18,4,36,0,15,0,6
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResult,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,Outcome,0,21,0,0,0,4,0,1,0,1
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,MavenBuildRunner,62,251,9,17,13,58,8,16,1,10
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,MavenBuildRunner,62,315,9,25,13,74,8,24,1,14
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,JdkMismatchDetector,5,117,1,13,3,28,1,14,0,8
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResolver,9,169,1,11,2,35,1,14,0,9
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResolver,9,200,1,11,2,39,1,15,0,10
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResolution,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,BuildFailureDetector,9,40,1,7,2,6,1,7,0,4
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,BuildResult,0,16,0,2,0,2,0,3,0,2
@@ -56,7 +56,7 @@ coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.report
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.report,ReportWriter,0,27,0,0,0,7,0,2,0,2
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.report,SavingsSummaryAggregator,0,63,0,4,0,9,0,6,0,4
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.verdict,WouldMissCase,0,15,0,0,0,1,0,1,0,1
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.verdict,WouldMissComparator,0,75,0,10,0,17,0,8,0,3
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.verdict,WouldMissComparator,0,99,0,14,0,23,0,11,0,4
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.verdict,Verdict,0,15,0,0,0,3,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.verdict,FlakyFailure,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.verdict,VerdictCalculator,0,10,0,2,0,2,0,3,0,2

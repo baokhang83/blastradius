@@ -157,79 +157,86 @@ import java.util.stream.Collectors;
             boolean fastGroundTruth, Map&lt;String, CommitBuild&gt; commitCache) throws Exception {
         DependencyRecordSet baseRecordSet;
         List&lt;GroundTruthResult&gt; groundTruth;
+        List&lt;GroundTruthResult&gt; baseGroundTruth;
 
-<span class="fc bfc" id="L161" title="All 2 branches covered.">        if (fastGroundTruth) {</span>
-<span class="fc" id="L162">            CommitBuild base = buildCommit(pair.baseCommit(), checkout, agentJar, commitCache);</span>
-<span class="pc bpc" id="L163" title="1 of 2 branches missed.">            if (base.failed()) {</span>
-<span class="nc" id="L164">                return excluded(pair, base.failureReason());</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">        if (fastGroundTruth) {</span>
+<span class="fc" id="L163">            CommitBuild base = buildCommit(pair.baseCommit(), checkout, agentJar, commitCache);</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">            if (base.failed()) {</span>
+<span class="nc" id="L165">                return excluded(pair, base.failureReason());</span>
             }
-<span class="fc" id="L166">            CommitBuild head = buildCommit(pair.headCommit(), checkout, agentJar, commitCache);</span>
-<span class="pc bpc" id="L167" title="1 of 2 branches missed.">            if (head.failed()) {</span>
-<span class="nc" id="L168">                return excluded(pair, head.failureReason());</span>
+<span class="fc" id="L167">            CommitBuild head = buildCommit(pair.headCommit(), checkout, agentJar, commitCache);</span>
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">            if (head.failed()) {</span>
+<span class="nc" id="L169">                return excluded(pair, head.failureReason());</span>
             }
-<span class="fc" id="L170">            baseRecordSet = base.dependencyRecordSet();</span>
-<span class="fc" id="L171">            groundTruth = head.groundTruth();</span>
-<span class="fc" id="L172">        } else {</span>
+<span class="fc" id="L171">            baseRecordSet = base.dependencyRecordSet();</span>
+<span class="fc" id="L172">            groundTruth = head.groundTruth();</span>
+<span class="fc" id="L173">            baseGroundTruth = base.groundTruth();</span>
+<span class="fc" id="L174">        } else {</span>
             // Baseline: build the BASE commit with the agent attached, to learn what each
-            // test depended on as of that commit.
-<span class="fc" id="L175">            Path baseWorkDir = checkout.checkoutCommit(pair.baseCommit());</span>
-<span class="fc" id="L176">            Path baseDepsFile = Files.createTempFile(&quot;blastradius-base-deps-&quot;, &quot;.json&quot;);</span>
-<span class="fc" id="L177">            BuildResult baseResult = buildRunner.run(baseWorkDir, agentJar, baseDepsFile);</span>
-<span class="fc bfc" id="L178" title="All 2 branches covered.">            if (buildFailureDetector.isBuildFailure(baseResult, baseWorkDir)) {</span>
-<span class="fc" id="L179">                return excluded(pair, &quot;base commit &quot; + pair.baseCommit() + &quot; failed to build&quot;);</span>
+            // test depended on as of that commit. Routed through GroundTruthResolver
+            // (rather than a plain buildRunner.run()) so a test that's already broken at
+            // the base commit — for reasons unrelated to this pair's diff — is confirmed
+            // and recorded as such (WouldMissComparator#compare needs it to avoid flagging
+            // a pre-existing failure as something selection should have caught).
+<span class="fc" id="L181">            Path baseWorkDir = checkout.checkoutCommit(pair.baseCommit());</span>
+<span class="fc" id="L182">            Path baseDepsFile = Files.createTempFile(&quot;blastradius-base-deps-&quot;, &quot;.json&quot;);</span>
+<span class="fc" id="L183">            GroundTruthResolution baseResolution = groundTruthResolver.resolve(baseWorkDir, agentJar, baseDepsFile);</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">            if (buildFailureDetector.isBuildFailure(baseResolution.initialBuild(), baseWorkDir)) {</span>
+<span class="fc" id="L185">                return excluded(pair, &quot;base commit &quot; + pair.baseCommit() + &quot; failed to build&quot;);</span>
             }
-<span class="fc" id="L181">            baseRecordSet = new DependencyRecordReader().readAll(baseDepsFile);</span>
+<span class="fc" id="L187">            baseRecordSet = new DependencyRecordReader().readAll(baseDepsFile);</span>
+<span class="fc" id="L188">            baseGroundTruth = baseResolution.results();</span>
 
             // Ground truth: GroundTruthResolver's own build result tells us whether the
             // HEAD commit built at all, so a compile failure is caught here rather than
             // silently looking like &quot;zero tests&quot; — without a second, separate probe build.
-<span class="fc" id="L186">            Path headWorkDir = checkout.checkoutCommit(pair.headCommit());</span>
-<span class="fc" id="L187">            GroundTruthResolution resolution = groundTruthResolver.resolve(headWorkDir, null, null);</span>
-<span class="fc bfc" id="L188" title="All 2 branches covered.">            if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), headWorkDir)) {</span>
-<span class="fc" id="L189">                return excluded(pair, &quot;head commit &quot; + pair.headCommit() + &quot; failed to build&quot;);</span>
+<span class="fc" id="L193">            Path headWorkDir = checkout.checkoutCommit(pair.headCommit());</span>
+<span class="fc" id="L194">            GroundTruthResolution resolution = groundTruthResolver.resolve(headWorkDir, null, null);</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">            if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), headWorkDir)) {</span>
+<span class="fc" id="L196">                return excluded(pair, &quot;head commit &quot; + pair.headCommit() + &quot; failed to build&quot;);</span>
             }
-<span class="fc" id="L191">            groundTruth = resolution.results();</span>
+<span class="fc" id="L198">            groundTruth = resolution.results();</span>
         }
 
-<span class="fc" id="L194">        Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; baseRecord = baseRecordSet.tests();</span>
+<span class="fc" id="L201">        Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; baseRecord = baseRecordSet.tests();</span>
         // Keyed by baselineKey(), not the raw tracked identity, so a ground-truth lookup
         // (which may carry a parameterized-test's Surefire-style invocation suffix) can
         // still find the baseline the tracking agent recorded under the plain method
         // name. See TestIdentity#baselineKey for why the two pipelines disagree here.
-<span class="fc" id="L199">        Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependencies = baseRecord.entrySet().stream()</span>
-<span class="fc" id="L200">                .collect(Collectors.toMap(</span>
-<span class="fc" id="L201">                        e -&gt; e.getKey().baselineKey(),</span>
-<span class="fc" id="L202">                        e -&gt; e.getValue().keySet(),</span>
+<span class="fc" id="L206">        Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependencies = baseRecord.entrySet().stream()</span>
+<span class="fc" id="L207">                .collect(Collectors.toMap(</span>
+<span class="fc" id="L208">                        e -&gt; e.getKey().baselineKey(),</span>
+<span class="fc" id="L209">                        e -&gt; e.getValue().keySet(),</span>
                         (a, b) -&gt; {
-<span class="nc" id="L204">                            Set&lt;String&gt; union = new java.util.HashSet&lt;&gt;(a);</span>
-<span class="nc" id="L205">                            union.addAll(b);</span>
-<span class="nc" id="L206">                            return union;</span>
+<span class="nc" id="L211">                            Set&lt;String&gt; union = new java.util.HashSet&lt;&gt;(a);</span>
+<span class="nc" id="L212">                            union.addAll(b);</span>
+<span class="nc" id="L213">                            return union;</span>
                         }));
 
         // Changed files, classified, against the real target repo's git history.
-<span class="fc" id="L210">        List&lt;ChangedFile&gt; changedFiles =</span>
-<span class="fc" id="L211">                changedFileClassifier.classify(targetRepo, pair.baseCommit(), pair.headCommit());</span>
-<span class="fc" id="L212">        Set&lt;String&gt; changedClassNames = changedFiles.stream()</span>
-<span class="fc" id="L213">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
-<span class="fc" id="L214">                .collect(Collectors.toUnmodifiableSet());</span>
+<span class="fc" id="L217">        List&lt;ChangedFile&gt; changedFiles =</span>
+<span class="fc" id="L218">                changedFileClassifier.classify(targetRepo, pair.baseCommit(), pair.headCommit());</span>
+<span class="fc" id="L219">        Set&lt;String&gt; changedClassNames = changedFiles.stream()</span>
+<span class="fc" id="L220">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
+<span class="fc" id="L221">                .collect(Collectors.toUnmodifiableSet());</span>
 
-<span class="fc" id="L216">        Set&lt;TestIdentity&gt; allTests = groundTruth.stream().map(GroundTruthResult::test).collect(Collectors.toSet());</span>
-<span class="fc" id="L217">        Set&lt;TestIdentity&gt; newOrModifiedTests = allTests.stream()</span>
-<span class="fc" id="L218">                .filter(test -&gt; newOrModifiedTestSelector.appliesTo(</span>
-<span class="pc bpc" id="L219" title="1 of 2 branches missed.">                        test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))</span>
-<span class="fc" id="L220">                .collect(Collectors.toSet());</span>
+<span class="fc" id="L223">        Set&lt;TestIdentity&gt; allTests = groundTruth.stream().map(GroundTruthResult::test).collect(Collectors.toSet());</span>
+<span class="fc" id="L224">        Set&lt;TestIdentity&gt; newOrModifiedTests = allTests.stream()</span>
+<span class="fc" id="L225">                .filter(test -&gt; newOrModifiedTestSelector.appliesTo(</span>
+<span class="pc bpc" id="L226" title="1 of 2 branches missed.">                        test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))</span>
+<span class="fc" id="L227">                .collect(Collectors.toSet());</span>
 
-<span class="fc" id="L222">        List&lt;SelectionDecision&gt; decisions = selectionEngine.selectAll(</span>
-<span class="fc" id="L223">                allTests, testDependencies, newOrModifiedTests, changedFiles, baseRecordSet.ambientDependencies());</span>
+<span class="fc" id="L229">        List&lt;SelectionDecision&gt; decisions = selectionEngine.selectAll(</span>
+<span class="fc" id="L230">                allTests, testDependencies, newOrModifiedTests, changedFiles, baseRecordSet.ambientDependencies());</span>
 
-<span class="fc" id="L225">        CommitPair enrichedPair = CommitPair.analyzed(pair.baseCommit(), pair.headCommit(), changedFiles);</span>
-<span class="fc" id="L226">        List&lt;WouldMissCase&gt; misses = wouldMissComparator.compare(enrichedPair, decisions, groundTruth);</span>
-<span class="fc" id="L227">        List&lt;FlakyFailure&gt; flakyFailures = groundTruth.stream()</span>
-<span class="pc bpc" id="L228" title="1 of 2 branches missed.">                .filter(r -&gt; r.outcome() == Outcome.FLAKY)</span>
-<span class="pc" id="L229">                .map(r -&gt; new FlakyFailure(enrichedPair, r.test()))</span>
-<span class="fc" id="L230">                .toList();</span>
+<span class="fc" id="L232">        CommitPair enrichedPair = CommitPair.analyzed(pair.baseCommit(), pair.headCommit(), changedFiles);</span>
+<span class="fc" id="L233">        List&lt;WouldMissCase&gt; misses = wouldMissComparator.compare(enrichedPair, decisions, groundTruth, baseGroundTruth);</span>
+<span class="fc" id="L234">        List&lt;FlakyFailure&gt; flakyFailures = groundTruth.stream()</span>
+<span class="pc bpc" id="L235" title="1 of 2 branches missed.">                .filter(r -&gt; r.outcome() == Outcome.FLAKY)</span>
+<span class="pc" id="L236">                .map(r -&gt; new FlakyFailure(enrichedPair, r.test()))</span>
+<span class="fc" id="L237">                .toList();</span>
 
-<span class="fc" id="L232">        return new PairAnalysis(enrichedPair, misses, decisions, flakyFailures);</span>
+<span class="fc" id="L239">        return new PairAnalysis(enrichedPair, misses, decisions, flakyFailures);</span>
     }
 
     /**
@@ -242,34 +249,34 @@ import java.util.stream.Collectors;
      */
     private CommitBuild buildCommit(
             String commitSha, CommitCheckout checkout, Path agentJar, Map&lt;String, CommitBuild&gt; commitCache) {
-<span class="fc" id="L245">        return commitCache.computeIfAbsent(commitSha, sha -&gt; {</span>
-<span class="fc" id="L246">            Path workDir = checkout.checkoutCommit(sha);</span>
+<span class="fc" id="L252">        return commitCache.computeIfAbsent(commitSha, sha -&gt; {</span>
+<span class="fc" id="L253">            Path workDir = checkout.checkoutCommit(sha);</span>
             Path depsFile;
             try {
-<span class="fc" id="L249">                depsFile = Files.createTempFile(&quot;blastradius-commit-deps-&quot;, &quot;.json&quot;);</span>
-<span class="nc" id="L250">            } catch (IOException e) {</span>
-<span class="nc" id="L251">                throw new UncheckedIOException(e);</span>
-<span class="fc" id="L252">            }</span>
-<span class="fc" id="L253">            GroundTruthResolution resolution = groundTruthResolver.resolve(workDir, agentJar, depsFile);</span>
-<span class="pc bpc" id="L254" title="1 of 2 branches missed.">            if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), workDir)) {</span>
-<span class="nc" id="L255">                return new CommitBuild(true, &quot;commit &quot; + sha + &quot; failed to build&quot;, null, List.of());</span>
+<span class="fc" id="L256">                depsFile = Files.createTempFile(&quot;blastradius-commit-deps-&quot;, &quot;.json&quot;);</span>
+<span class="nc" id="L257">            } catch (IOException e) {</span>
+<span class="nc" id="L258">                throw new UncheckedIOException(e);</span>
+<span class="fc" id="L259">            }</span>
+<span class="fc" id="L260">            GroundTruthResolution resolution = groundTruthResolver.resolve(workDir, agentJar, depsFile);</span>
+<span class="pc bpc" id="L261" title="1 of 2 branches missed.">            if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), workDir)) {</span>
+<span class="nc" id="L262">                return new CommitBuild(true, &quot;commit &quot; + sha + &quot; failed to build&quot;, null, List.of());</span>
             }
-<span class="fc" id="L257">            DependencyRecordSet recordSet = new DependencyRecordReader().readAll(depsFile);</span>
-<span class="fc" id="L258">            return new CommitBuild(false, null, recordSet, resolution.results());</span>
+<span class="fc" id="L264">            DependencyRecordSet recordSet = new DependencyRecordReader().readAll(depsFile);</span>
+<span class="fc" id="L265">            return new CommitBuild(false, null, recordSet, resolution.results());</span>
         });
     }
 
     private static PairAnalysis excluded(CommitPair pair, String reason) {
-<span class="fc" id="L263">        CommitPair excludedPair = CommitPair.excluded(pair.baseCommit(), pair.headCommit(), reason);</span>
-<span class="fc" id="L264">        return new PairAnalysis(excludedPair, List.of(), List.of(), List.of());</span>
+<span class="fc" id="L270">        CommitPair excludedPair = CommitPair.excluded(pair.baseCommit(), pair.headCommit(), reason);</span>
+<span class="fc" id="L271">        return new PairAnalysis(excludedPair, List.of(), List.of(), List.of());</span>
     }
 
     private static Path locateOwnJar() {
         try {
-<span class="nc" id="L269">            URI uri = RunCommand.class.getProtectionDomain().getCodeSource().getLocation().toURI();</span>
-<span class="nc" id="L270">            return Path.of(uri);</span>
-<span class="nc" id="L271">        } catch (Exception e) {</span>
-<span class="nc" id="L272">            throw new IllegalStateException(&quot;could not locate this tool's own jar for -javaagent attachment&quot;, e);</span>
+<span class="nc" id="L276">            URI uri = RunCommand.class.getProtectionDomain().getCodeSource().getLocation().toURI();</span>
+<span class="nc" id="L277">            return Path.of(uri);</span>
+<span class="nc" id="L278">        } catch (Exception e) {</span>
+<span class="nc" id="L279">            throw new IllegalStateException(&quot;could not locate this tool's own jar for -javaagent attachment&quot;, e);</span>
         }
     }
 }

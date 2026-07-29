@@ -42,46 +42,56 @@ public final class GroundTruthResolver {
 
     public GroundTruthResolution resolve(Path projectDir, Path agentJar, Path dependencyRecordOutputFile) {
 <span class="fc" id="L44">        BuildResult initialBuild = buildRunner.run(projectDir, agentJar, dependencyRecordOutputFile);</span>
-<span class="fc" id="L45">        Map&lt;TestIdentity, Boolean&gt; initialResults = parseAllReports(projectDir);</span>
+<span class="fc" id="L45">        Map&lt;TestIdentity, Path&gt; moduleByTest = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L46">        Map&lt;TestIdentity, Boolean&gt; initialResults = parseAllReports(projectDir, moduleByTest);</span>
 
-<span class="fc" id="L47">        List&lt;GroundTruthResult&gt; results = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L48" title="All 2 branches covered.">        for (Map.Entry&lt;TestIdentity, Boolean&gt; entry : initialResults.entrySet()) {</span>
-<span class="fc" id="L49">            TestIdentity test = entry.getKey();</span>
-<span class="fc" id="L50">            boolean passed = entry.getValue();</span>
-<span class="fc bfc" id="L51" title="All 2 branches covered.">            if (passed) {</span>
-<span class="fc" id="L52">                results.add(new GroundTruthResult(test, Outcome.PASSED));</span>
-<span class="fc" id="L53">                continue;</span>
+<span class="fc" id="L48">        List&lt;GroundTruthResult&gt; results = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        for (Map.Entry&lt;TestIdentity, Boolean&gt; entry : initialResults.entrySet()) {</span>
+<span class="fc" id="L50">            TestIdentity test = entry.getKey();</span>
+<span class="fc" id="L51">            boolean passed = entry.getValue();</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">            if (passed) {</span>
+<span class="fc" id="L53">                results.add(new GroundTruthResult(test, Outcome.PASSED));</span>
+<span class="fc" id="L54">                continue;</span>
             }
-<span class="fc" id="L55">            results.add(new GroundTruthResult(test, confirmFailure(projectDir, test)));</span>
-<span class="fc" id="L56">        }</span>
-<span class="fc" id="L57">        return new GroundTruthResolution(initialBuild, results);</span>
+<span class="fc" id="L56">            results.add(new GroundTruthResult(test, confirmFailure(projectDir, test, moduleByTest.get(test))));</span>
+<span class="fc" id="L57">        }</span>
+<span class="fc" id="L58">        return new GroundTruthResolution(initialBuild, results);</span>
     }
 
-    private Outcome confirmFailure(Path projectDir, TestIdentity test) {
-<span class="fc" id="L61">        buildRunner.runSingleTest(projectDir, test);</span>
-<span class="fc" id="L62">        Boolean confirmedPassed = parseAllReports(projectDir).get(test);</span>
-<span class="fc bfc" id="L63" title="All 2 branches covered.">        return Boolean.TRUE.equals(confirmedPassed) ? Outcome.FLAKY : Outcome.CONFIRMED_FAILED;</span>
+    private Outcome confirmFailure(Path projectDir, TestIdentity test, Path moduleDir) {
+<span class="fc" id="L62">        buildRunner.runSingleTest(projectDir, test, moduleDir);</span>
+<span class="fc" id="L63">        Boolean confirmedPassed = parseAllReports(projectDir, new HashMap&lt;&gt;()).get(test);</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        return Boolean.TRUE.equals(confirmedPassed) ? Outcome.FLAKY : Outcome.CONFIRMED_FAILED;</span>
     }
 
-    private Map&lt;TestIdentity, Boolean&gt; parseAllReports(Path projectDir) {
-<span class="fc" id="L67">        Map&lt;TestIdentity, Boolean&gt; merged = new HashMap&lt;&gt;();</span>
-<span class="fc bfc" id="L68" title="All 2 branches covered.">        for (Path reportsDir : findReportsDirectories(projectDir)) {</span>
-<span class="fc" id="L69">            merged.putAll(reportParser.parse(reportsDir));</span>
-<span class="fc" id="L70">        }</span>
-<span class="fc" id="L71">        return merged;</span>
+    /**
+     * @param moduleByTest populated (as a side effect) with each discovered test's
+     *                     containing module root, so a later {@link #confirmFailure} can
+     *                     scope its rerun instead of walking the whole reactor
+     */
+    private Map&lt;TestIdentity, Boolean&gt; parseAllReports(Path projectDir, Map&lt;TestIdentity, Path&gt; moduleByTest) {
+<span class="fc" id="L73">        Map&lt;TestIdentity, Boolean&gt; merged = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">        for (Path reportsDir : findReportsDirectories(projectDir)) {</span>
+<span class="fc" id="L75">            Map&lt;TestIdentity, Boolean&gt; parsed = reportParser.parse(reportsDir);</span>
+<span class="fc" id="L76">            merged.putAll(parsed);</span>
+            // &lt;module&gt;/target/surefire-reports -&gt; target -&gt; module root.
+<span class="fc" id="L78">            Path moduleDir = reportsDir.getParent().getParent();</span>
+<span class="fc" id="L79">            parsed.keySet().forEach(test -&gt; moduleByTest.put(test, moduleDir));</span>
+<span class="fc" id="L80">        }</span>
+<span class="fc" id="L81">        return merged;</span>
     }
 
     private static List&lt;Path&gt; findReportsDirectories(Path projectDir) {
-<span class="fc" id="L75">        try (Stream&lt;Path&gt; stream = Files.walk(projectDir)) {</span>
-<span class="fc" id="L76">            return stream</span>
-<span class="fc" id="L77">                    .filter(Files::isDirectory)</span>
-<span class="fc" id="L78">                    .filter(p -&gt; {</span>
-<span class="fc" id="L79">                        String name = p.getFileName().toString();</span>
-<span class="pc bpc" id="L80" title="1 of 4 branches missed.">                        return name.equals(&quot;surefire-reports&quot;) || name.equals(&quot;failsafe-reports&quot;);</span>
+<span class="fc" id="L85">        try (Stream&lt;Path&gt; stream = Files.walk(projectDir)) {</span>
+<span class="fc" id="L86">            return stream</span>
+<span class="fc" id="L87">                    .filter(Files::isDirectory)</span>
+<span class="fc" id="L88">                    .filter(p -&gt; {</span>
+<span class="fc" id="L89">                        String name = p.getFileName().toString();</span>
+<span class="pc bpc" id="L90" title="1 of 4 branches missed.">                        return name.equals(&quot;surefire-reports&quot;) || name.equals(&quot;failsafe-reports&quot;);</span>
                     })
-<span class="fc" id="L82">                    .toList();</span>
-<span class="nc" id="L83">        } catch (IOException e) {</span>
-<span class="nc" id="L84">            throw new UncheckedIOException(&quot;failed to scan for test reports under &quot; + projectDir, e);</span>
+<span class="fc" id="L92">                    .toList();</span>
+<span class="nc" id="L93">        } catch (IOException e) {</span>
+<span class="nc" id="L94">            throw new UncheckedIOException(&quot;failed to scan for test reports under &quot; + projectDir, e);</span>
         }
     }
 }
