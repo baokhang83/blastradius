@@ -218,6 +218,63 @@ class MavenBuildRunnerTest {
     }
 
     @Test
+    void cleanFalseOmitsTheCleanGoal() {
+        assertArrayEquals(
+                new String[] {
+                    "mvn", "-B", "--no-transfer-progress", "test",
+                    "-Dtest=com.example.FooTest#passes",
+                    "-DfailIfNoTests=false", "-Dsurefire.failIfNoSpecifiedTests=false",
+                    "-pl", "moduleB", "-am"
+                },
+                new MavenBuildRunner().command("com.example.FooTest#passes", "moduleB", false));
+    }
+
+    @Test
+    void confirmFailureRerunSecondCallSucceedsWithoutRecleaningTheFirstCallsModule(@TempDir Path projectDir) {
+        // Proves runSingleTest's clean=false rerun is safe on an already-built checkout:
+        // two back-to-back confirmFailure-style reruns of different tests in the same
+        // module, neither preceded by a fresh clean, both still see correct, isolated
+        // results — the scenario --fast-ground-truth's N+1 confirmation loop relies on.
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        fixture.writeClass("com.example.Foo",
+                "package com.example; public class Foo { public int value() { return 1; } }");
+        fixture.writeTest("com.example.FooTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class FooTest {
+                    @Test
+                    void passes() {
+                        assertEquals(1, new Foo().value());
+                    }
+                }
+                """);
+        fixture.writeTest("com.example.BarTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class BarTest {
+                    @Test
+                    void alsoPasses() {
+                        assertEquals(1, new Foo().value());
+                    }
+                }
+                """);
+        fixture.commit("initial");
+
+        BuildResult initial = runner.run(projectDir, null, null);
+        assertEquals(0, initial.exitCode(), "initial clean build should succeed:\n" + initial.output());
+
+        BuildResult first = runner.runSingleTest(projectDir, new TestIdentity("com.example.FooTest", "passes"));
+        BuildResult second = runner.runSingleTest(projectDir, new TestIdentity("com.example.BarTest", "alsoPasses"));
+
+        assertEquals(0, first.exitCode(), "first no-clean rerun should succeed:\n" + first.output());
+        assertEquals(0, second.exitCode(), "second no-clean rerun should succeed:\n" + second.output());
+        assertTrue(second.output().contains("Tests run: 1"),
+                "expected exactly one test to run on the second rerun:\n" + second.output());
+    }
+
+    @Test
     void noParallelThreadsOmitsTheTFlag() {
         assertArrayEquals(
                 new String[] {"mvn", "-B", "--no-transfer-progress", "clean", "test"},

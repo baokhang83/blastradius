@@ -90,7 +90,11 @@ public final class MavenBuildRunner {
         String selector = test.methodName() == null
                 ? test.className()
                 : test.className() + "#" + test.methodName();
-        return execute(projectDir, command(selector, relativeModulePath(projectDir, moduleDir)), null, null);
+        // clean=false: this rerun happens on the same checkout the caller already built
+        // once (run()) before any confirmFailure call — see the note on the private
+        // command() overload for why skipping clean here is safe and, at N+1 rerun
+        // scale, the difference between minutes and hours per candidate.
+        return execute(projectDir, command(selector, relativeModulePath(projectDir, moduleDir), false), null, null);
     }
 
     /**
@@ -211,17 +215,33 @@ public final class MavenBuildRunner {
     }
 
     String[] command(String testSelector) {
-        return command(testSelector, null);
+        return command(testSelector, null, true);
     }
 
     String[] command(String testSelector, String modulePath) {
-        // `clean` is required, not cosmetic: CommitCheckout reuses one scratch working
-        // copy across every commit in the window, and `target/` is untracked — a
-        // previous commit's build artifacts (including surefire-reports) would
-        // otherwise silently survive a `git checkout` to a different commit. With
-        // modulePath set, -pl scopes `clean` (and everything else below) to just the
-        // modules that are actually about to be rebuilt.
-        List<String> args = new ArrayList<>(List.of("mvn", "-B", "--no-transfer-progress", "clean", "test"));
+        return command(testSelector, modulePath, true);
+    }
+
+    String[] command(String testSelector, String modulePath, boolean clean) {
+        // `clean` is required for the FIRST build of a checkout, not cosmetic:
+        // CommitCheckout reuses one scratch working copy across every commit in the
+        // window, and `target/` is untracked — a previous commit's build artifacts
+        // (including surefire-reports) would otherwise silently survive a `git
+        // checkout` to a different commit. With modulePath set, -pl scopes `clean`
+        // (and everything else below) to just the modules that are actually about to
+        // be rebuilt.
+        //
+        // Single-test confirmFailure reruns (clean=false) happen back-to-back on the
+        // SAME already-built checkout — no intervening `git checkout` — so skipping
+        // clean there lets Maven's incremental compiler no-op on unchanged sources
+        // instead of recompiling the whole module + its -am dependencies from scratch
+        // on every one of the N+1 reruns. Surefire still overwrites each rerun test
+        // class's own report file, so parsing stays correct without a clean.
+        List<String> args = new ArrayList<>(List.of("mvn", "-B", "--no-transfer-progress"));
+        if (clean) {
+            args.add("clean");
+        }
+        args.add("test");
         if (parallelThreads != null) {
             args.add("-T");
             args.add(String.valueOf(parallelThreads));
