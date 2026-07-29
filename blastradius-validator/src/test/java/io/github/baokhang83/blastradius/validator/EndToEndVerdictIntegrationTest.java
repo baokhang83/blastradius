@@ -132,6 +132,51 @@ class EndToEndVerdictIntegrationTest {
         assertEquals("com.example.GapTest", report.get("wouldMissCases").get(0).get("test").get("className").asText());
     }
 
+    /**
+     * A test that was already failing at the BASE commit, for reasons entirely unrelated
+     * to this pair's diff (real-world example: shenyu-admin's {@code
+     * RoleMapperTest#testSelectAll}, broken by schema.sql's seed data on every commit).
+     * Selection had nothing to catch — the failure predates the change — so it must not
+     * be reported as a would-miss.
+     */
+    @Test
+    void testAlreadyFailingAtBaseCommitProducesNoWouldMissCase(@TempDir Path projectDir, @TempDir Path outDir)
+            throws Exception {
+        Path agentJar = findOwnAgentJar();
+        Path reportFile = outDir.resolve("report.json");
+
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        fixture.addSystemDependency(null, agentJar);
+        fixture.writeClass("com.example.Foo",
+                "package com.example; public class Foo { public int value() { return 1; } }");
+        fixture.writeTest("com.example.AlwaysBrokenTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class AlwaysBrokenTest {
+                    @Test
+                    void neverPasses() {
+                        assertEquals(1, 2);
+                    }
+                }
+                """);
+        fixture.commit("initial");
+
+        // Second commit changes an unrelated class — AlwaysBrokenTest was never going to
+        // pass either way, before or after.
+        fixture.writeClass("com.example.Foo",
+                "package com.example; public class Foo { public int value() { return 2; } }");
+        fixture.commit("change Foo");
+
+        RunConfig config = new RunConfig(projectDir, 1, reportFile);
+        int exitCode = new RunCommand().run(config, agentJar);
+
+        assertEquals(0, exitCode, "expected PASS verdict (exit code 0): a pre-existing failure is not a would-miss");
+        JsonNode report = new ObjectMapper().readTree(reportFile.toFile());
+        assertEquals("PASS", report.get("verdict").asText());
+        assertTrue(report.get("wouldMissCases").isEmpty());
+    }
+
     private static Path findOwnAgentJar() throws IOException {
         Path targetDir = Path.of("target");
         try (var stream = Files.list(targetDir)) {

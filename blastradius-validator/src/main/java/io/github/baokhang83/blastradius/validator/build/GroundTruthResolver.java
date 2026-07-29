@@ -42,7 +42,8 @@ public final class GroundTruthResolver {
 
     public GroundTruthResolution resolve(Path projectDir, Path agentJar, Path dependencyRecordOutputFile) {
         BuildResult initialBuild = buildRunner.run(projectDir, agentJar, dependencyRecordOutputFile);
-        Map<TestIdentity, Boolean> initialResults = parseAllReports(projectDir);
+        Map<TestIdentity, Path> moduleByTest = new HashMap<>();
+        Map<TestIdentity, Boolean> initialResults = parseAllReports(projectDir, moduleByTest);
 
         List<GroundTruthResult> results = new ArrayList<>();
         for (Map.Entry<TestIdentity, Boolean> entry : initialResults.entrySet()) {
@@ -52,21 +53,30 @@ public final class GroundTruthResolver {
                 results.add(new GroundTruthResult(test, Outcome.PASSED));
                 continue;
             }
-            results.add(new GroundTruthResult(test, confirmFailure(projectDir, test)));
+            results.add(new GroundTruthResult(test, confirmFailure(projectDir, test, moduleByTest.get(test))));
         }
         return new GroundTruthResolution(initialBuild, results);
     }
 
-    private Outcome confirmFailure(Path projectDir, TestIdentity test) {
-        buildRunner.runSingleTest(projectDir, test);
-        Boolean confirmedPassed = parseAllReports(projectDir).get(test);
+    private Outcome confirmFailure(Path projectDir, TestIdentity test, Path moduleDir) {
+        buildRunner.runSingleTest(projectDir, test, moduleDir);
+        Boolean confirmedPassed = parseAllReports(projectDir, new HashMap<>()).get(test);
         return Boolean.TRUE.equals(confirmedPassed) ? Outcome.FLAKY : Outcome.CONFIRMED_FAILED;
     }
 
-    private Map<TestIdentity, Boolean> parseAllReports(Path projectDir) {
+    /**
+     * @param moduleByTest populated (as a side effect) with each discovered test's
+     *                     containing module root, so a later {@link #confirmFailure} can
+     *                     scope its rerun instead of walking the whole reactor
+     */
+    private Map<TestIdentity, Boolean> parseAllReports(Path projectDir, Map<TestIdentity, Path> moduleByTest) {
         Map<TestIdentity, Boolean> merged = new HashMap<>();
         for (Path reportsDir : findReportsDirectories(projectDir)) {
-            merged.putAll(reportParser.parse(reportsDir));
+            Map<TestIdentity, Boolean> parsed = reportParser.parse(reportsDir);
+            merged.putAll(parsed);
+            // <module>/target/surefire-reports -> target -> module root.
+            Path moduleDir = reportsDir.getParent().getParent();
+            parsed.keySet().forEach(test -> moduleByTest.put(test, moduleDir));
         }
         return merged;
     }
