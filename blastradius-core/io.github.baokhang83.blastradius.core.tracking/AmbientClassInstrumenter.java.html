@@ -18,66 +18,86 @@ import org.objectweb.asm.Type;
     private static final String AGENT_INTERNAL_NAME =
             &quot;io/github/baokhang83/blastradius/core/tracking/DependencyTrackingAgent&quot;;
 
-    byte[] instrument(String className, byte[] bytecode) {
+    byte[] instrument(String className, byte[] bytecode, ClassLoader loader) {
 <span class="fc" id="L22">        ClassReader reader = new ClassReader(bytecode);</span>
-<span class="fc" id="L23">        ClassWriter writer = new ClassWriter(reader, ClassWriter.COMPUTE_MAXS);</span>
-<span class="fc" id="L24">        AtomicBoolean changed = new AtomicBoolean();</span>
-<span class="fc" id="L25">        reader.accept(new ClassVisitor(Opcodes.ASM9, writer) {</span>
+        // COMPUTE_FRAMES, not just COMPUTE_MAXS: every NEW/CHECKCAST/etc. we rewrite in
+        // visitTypeInsn shifts bytecode offsets, and COMPUTE_MAXS leaves the class's existing
+        // StackMapTable untouched — its Uninitialized(offset) entries (tracking an object
+        // between NEW and its &lt;init&gt; call) then point past the instructions ASM just inserted,
+        // which JDK 21/25's stricter verifier rejects as &quot;bad offset for Uninitialized&quot; (found
+        // self-hosting: SelectMojo.registerTimingRecorder()'s
+        // `new TimingHistoryRecorder(existing == null ? new AbstractExecutionListener() : existing, ...)`
+        // leaves the outer NEW's Uninitialized(offset) on the stack across the ternary's branch —
+        // see AmbientClassInstrumenterTest for a minimal repro of this exact shape). COMPUTE_FRAMES
+        // recomputes the whole table from the rewritten bytecode instead of patching stale
+        // offsets, at the cost of needing loader to resolve common superclasses below.
+<span class="fc" id="L34">        ClassWriter writer = new ClassWriter(reader, ClassWriter.COMPUTE_FRAMES) {</span>
+            @Override
+            protected ClassLoader getClassLoader() {
+                // Defaults to this ClassWriter's own (agent/ASM) loader, which can't see a
+                // target project's classes when the agent jar and the instrumented class live
+                // in different classloader realms (e.g. a Maven plugin realm during self-host)
+                // — resolving common superclasses would then throw ClassNotFoundException.
+<span class="pc bpc" id="L41" title="1 of 2 branches missed.">                return loader != null ? loader : super.getClassLoader();</span>
+            }
+        };
+<span class="fc" id="L44">        AtomicBoolean changed = new AtomicBoolean();</span>
+<span class="fc" id="L45">        reader.accept(new ClassVisitor(Opcodes.ASM9, writer) {</span>
             @Override
             public MethodVisitor visitMethod(int access, String name, String descriptor, String signature,
                     String[] exceptions) {
-<span class="fc" id="L29">                MethodVisitor delegate = super.visitMethod(access, name, descriptor, signature, exceptions);</span>
-<span class="pc bpc" id="L30" title="1 of 2 branches missed.">                if ((access &amp; (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) {</span>
-<span class="nc" id="L31">                    return delegate;</span>
+<span class="fc" id="L49">                MethodVisitor delegate = super.visitMethod(access, name, descriptor, signature, exceptions);</span>
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">                if ((access &amp; (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) {</span>
+<span class="nc" id="L51">                    return delegate;</span>
                 }
-<span class="fc" id="L33">                changed.set(true);</span>
-<span class="fc" id="L34">                return new MethodVisitor(Opcodes.ASM9, delegate) {</span>
+<span class="fc" id="L53">                changed.set(true);</span>
+<span class="fc" id="L54">                return new MethodVisitor(Opcodes.ASM9, delegate) {</span>
                     @Override
                     public void visitCode() {
-<span class="fc" id="L37">                        super.visitCode();</span>
-<span class="fc" id="L38">                        record(className);</span>
-<span class="fc" id="L39">                    }</span>
+<span class="fc" id="L57">                        super.visitCode();</span>
+<span class="fc" id="L58">                        record(className);</span>
+<span class="fc" id="L59">                    }</span>
 
                     @Override
                     public void visitFieldInsn(int opcode, String owner, String name, String descriptor) {
-<span class="fc" id="L43">                        record(owner.replace('/', '.'));</span>
-<span class="fc" id="L44">                        super.visitFieldInsn(opcode, owner, name, descriptor);</span>
-<span class="fc" id="L45">                    }</span>
+<span class="fc" id="L63">                        record(owner.replace('/', '.'));</span>
+<span class="fc" id="L64">                        super.visitFieldInsn(opcode, owner, name, descriptor);</span>
+<span class="fc" id="L65">                    }</span>
 
                     @Override
                     public void visitTypeInsn(int opcode, String type) {
-<span class="fc" id="L49">                        record(type.replace('/', '.'));</span>
-<span class="fc" id="L50">                        super.visitTypeInsn(opcode, type);</span>
-<span class="fc" id="L51">                    }</span>
+<span class="fc" id="L69">                        record(type.replace('/', '.'));</span>
+<span class="fc" id="L70">                        super.visitTypeInsn(opcode, type);</span>
+<span class="fc" id="L71">                    }</span>
 
                     @Override
                     public void visitLdcInsn(Object value) {
-<span class="fc bfc" id="L55" title="All 2 branches covered.">                        if (value instanceof Type type</span>
-<span class="pc bpc" id="L56" title="3 of 4 branches missed.">                                &amp;&amp; (type.getSort() == Type.OBJECT || type.getSort() == Type.ARRAY)) {</span>
-<span class="fc" id="L57">                            record(type.getClassName());</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">                        if (value instanceof Type type</span>
+<span class="pc bpc" id="L76" title="3 of 4 branches missed.">                                &amp;&amp; (type.getSort() == Type.OBJECT || type.getSort() == Type.ARRAY)) {</span>
+<span class="fc" id="L77">                            record(type.getClassName());</span>
                         }
-<span class="fc" id="L59">                        super.visitLdcInsn(value);</span>
-<span class="fc" id="L60">                    }</span>
+<span class="fc" id="L79">                        super.visitLdcInsn(value);</span>
+<span class="fc" id="L80">                    }</span>
 
                     @Override
                     public void visitMultiANewArrayInsn(String descriptor, int numDimensions) {
-<span class="nc" id="L64">                        record(Type.getType(descriptor).getClassName());</span>
-<span class="nc" id="L65">                        super.visitMultiANewArrayInsn(descriptor, numDimensions);</span>
-<span class="nc" id="L66">                    }</span>
+<span class="nc" id="L84">                        record(Type.getType(descriptor).getClassName());</span>
+<span class="nc" id="L85">                        super.visitMultiANewArrayInsn(descriptor, numDimensions);</span>
+<span class="nc" id="L86">                    }</span>
 
                     private void record(String dependencyClassName) {
-<span class="fc" id="L69">                        super.visitLdcInsn(dependencyClassName);</span>
-<span class="fc" id="L70">                        super.visitMethodInsn(</span>
+<span class="fc" id="L89">                        super.visitLdcInsn(dependencyClassName);</span>
+<span class="fc" id="L90">                        super.visitMethodInsn(</span>
                                 Opcodes.INVOKESTATIC,
                                 AGENT_INTERNAL_NAME,
                                 &quot;recordAmbientExecution&quot;,
                                 &quot;(Ljava/lang/String;)V&quot;,
                                 false);
-<span class="fc" id="L76">                    }</span>
+<span class="fc" id="L96">                    }</span>
                 };
             }
         }, 0);
-<span class="pc bpc" id="L80" title="1 of 2 branches missed.">        return changed.get() ? writer.toByteArray() : null;</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">        return changed.get() ? writer.toByteArray() : null;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

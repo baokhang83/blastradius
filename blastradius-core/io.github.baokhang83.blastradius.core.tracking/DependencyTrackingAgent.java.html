@@ -191,7 +191,7 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         }
 <span class="pc bpc" id="L192" title="3 of 4 branches missed.">        if (classBeingRedefined != null &amp;&amp; pendingAmbientRetransformations.contains(dottedClassName)) {</span>
             try {
-<span class="nc" id="L194">                byte[] instrumented = ambientClassInstrumenter.instrument(dottedClassName, classfileBuffer);</span>
+<span class="nc" id="L194">                byte[] instrumented = ambientClassInstrumenter.instrument(dottedClassName, classfileBuffer, loader);</span>
 <span class="nc bnc" id="L195" title="All 2 branches missed.">                if (instrumented != null) {</span>
 <span class="nc" id="L196">                    ambientChecksums.put(dottedClassName, sha256Hex(classfileBuffer));</span>
 <span class="nc" id="L197">                    transformedAmbientClasses.add(dottedClassName);</span>
@@ -219,7 +219,7 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
                 // reuses an already-loaded instance (e.g. a cached Spring bean) still gets
                 // attributed via the injected callback instead of silently missing it.
                 try {
-<span class="fc" id="L222">                    instrumented = ambientClassInstrumenter.instrument(dottedClassName, classfileBuffer);</span>
+<span class="fc" id="L222">                    instrumented = ambientClassInstrumenter.instrument(dottedClassName, classfileBuffer, loader);</span>
 <span class="pc bpc" id="L223" title="1 of 2 branches missed.">                    if (instrumented != null) {</span>
 <span class="fc" id="L224">                        ambientChecksums.put(dottedClassName, checksum);</span>
                     }
