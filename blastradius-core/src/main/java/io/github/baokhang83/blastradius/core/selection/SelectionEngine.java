@@ -1,6 +1,7 @@
 package io.github.baokhang83.blastradius.core.selection;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
+import io.github.baokhang83.blastradius.core.reactor.ReactorScope;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,8 +39,29 @@ public final class SelectionEngine {
             Set<TestIdentity> newOrModifiedTests,
             List<ChangedFile> changedFiles,
             Set<String> ambientDependencies) {
+        return selectAll(allTests, testDependencies, newOrModifiedTests, changedFiles, ambientDependencies, null);
+    }
 
-        if (fallbackSelector.shouldFallback(changedFiles)) {
+    /**
+     * As {@link #selectAll(Set, Map, Set, List, Set)}, but with an optional {@code reactorScope}.
+     * When present and the NON_SOURCE change is not reactor-wide, the fallback is scoped to the
+     * changed modules and their transitive dependents instead of the whole suite. When
+     * {@code null} (no reactor graph available), behavior is identical to the whole-suite fallback.
+     */
+    public List<SelectionDecision> selectAll(
+            Set<TestIdentity> allTests,
+            Map<TestIdentity, Set<String>> testDependencies,
+            Set<TestIdentity> newOrModifiedTests,
+            List<ChangedFile> changedFiles,
+            Set<String> ambientDependencies,
+            ReactorScope reactorScope) {
+
+        boolean scopedFallback =
+                fallbackSelector.shouldFallback(changedFiles)
+                        && reactorScope != null
+                        && !reactorScope.isReactorWide(changedFiles);
+
+        if (fallbackSelector.shouldFallback(changedFiles) && !scopedFallback) {
             return allTests.stream().map(fallbackSelector::select).toList();
         }
 
@@ -47,12 +69,21 @@ public final class SelectionEngine {
                 .flatMap(file -> file.candidateClassNames().stream())
                 .collect(Collectors.toUnmodifiableSet());
 
+        // The ambient-dependency fallback is a whole-suite escape hatch and outranks reactor
+        // scoping: a class loaded before any tracking window has no trustworthy per-test data,
+        // so no module can be soundly ruled out for it.
         if (ambientDependencySelector.shouldFallback(changedClassNames, ambientDependencies)) {
             return allTests.stream().map(ambientDependencySelector::select).toList();
         }
 
+        ReactorScope affectedScope = scopedFallback ? reactorScope.forChanges(changedFiles) : null;
+
         List<SelectionDecision> decisions = new ArrayList<>();
         for (TestIdentity test : allTests) {
+            if (affectedScope != null && affectedScope.affects(test)) {
+                decisions.add(SelectionDecision.fallbackNonSourceDependentModule(test));
+                continue;
+            }
             if (newOrModifiedTests.contains(test)) {
                 decisions.add(newOrModifiedTestSelector.select(test));
                 continue;

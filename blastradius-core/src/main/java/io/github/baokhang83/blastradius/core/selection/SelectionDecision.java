@@ -40,6 +40,10 @@ public record SelectionDecision(
         return new SelectionDecision(test, true, SelectionReason.FALLBACK_AMBIENT_DEPENDENCY, null);
     }
 
+    public static SelectionDecision fallbackNonSourceDependentModule(TestIdentity test) {
+        return new SelectionDecision(test, true, SelectionReason.FALLBACK_NON_SOURCE_DEPENDENT_MODULE, null);
+    }
+
     public static SelectionDecision newOrModifiedTest(TestIdentity test) {
         return new SelectionDecision(test, true, SelectionReason.NEW_OR_MODIFIED_TEST, null);
     }

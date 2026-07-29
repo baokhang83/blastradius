@@ -41,13 +41,29 @@ class SavingsSummaryAggregatorTest {
                 SelectionDecision.dependencyMatch(test("A"), "com.example.Dep"),
                 SelectionDecision.fallback(test("B")),
                 SelectionDecision.newOrModifiedTest(test("C")),
-                SelectionDecision.noMatch(test("D")));
+                SelectionDecision.fallbackNonSourceDependentModule(test("D")),
+                SelectionDecision.noMatch(test("E")));
 
         SavingsSummary summary = aggregator.aggregate(decisions);
 
         assertEquals(summary.totalSelected(),
                 summary.dependencyMatchedSelections() + summary.fallbackDrivenSelections()
+                        + summary.moduleScopedFallbackSelections()
                         + summary.newOrModifiedTestSelections());
+    }
+
+    @Test
+    void countsModuleScopedFallbackSeparatelyFromWholeSuiteFallback() {
+        List<SelectionDecision> decisions = List.of(
+                SelectionDecision.fallback(test("A")),
+                SelectionDecision.fallbackNonSourceDependentModule(test("B")),
+                SelectionDecision.fallbackNonSourceDependentModule(test("C")),
+                SelectionDecision.noMatch(test("D")));
+
+        SavingsSummary summary = aggregator.aggregate(decisions);
+
+        assertEquals(1, summary.fallbackDrivenSelections());
+        assertEquals(2, summary.moduleScopedFallbackSelections());
     }
 
     @Test

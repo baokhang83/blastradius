@@ -55,6 +55,7 @@ class AnalysisReportContractTest {
         SavingsSummary savings = parsed.savingsSummary();
         assertEquals(savings.totalSelected(),
                 savings.dependencyMatchedSelections() + savings.fallbackDrivenSelections()
+                        + savings.moduleScopedFallbackSelections()
                         + savings.newOrModifiedTestSelections());
     }
 

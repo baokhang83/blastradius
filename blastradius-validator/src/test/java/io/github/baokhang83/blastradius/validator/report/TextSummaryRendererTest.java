@@ -15,7 +15,7 @@ class TextSummaryRendererTest {
 
     @Test
     void rendersAPassVerdictWithSavingsFigures() {
-        SavingsSummary savings = new SavingsSummary(10, 4, 0.6, 1, 2, 1);
+        SavingsSummary savings = new SavingsSummary(10, 4, 0.6, 1, 0, 2, 1);
         AnalysisReport report = new AnalysisReport(Verdict.PASS, List.of(), List.of(), List.of(), List.of(), savings);
 
         String text = renderer.render(report);
@@ -33,7 +33,7 @@ class TextSummaryRendererTest {
         CommitPair pair = CommitPair.analyzed("base123", "head456", List.of());
         WouldMissCase miss = new WouldMissCase(pair, new TestIdentity("com.example.FooTest", "checksAdd"),
                 List.of("com.example.Foo"), "NO_MATCH");
-        SavingsSummary savings = new SavingsSummary(1, 0, 1.0, 0, 0, 0);
+        SavingsSummary savings = new SavingsSummary(1, 0, 1.0, 0, 0, 0, 0);
         AnalysisReport report = new AnalysisReport(Verdict.FAIL, List.of(pair), List.of(), List.of(miss), List.of(), savings);
 
         String text = renderer.render(report);
@@ -55,7 +55,7 @@ class TextSummaryRendererTest {
                 new WouldMissCase(pair, new TestIdentity("com.example.BTest", "b"), List.of("com.example.B"), "NO_MATCH"),
                 new WouldMissCase(pair, new TestIdentity("com.example.CTest", "c"), List.of("com.example.C"), "NO_MATCH"));
         AnalysisReport report = new AnalysisReport(Verdict.FAIL, List.of(pair), List.of(), misses, List.of(),
-                new SavingsSummary(3, 0, 1.0, 0, 0, 0));
+                new SavingsSummary(3, 0, 1.0, 0, 0, 0, 0));
 
         String text = renderer.render(report);
 

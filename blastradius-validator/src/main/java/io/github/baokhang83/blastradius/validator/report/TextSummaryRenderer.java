@@ -37,6 +37,7 @@ public final class TextSummaryRenderer {
                 .append(String.format(" (%.1f%% skipped)%n", savings.proportionSkipped() * 100));
         sb.append("  - dependency-matched: ").append(savings.dependencyMatchedSelections()).append('\n');
         sb.append("  - fallback-driven: ").append(savings.fallbackDrivenSelections()).append('\n');
+        sb.append("  - module-scoped fallback: ").append(savings.moduleScopedFallbackSelections()).append('\n');
         sb.append("  - new-or-modified: ").append(savings.newOrModifiedTestSelections()).append('\n');
 
         if (!report.flakyFailures().isEmpty()) {
