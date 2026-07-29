@@ -4,20 +4,25 @@
  * Aggregate execution-savings evidence across a completed run (FR-008 / SC-003).
  *
  * &lt;p&gt;Invariant: {@code dependencyMatchedSelections + fallbackDrivenSelections +
- * newOrModifiedTestSelections == totalSelected}.
+ * moduleScopedFallbackSelections + newOrModifiedTestSelections == totalSelected}.
  *
- * @param totalTestExecutions          total test executions across all analyzed pairs
- * @param totalSelected                the count that would have been selected
- * @param proportionSkipped            {@code 1 - (totalSelected / totalTestExecutions)}
- * @param fallbackDrivenSelections     subset attributable to the conservative fallback rule
- * @param dependencyMatchedSelections  subset attributable to ordinary dependency matching
- * @param newOrModifiedTestSelections  subset attributable to new/modified tests
+ * @param totalTestExecutions           total test executions across all analyzed pairs
+ * @param totalSelected                 the count that would have been selected
+ * @param proportionSkipped             {@code 1 - (totalSelected / totalTestExecutions)}
+ * @param fallbackDrivenSelections      subset attributable to the whole-suite fallback rule
+ * @param moduleScopedFallbackSelections subset attributable to the reactor-scoped fallback
+ *                                      (a NON_SOURCE change scoped to a changed module and its
+ *                                      dependents) — the savings this narrowing recovers over
+ *                                      the whole-suite fallback
+ * @param dependencyMatchedSelections   subset attributable to ordinary dependency matching
+ * @param newOrModifiedTestSelections   subset attributable to new/modified tests
  */
-<span class="fc" id="L16">public record SavingsSummary(</span>
+<span class="fc" id="L20">public record SavingsSummary(</span>
         int totalTestExecutions,
         int totalSelected,
         double proportionSkipped,
         int fallbackDrivenSelections,
+        int moduleScopedFallbackSelections,
         int dependencyMatchedSelections,
         int newOrModifiedTestSelections) {}
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

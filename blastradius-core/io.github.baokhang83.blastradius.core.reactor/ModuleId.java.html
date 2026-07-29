@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ModuleId.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.reactor</a> &gt; <span class="el_source">ModuleId.java</span></div><h1>ModuleId.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.reactor;
+
+import java.util.Objects;
+
+/**
+ * One reactor module, identified by its Maven {@code artifactId} and its repo-relative
+ * directory. The {@code relativePath} is what attributes a changed file or a test source to
+ * this module; the {@code artifactId} is what inter-module dependency edges reference.
+ *
+ * @param artifactId   the module's Maven artifactId
+ * @param relativePath the module directory, repo-relative, forward-slashed, no trailing slash
+ *                     ({@code &quot;&quot;} for a module rooted at the repository root)
+ */
+public record ModuleId(String artifactId, String relativePath) {
+
+<span class="fc" id="L16">    public ModuleId {</span>
+<span class="fc" id="L17">        Objects.requireNonNull(artifactId, &quot;artifactId&quot;);</span>
+<span class="fc" id="L18">        Objects.requireNonNull(relativePath, &quot;relativePath&quot;);</span>
+<span class="fc" id="L19">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ReactorModuleGraph.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.reactor</a> &gt; <span class="el_source">ReactorModuleGraph.java</span></div><h1>ReactorModuleGraph.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.reactor;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ * The reactor's inter-module dependency graph, derived from the git tree's POM files
+ * (never from Maven's runtime reactor — the shadow-mode validator has no live
+ * {@code MavenProject}). Used to scope the conservative {@code NON_SOURCE} fallback: a change
+ * inside module X can only affect X and the modules that (transitively) depend on X.
+ *
+ * &lt;p&gt;Immutable; build one per commit pair via {@link ReactorModuleGraphBuilder}.
+ */
+public final class ReactorModuleGraph {
+
+    /** Modules with a real directory, longest {@code relativePath} first for deepest-match. */
+    private final List&lt;ModuleId&gt; modulesByDepth;
+    /** For each module, the set of modules that directly depend on it (reverse edges). */
+    private final Map&lt;ModuleId, Set&lt;ModuleId&gt;&gt; directDependents;
+    /** Repo-relative paths whose change affects every module (root aggregator / parent pom). */
+    private final Set&lt;String&gt; reactorWidePaths;
+
+    ReactorModuleGraph(
+            List&lt;ModuleId&gt; modulesByDepth,
+            Map&lt;ModuleId, Set&lt;ModuleId&gt;&gt; directDependents,
+<span class="fc" id="L29">            Set&lt;String&gt; reactorWidePaths) {</span>
+<span class="fc" id="L30">        this.modulesByDepth = List.copyOf(modulesByDepth);</span>
+<span class="fc" id="L31">        this.directDependents = Map.copyOf(directDependents);</span>
+<span class="fc" id="L32">        this.reactorWidePaths = Set.copyOf(reactorWidePaths);</span>
+<span class="fc" id="L33">    }</span>
+
+    /**
+     * The deepest module whose directory contains {@code repoRelativePath}, or empty if the
+     * path lies under no known module (the caller must then treat it as reactor-wide — never
+     * guess narrower).
+     */
+    public Optional&lt;ModuleId&gt; moduleOf(String repoRelativePath) {
+<span class="fc" id="L41">        String path = normalize(repoRelativePath);</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        for (ModuleId module : modulesByDepth) {</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">            if (containsPath(module, path)) {</span>
+<span class="fc" id="L44">                return Optional.of(module);</span>
+            }
+<span class="fc" id="L46">        }</span>
+<span class="fc" id="L47">        return Optional.empty();</span>
+    }
+
+    /**
+     * {@code module} plus every module that transitively depends on it — the full set of
+     * modules a change inside {@code module} could affect.
+     */
+    public Set&lt;ModuleId&gt; dependentsOf(ModuleId module) {
+<span class="fc" id="L55">        Set&lt;ModuleId&gt; reached = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L56">        collectDependents(module, reached);</span>
+<span class="fc" id="L57">        return reached;</span>
+    }
+
+    /**
+     * True when a change to {@code repoRelativePath} must select the whole suite — the root
+     * aggregator pom or any file attributable to no single leaf module.
+     */
+    public boolean isReactorWide(String repoRelativePath) {
+<span class="fc" id="L65">        String path = normalize(repoRelativePath);</span>
+<span class="pc bpc" id="L66" title="1 of 4 branches missed.">        return reactorWidePaths.contains(path) || moduleOf(path).isEmpty();</span>
+    }
+
+    private void collectDependents(ModuleId module, Set&lt;ModuleId&gt; reached) {
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">        if (!reached.add(module)) {</span>
+<span class="nc" id="L71">            return;</span>
+        }
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        for (ModuleId dependent : directDependents.getOrDefault(module, Set.of())) {</span>
+<span class="fc" id="L74">            collectDependents(dependent, reached);</span>
+<span class="fc" id="L75">        }</span>
+<span class="fc" id="L76">    }</span>
+
+    private static boolean containsPath(ModuleId module, String path) {
+<span class="fc" id="L79">        String dir = module.relativePath();</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">        if (dir.isEmpty()) {</span>
+<span class="nc" id="L81">            return true;</span>
+        }
+<span class="pc bpc" id="L83" title="1 of 4 branches missed.">        return path.equals(dir) || path.startsWith(dir + &quot;/&quot;);</span>
+    }
+
+    private static String normalize(String path) {
+<span class="fc" id="L87">        String forward = path.replace('\\', '/');</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        return forward.startsWith(&quot;./&quot;) ? forward.substring(2) : forward;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

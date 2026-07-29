@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>TestModuleIndex.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.reactor</a> &gt; <span class="el_source">TestModuleIndex.java</span></div><h1>TestModuleIndex.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.reactor;
+
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Stream;
+
+/**
+ * Maps a {@link TestIdentity} (a class FQN with no path) to its owning reactor module, by
+ * scanning each module's test-source roots ({@code src/test/java}, {@code src/test/kotlin})
+ * once per commit pair and attributing every discovered source file through the same
+ * {@link ReactorModuleGraph#moduleOf(String)} the changed-file side uses.
+ *
+ * &lt;p&gt;This resolves the design's open decision (option 1, package-root scan). It is derived
+ * purely from the git tree, so it works identically for the Maven plugin and the shadow-mode
+ * validator's historical replay &amp;mdash; neither has a live {@code MavenProject}. A class not
+ * found here resolves to empty, and the caller must then treat the test as reactor-wide
+ * (never guess it into a narrower scope).
+ */
+public final class TestModuleIndex {
+
+    private final Map&lt;String, ModuleId&gt; moduleByClassName;
+
+<span class="fc" id="L29">    private TestModuleIndex(Map&lt;String, ModuleId&gt; moduleByClassName) {</span>
+<span class="fc" id="L30">        this.moduleByClassName = Map.copyOf(moduleByClassName);</span>
+<span class="fc" id="L31">    }</span>
+
+    /**
+     * The module owning {@code test}'s class, or empty if the class was found under no
+     * module's test-source root (caller falls back to the whole suite).
+     */
+    public Optional&lt;ModuleId&gt; moduleOf(TestIdentity test) {
+<span class="fc" id="L38">        return Optional.ofNullable(moduleByClassName.get(test.className()));</span>
+    }
+
+    public static TestModuleIndex fromRepoTree(Path repoRoot, ReactorModuleGraph graph) {
+<span class="fc" id="L42">        Map&lt;String, ModuleId&gt; byClassName = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L43">        try (Stream&lt;Path&gt; tree = Files.walk(repoRoot)) {</span>
+<span class="fc" id="L44">            tree.filter(Files::isRegularFile)</span>
+<span class="fc" id="L45">                    .filter(TestModuleIndex::isTestSource)</span>
+<span class="fc" id="L46">                    .forEach(sourceFile -&gt; {</span>
+<span class="fc" id="L47">                        String relative = repoRoot.relativize(sourceFile).toString().replace('\\', '/');</span>
+<span class="fc" id="L48">                        String className = classNameOf(relative);</span>
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">                        if (className == null) {</span>
+<span class="nc" id="L50">                            return;</span>
+                        }
+<span class="fc" id="L52">                        graph.moduleOf(relative).ifPresent(module -&gt; byClassName.put(className, module));</span>
+<span class="fc" id="L53">                    });</span>
+<span class="nc" id="L54">        } catch (IOException e) {</span>
+<span class="nc" id="L55">            throw new UncheckedIOException(&quot;failed to scan test sources under &quot; + repoRoot, e);</span>
+<span class="fc" id="L56">        }</span>
+<span class="fc" id="L57">        return new TestModuleIndex(byClassName);</span>
+    }
+
+    private static boolean isTestSource(Path file) {
+<span class="fc" id="L61">        String path = file.toString().replace('\\', '/');</span>
+<span class="pc bpc" id="L62" title="2 of 4 branches missed.">        if (path.contains(&quot;/target/&quot;) || path.contains(&quot;/build/&quot;)) {</span>
+<span class="nc" id="L63">            return false;</span>
+        }
+<span class="fc bfc" id="L65" title="All 4 branches covered.">        boolean underTestRoot = path.contains(&quot;/src/test/java/&quot;) || path.contains(&quot;/src/test/kotlin/&quot;);</span>
+<span class="pc bpc" id="L66" title="1 of 6 branches missed.">        return underTestRoot &amp;&amp; (path.endsWith(&quot;.java&quot;) || path.endsWith(&quot;.kt&quot;));</span>
+    }
+
+    /** Derive the FQN from a test-source path by stripping the {@code src/test/{java,kotlin}/} root. */
+    private static String classNameOf(String relativePath) {
+<span class="fc" id="L71">        int javaRoot = relativePath.indexOf(&quot;src/test/java/&quot;);</span>
+<span class="fc" id="L72">        int kotlinRoot = relativePath.indexOf(&quot;src/test/kotlin/&quot;);</span>
+        int start;
+        int rootLength;
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (javaRoot &gt;= 0) {</span>
+<span class="fc" id="L76">            start = javaRoot;</span>
+<span class="fc" id="L77">            rootLength = &quot;src/test/java/&quot;.length();</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">        } else if (kotlinRoot &gt;= 0) {</span>
+<span class="fc" id="L79">            start = kotlinRoot;</span>
+<span class="fc" id="L80">            rootLength = &quot;src/test/kotlin/&quot;.length();</span>
+        } else {
+<span class="nc" id="L82">            return null;</span>
+        }
+<span class="fc" id="L84">        String packagePath = relativePath.substring(start + rootLength);</span>
+<span class="fc" id="L85">        int dot = packagePath.lastIndexOf('.');</span>
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">        String withoutExtension = dot &gt;= 0 ? packagePath.substring(0, dot) : packagePath;</span>
+<span class="fc" id="L87">        return withoutExtension.replace('/', '.');</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

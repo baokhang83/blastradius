@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ReactorScope.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.reactor</a> &gt; <span class="el_source">ReactorScope.java</span></div><h1>ReactorScope.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.reactor;
+
+import io.github.baokhang83.blastradius.core.git.ChangedFile;
+import io.github.baokhang83.blastradius.core.git.FileKind;
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ * The reactor's answer to &quot;which tests can a NON_SOURCE change actually affect?&quot; — the graph
+ * ({@link ReactorModuleGraph}) plus the {@link TestModuleIndex}, computed once per commit pair
+ * and handed to the {@code SelectionEngine} so it can scope the otherwise whole-suite fallback.
+ *
+ * &lt;p&gt;Soundness (Constitution &amp;sect;III) is preserved by two escape hatches, both of which widen
+ * back to the whole suite rather than risk a silent skip:
+ * &lt;ul&gt;
+ *   &lt;li&gt;{@link #isReactorWide(List)} — a root/parent-pom change, or any changed file attributable
+ *       to no leaf module, affects everything.&lt;/li&gt;
+ *   &lt;li&gt;{@link #affects(TestIdentity)} returns {@code true} for any test whose own module can't be
+ *       determined — never guess a test into a narrower scope.&lt;/li&gt;
+ * &lt;/ul&gt;
+ */
+public final class ReactorScope {
+
+    private final ReactorModuleGraph graph;
+    private final TestModuleIndex testModuleIndex;
+    private final Set&lt;ModuleId&gt; affectedModules;
+
+<span class="fc" id="L31">    public ReactorScope(ReactorModuleGraph graph, TestModuleIndex testModuleIndex) {</span>
+<span class="fc" id="L32">        this.graph = graph;</span>
+<span class="fc" id="L33">        this.testModuleIndex = testModuleIndex;</span>
+<span class="fc" id="L34">        this.affectedModules = Set.of();</span>
+<span class="fc" id="L35">    }</span>
+
+<span class="fc" id="L37">    private ReactorScope(ReactorModuleGraph graph, TestModuleIndex testModuleIndex, Set&lt;ModuleId&gt; affectedModules) {</span>
+<span class="fc" id="L38">        this.graph = graph;</span>
+<span class="fc" id="L39">        this.testModuleIndex = testModuleIndex;</span>
+<span class="fc" id="L40">        this.affectedModules = affectedModules;</span>
+<span class="fc" id="L41">    }</span>
+
+    /**
+     * True when the NON_SOURCE change set must select the whole suite because at least one
+     * changed file is reactor-wide (root/parent pom, or unattributable to any leaf module).
+     */
+    public boolean isReactorWide(List&lt;ChangedFile&gt; changedFiles) {
+<span class="fc" id="L48">        return nonSourcePaths(changedFiles).stream().anyMatch(graph::isReactorWide);</span>
+    }
+
+    /**
+     * Returns a scope carrying the set of modules affected by {@code changedFiles}: for each
+     * NON_SOURCE changed file, its owning module plus every module that transitively depends
+     * on it. Call {@link #isReactorWide(List)} first; this assumes no changed file is
+     * reactor-wide.
+     */
+    public ReactorScope forChanges(List&lt;ChangedFile&gt; changedFiles) {
+<span class="fc" id="L58">        Set&lt;ModuleId&gt; affected = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        for (String path : nonSourcePaths(changedFiles)) {</span>
+<span class="fc" id="L60">            graph.moduleOf(path).map(graph::dependentsOf).ifPresent(affected::addAll);</span>
+<span class="fc" id="L61">        }</span>
+<span class="fc" id="L62">        return new ReactorScope(graph, testModuleIndex, Set.copyOf(affected));</span>
+    }
+
+    /**
+     * Whether {@code test} lives in a module the current change set affects. A test whose
+     * module can't be resolved is conservatively treated as affected.
+     */
+    public boolean affects(TestIdentity test) {
+<span class="fc" id="L70">        Optional&lt;ModuleId&gt; module = testModuleIndex.moduleOf(test);</span>
+<span class="pc bpc" id="L71" title="1 of 4 branches missed.">        return module.isEmpty() || affectedModules.contains(module.get());</span>
+    }
+
+    private static List&lt;String&gt; nonSourcePaths(List&lt;ChangedFile&gt; changedFiles) {
+<span class="fc" id="L75">        return changedFiles.stream()</span>
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">                .filter(f -&gt; f.kind() == FileKind.NON_SOURCE)</span>
+<span class="fc" id="L77">                .map(ChangedFile::path)</span>
+<span class="fc" id="L78">                .toList();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

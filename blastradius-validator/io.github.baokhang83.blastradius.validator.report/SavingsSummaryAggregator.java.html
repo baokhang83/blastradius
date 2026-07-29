@@ -11,15 +11,18 @@ import java.util.List;
 <span class="fc" id="L11">        int total = allDecisions.size();</span>
 <span class="fc" id="L12">        int selected = (int) allDecisions.stream().filter(SelectionDecision::selected).count();</span>
 <span class="fc" id="L13">        int fallback = countByReason(allDecisions, SelectionReason.FALLBACK_NON_SOURCE_CHANGE);</span>
-<span class="fc" id="L14">        int dependencyMatched = countByReason(allDecisions, SelectionReason.DEPENDENCY_MATCH);</span>
-<span class="fc" id="L15">        int newOrModified = countByReason(allDecisions, SelectionReason.NEW_OR_MODIFIED_TEST);</span>
-<span class="fc bfc" id="L16" title="All 2 branches covered.">        double proportionSkipped = total == 0 ? 0.0 : 1.0 - ((double) selected / total);</span>
+<span class="fc" id="L14">        int moduleScopedFallback =</span>
+<span class="fc" id="L15">                countByReason(allDecisions, SelectionReason.FALLBACK_NON_SOURCE_DEPENDENT_MODULE);</span>
+<span class="fc" id="L16">        int dependencyMatched = countByReason(allDecisions, SelectionReason.DEPENDENCY_MATCH);</span>
+<span class="fc" id="L17">        int newOrModified = countByReason(allDecisions, SelectionReason.NEW_OR_MODIFIED_TEST);</span>
+<span class="fc bfc" id="L18" title="All 2 branches covered.">        double proportionSkipped = total == 0 ? 0.0 : 1.0 - ((double) selected / total);</span>
 
-<span class="fc" id="L18">        return new SavingsSummary(total, selected, proportionSkipped, fallback, dependencyMatched, newOrModified);</span>
+<span class="fc" id="L20">        return new SavingsSummary(</span>
+                total, selected, proportionSkipped, fallback, moduleScopedFallback, dependencyMatched, newOrModified);
     }
 
     private static int countByReason(List&lt;SelectionDecision&gt; decisions, SelectionReason reason) {
-<span class="fc bfc" id="L22" title="All 2 branches covered.">        return (int) decisions.stream().filter(d -&gt; d.reason() == reason).count();</span>
+<span class="fc bfc" id="L25" title="All 2 branches covered.">        return (int) decisions.stream().filter(d -&gt; d.reason() == reason).count();</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

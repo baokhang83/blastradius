@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ReactorModuleGraphBuilder.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.reactor</a> &gt; <span class="el_source">ReactorModuleGraphBuilder.java</span></div><h1>ReactorModuleGraphBuilder.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.reactor;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+/**
+ * Builds a {@link ReactorModuleGraph} by walking a repository tree for {@code pom.xml} files
+ * and parsing each one's coordinates, dependencies, and parent — all from disk, so it works
+ * identically for the Maven plugin (working tree) and the validator (a checked-out scratch
+ * copy). Never consults Maven's runtime model.
+ */
+<span class="fc" id="L30">public final class ReactorModuleGraphBuilder {</span>
+
+    /** One parsed POM: where it lives and which artifacts it references. */
+<span class="fc" id="L33">    private record PomInfo(</span>
+            String artifactId, String relativePath, boolean aggregator, Set&lt;String&gt; referencedArtifactIds) {}
+
+    public ReactorModuleGraph fromRepoTree(Path repoRoot) {
+<span class="fc" id="L37">        List&lt;PomInfo&gt; poms = parseAllPoms(repoRoot);</span>
+
+<span class="fc" id="L39">        Map&lt;String, ModuleId&gt; byArtifactId = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L40">        List&lt;ModuleId&gt; leafModules = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L41">        Set&lt;String&gt; reactorWidePaths = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        for (PomInfo pom : poms) {</span>
+<span class="fc" id="L43">            ModuleId id = new ModuleId(pom.artifactId(), pom.relativePath());</span>
+<span class="fc" id="L44">            byArtifactId.put(pom.artifactId(), id);</span>
+            // The reactor-root pom, and any file under no leaf module, is reactor-wide (handled
+            // in ReactorModuleGraph.isReactorWide via an empty moduleOf). A module is only a
+            // fallback-scoping unit if it has a real directory to attribute files to.
+<span class="fc bfc" id="L48" title="All 2 branches covered.">            if (!pom.relativePath().isEmpty()) {</span>
+<span class="fc" id="L49">                leafModules.add(id);</span>
+            } else {
+<span class="fc" id="L51">                reactorWidePaths.add(pomPath(pom.relativePath()));</span>
+            }
+<span class="fc" id="L53">        }</span>
+
+        // Reverse edges: for each module referencing artifact R, R -&gt; referrer is a dependent.
+<span class="fc" id="L56">        Map&lt;ModuleId, Set&lt;ModuleId&gt;&gt; directDependents = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        for (PomInfo pom : poms) {</span>
+<span class="fc" id="L58">            ModuleId referrer = byArtifactId.get(pom.artifactId());</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">            for (String referenced : pom.referencedArtifactIds()) {</span>
+<span class="fc" id="L60">                ModuleId target = byArtifactId.get(referenced);</span>
+<span class="pc bpc" id="L61" title="1 of 4 branches missed.">                if (target != null &amp;&amp; !target.equals(referrer)) {</span>
+<span class="fc" id="L62">                    directDependents.computeIfAbsent(target, ignored -&gt; new HashSet&lt;&gt;()).add(referrer);</span>
+                }
+<span class="fc" id="L64">            }</span>
+<span class="fc" id="L65">        }</span>
+
+<span class="fc" id="L67">        List&lt;ModuleId&gt; byDepth = new ArrayList&lt;&gt;(leafModules);</span>
+<span class="fc" id="L68">        byDepth.sort(Comparator.comparingInt((ModuleId m) -&gt; m.relativePath().length()).reversed());</span>
+<span class="fc" id="L69">        return new ReactorModuleGraph(byDepth, directDependents, reactorWidePaths);</span>
+    }
+
+    private static List&lt;PomInfo&gt; parseAllPoms(Path repoRoot) {
+<span class="fc" id="L73">        DocumentBuilder documentBuilder = newDocumentBuilder();</span>
+<span class="fc" id="L74">        try (Stream&lt;Path&gt; tree = Files.walk(repoRoot)) {</span>
+<span class="fc" id="L75">            List&lt;Path&gt; pomFiles = tree</span>
+<span class="pc bpc" id="L76" title="1 of 4 branches missed.">                    .filter(p -&gt; p.getFileName() != null &amp;&amp; p.getFileName().toString().equals(&quot;pom.xml&quot;))</span>
+<span class="fc" id="L77">                    .filter(Files::isRegularFile)</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">                    .filter(p -&gt; !isUnderBuildOutput(repoRoot, p))</span>
+<span class="fc" id="L79">                    .toList();</span>
+<span class="fc" id="L80">            List&lt;PomInfo&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">            for (Path pomFile : pomFiles) {</span>
+<span class="fc" id="L82">                result.add(parsePom(documentBuilder, repoRoot, pomFile));</span>
+<span class="fc" id="L83">            }</span>
+<span class="fc" id="L84">            return result;</span>
+<span class="nc" id="L85">        } catch (IOException e) {</span>
+<span class="nc" id="L86">            throw new UncheckedIOException(&quot;failed to walk repository tree at &quot; + repoRoot, e);</span>
+        }
+    }
+
+    private static PomInfo parsePom(DocumentBuilder documentBuilder, Path repoRoot, Path pomFile) {
+        try {
+<span class="fc" id="L92">            Document doc = documentBuilder.parse(pomFile.toFile());</span>
+<span class="fc" id="L93">            doc.getDocumentElement().normalize();</span>
+<span class="fc" id="L94">            Element project = doc.getDocumentElement();</span>
+
+<span class="fc" id="L96">            String artifactId = childText(project, &quot;artifactId&quot;);</span>
+<span class="fc" id="L97">            String packaging = childTextOrDefault(project, &quot;packaging&quot;, &quot;jar&quot;);</span>
+<span class="fc" id="L98">            String relativePath = toRelativePath(repoRoot, pomFile.getParent());</span>
+
+<span class="fc" id="L100">            Set&lt;String&gt; referenced = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L101">            referenced.addAll(dependencyArtifactIds(project));</span>
+<span class="fc" id="L102">            parentArtifactId(project).ifPresent(referenced::add);</span>
+
+<span class="fc" id="L104">            return new PomInfo(artifactId, relativePath, &quot;pom&quot;.equals(packaging), referenced);</span>
+<span class="nc" id="L105">        } catch (Exception e) {</span>
+<span class="nc" id="L106">            throw new IllegalStateException(&quot;failed to parse pom &quot; + pomFile, e);</span>
+        }
+    }
+
+    private static List&lt;String&gt; dependencyArtifactIds(Element project) {
+<span class="fc" id="L111">        Element dependencies = firstChildElement(project, &quot;dependencies&quot;);</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">        if (dependencies == null) {</span>
+<span class="fc" id="L113">            return List.of();</span>
+        }
+<span class="fc" id="L115">        List&lt;String&gt; ids = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L116">        NodeList deps = dependencies.getElementsByTagName(&quot;dependency&quot;);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        for (int i = 0; i &lt; deps.getLength(); i++) {</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">            if (deps.item(i) instanceof Element dep) {</span>
+<span class="fc" id="L119">                String id = childText(dep, &quot;artifactId&quot;);</span>
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">                if (id != null) {</span>
+<span class="fc" id="L121">                    ids.add(id);</span>
+                }
+            }
+        }
+<span class="fc" id="L125">        return ids;</span>
+    }
+
+    private static java.util.Optional&lt;String&gt; parentArtifactId(Element project) {
+<span class="fc" id="L129">        Element parent = firstChildElement(project, &quot;parent&quot;);</span>
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">        return parent == null ? java.util.Optional.empty()</span>
+<span class="nc" id="L131">                : java.util.Optional.ofNullable(childText(parent, &quot;artifactId&quot;));</span>
+    }
+
+    /** Direct-child element text, ignoring same-named descendants (e.g. dependency/artifactId). */
+    private static String childText(Element parent, String tag) {
+<span class="fc" id="L136">        Element child = firstChildElement(parent, tag);</span>
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">        return child == null ? null : child.getTextContent().trim();</span>
+    }
+
+    private static String childTextOrDefault(Element parent, String tag, String fallback) {
+<span class="fc" id="L141">        String value = childText(parent, tag);</span>
+<span class="pc bpc" id="L142" title="2 of 4 branches missed.">        return value == null || value.isEmpty() ? fallback : value;</span>
+    }
+
+    private static Element firstChildElement(Element parent, String tag) {
+<span class="fc" id="L146">        NodeList children = parent.getChildNodes();</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">        for (int i = 0; i &lt; children.getLength(); i++) {</span>
+<span class="fc" id="L148">            Node node = children.item(i);</span>
+<span class="fc bfc" id="L149" title="All 4 branches covered.">            if (node.getNodeType() == Node.ELEMENT_NODE &amp;&amp; node.getNodeName().equals(tag)) {</span>
+<span class="fc" id="L150">                return (Element) node;</span>
+            }
+        }
+<span class="fc" id="L153">        return null;</span>
+    }
+
+    private static String toRelativePath(Path repoRoot, Path moduleDir) {
+<span class="fc" id="L157">        String relative = repoRoot.relativize(moduleDir).toString().replace('\\', '/');</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">        return relative.equals(&quot;.&quot;) ? &quot;&quot; : relative;</span>
+    }
+
+    private static String pomPath(String moduleRelativePath) {
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">        return moduleRelativePath.isEmpty() ? &quot;pom.xml&quot; : moduleRelativePath + &quot;/pom.xml&quot;;</span>
+    }
+
+    private static boolean isUnderBuildOutput(Path repoRoot, Path pomFile) {
+<span class="fc" id="L166">        String relative = repoRoot.relativize(pomFile).toString().replace('\\', '/');</span>
+<span class="pc bpc" id="L167" title="2 of 4 branches missed.">        return relative.contains(&quot;/target/&quot;) || relative.contains(&quot;/build/&quot;);</span>
+    }
+
+    private static DocumentBuilder newDocumentBuilder() {
+        try {
+<span class="fc" id="L172">            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();</span>
+<span class="fc" id="L173">            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);</span>
+<span class="fc" id="L174">            factory.setFeature(&quot;http://apache.org/xml/features/nonvalidating/load-external-dtd&quot;, false);</span>
+<span class="fc" id="L175">            factory.setNamespaceAware(false);</span>
+<span class="fc" id="L176">            return factory.newDocumentBuilder();</span>
+<span class="nc" id="L177">        } catch (ParserConfigurationException e) {</span>
+<span class="nc" id="L178">            throw new IllegalStateException(&quot;failed to configure XML parser&quot;, e);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

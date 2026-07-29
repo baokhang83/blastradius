@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>SelectionEngine.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.selection</a> &gt; <span class="el_source">SelectionEngine.java</span></div><h1>SelectionEngine.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.selection;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
+import io.github.baokhang83.blastradius.core.reactor.ReactorScope;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,12 +18,12 @@ import java.util.stream.Collectors;
  * Otherwise, the new/modified-test rule (FR-007) takes precedence per test over ordinary
  * dependency matching (FR-002).
  */
-<span class="fc" id="L20">public final class SelectionEngine {</span>
+<span class="fc" id="L21">public final class SelectionEngine {</span>
 
-<span class="fc" id="L22">    private final FallbackSelector fallbackSelector = new FallbackSelector();</span>
-<span class="fc" id="L23">    private final AmbientDependencySelector ambientDependencySelector = new AmbientDependencySelector();</span>
-<span class="fc" id="L24">    private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();</span>
-<span class="fc" id="L25">    private final DependencyMatchSelector dependencyMatchSelector = new DependencyMatchSelector();</span>
+<span class="fc" id="L23">    private final FallbackSelector fallbackSelector = new FallbackSelector();</span>
+<span class="fc" id="L24">    private final AmbientDependencySelector ambientDependencySelector = new AmbientDependencySelector();</span>
+<span class="fc" id="L25">    private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();</span>
+<span class="fc" id="L26">    private final DependencyMatchSelector dependencyMatchSelector = new DependencyMatchSelector();</span>
 
     /**
      * @param allTests           every test in the suite
@@ -38,29 +39,59 @@ import java.util.stream.Collectors;
             Set&lt;TestIdentity&gt; newOrModifiedTests,
             List&lt;ChangedFile&gt; changedFiles,
             Set&lt;String&gt; ambientDependencies) {
+<span class="fc" id="L42">        return selectAll(allTests, testDependencies, newOrModifiedTests, changedFiles, ambientDependencies, null);</span>
+    }
 
-<span class="fc bfc" id="L42" title="All 2 branches covered.">        if (fallbackSelector.shouldFallback(changedFiles)) {</span>
-<span class="fc" id="L43">            return allTests.stream().map(fallbackSelector::select).toList();</span>
+    /**
+     * As {@link #selectAll(Set, Map, Set, List, Set)}, but with an optional {@code reactorScope}.
+     * When present and the NON_SOURCE change is not reactor-wide, the fallback is scoped to the
+     * changed modules and their transitive dependents instead of the whole suite. When
+     * {@code null} (no reactor graph available), behavior is identical to the whole-suite fallback.
+     */
+    public List&lt;SelectionDecision&gt; selectAll(
+            Set&lt;TestIdentity&gt; allTests,
+            Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependencies,
+            Set&lt;TestIdentity&gt; newOrModifiedTests,
+            List&lt;ChangedFile&gt; changedFiles,
+            Set&lt;String&gt; ambientDependencies,
+            ReactorScope reactorScope) {
+
+<span class="fc" id="L59">        boolean scopedFallback =</span>
+<span class="fc bfc" id="L60" title="All 4 branches covered.">                fallbackSelector.shouldFallback(changedFiles)</span>
+                        &amp;&amp; reactorScope != null
+<span class="fc bfc" id="L62" title="All 2 branches covered.">                        &amp;&amp; !reactorScope.isReactorWide(changedFiles);</span>
+
+<span class="fc bfc" id="L64" title="All 4 branches covered.">        if (fallbackSelector.shouldFallback(changedFiles) &amp;&amp; !scopedFallback) {</span>
+<span class="fc" id="L65">            return allTests.stream().map(fallbackSelector::select).toList();</span>
         }
 
-<span class="fc" id="L46">        Set&lt;String&gt; changedClassNames = changedFiles.stream()</span>
-<span class="fc" id="L47">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
-<span class="fc" id="L48">                .collect(Collectors.toUnmodifiableSet());</span>
+<span class="fc" id="L68">        Set&lt;String&gt; changedClassNames = changedFiles.stream()</span>
+<span class="fc" id="L69">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
+<span class="fc" id="L70">                .collect(Collectors.toUnmodifiableSet());</span>
 
-<span class="fc bfc" id="L50" title="All 2 branches covered.">        if (ambientDependencySelector.shouldFallback(changedClassNames, ambientDependencies)) {</span>
-<span class="fc" id="L51">            return allTests.stream().map(ambientDependencySelector::select).toList();</span>
+        // The ambient-dependency fallback is a whole-suite escape hatch and outranks reactor
+        // scoping: a class loaded before any tracking window has no trustworthy per-test data,
+        // so no module can be soundly ruled out for it.
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (ambientDependencySelector.shouldFallback(changedClassNames, ambientDependencies)) {</span>
+<span class="fc" id="L76">            return allTests.stream().map(ambientDependencySelector::select).toList();</span>
         }
 
-<span class="fc" id="L54">        List&lt;SelectionDecision&gt; decisions = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L55" title="All 2 branches covered.">        for (TestIdentity test : allTests) {</span>
-<span class="fc bfc" id="L56" title="All 2 branches covered.">            if (newOrModifiedTests.contains(test)) {</span>
-<span class="fc" id="L57">                decisions.add(newOrModifiedTestSelector.select(test));</span>
-<span class="fc" id="L58">                continue;</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        ReactorScope affectedScope = scopedFallback ? reactorScope.forChanges(changedFiles) : null;</span>
+
+<span class="fc" id="L81">        List&lt;SelectionDecision&gt; decisions = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        for (TestIdentity test : allTests) {</span>
+<span class="fc bfc" id="L83" title="All 4 branches covered.">            if (affectedScope != null &amp;&amp; affectedScope.affects(test)) {</span>
+<span class="fc" id="L84">                decisions.add(SelectionDecision.fallbackNonSourceDependentModule(test));</span>
+<span class="fc" id="L85">                continue;</span>
             }
-<span class="fc" id="L60">            Set&lt;String&gt; dependencies = testDependencies.getOrDefault(test.baselineKey(), Set.of());</span>
-<span class="fc" id="L61">            decisions.add(dependencyMatchSelector.select(test, dependencies, changedClassNames));</span>
-<span class="fc" id="L62">        }</span>
-<span class="fc" id="L63">        return decisions;</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">            if (newOrModifiedTests.contains(test)) {</span>
+<span class="fc" id="L88">                decisions.add(newOrModifiedTestSelector.select(test));</span>
+<span class="fc" id="L89">                continue;</span>
+            }
+<span class="fc" id="L91">            Set&lt;String&gt; dependencies = testDependencies.getOrDefault(test.baselineKey(), Set.of());</span>
+<span class="fc" id="L92">            decisions.add(dependencyMatchSelector.select(test, dependencies, changedClassNames));</span>
+<span class="fc" id="L93">        }</span>
+<span class="fc" id="L94">        return decisions;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
