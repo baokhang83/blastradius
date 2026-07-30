@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import io.github.baokhang83.blastradius.core.index.FileIndexStore;
 import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
+import io.github.baokhang83.blastradius.core.process.MavenLauncher;
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
@@ -51,8 +52,8 @@ final class EndToEndTestSupport {
     }
 
     static List<String> pluginInstallCommand() {
-        return List.of("mvn", "-q", "-pl", "blastradius-maven-plugin", "-am", "install", "-DskipTests",
-                "-Dinvoker.skip=true");
+        return List.of(MavenLauncher.resolve(), "-q", "-pl", "blastradius-maven-plugin", "-am", "install",
+                "-DskipTests", "-Dinvoker.skip=true");
     }
 
     /**
@@ -193,7 +194,8 @@ final class EndToEndTestSupport {
         // from another module's built jar as belonging to this build, and leaves it ambient.
         String agentOption = "-javaagent:" + agentJar.toAbsolutePath() + "=" + outputFile.toAbsolutePath()
                 + " -Dblastradius.projectRoot=" + projectDir.toAbsolutePath();
-        ProcessBuilder pb = new ProcessBuilder("mvn", "-B", "--no-transfer-progress", "clean", "test")
+        ProcessBuilder pb = new ProcessBuilder(
+                MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test")
                 .directory(projectDir.toFile());
         pb.environment().merge("JAVA_TOOL_OPTIONS", agentOption, (a, b) -> a + " " + b);
         runToCompletion(pb);
@@ -215,7 +217,8 @@ final class EndToEndTestSupport {
     }
 
     static String runMvnTest(Path projectDir) throws IOException, InterruptedException {
-        ProcessBuilder pb = new ProcessBuilder("mvn", "-B", "--no-transfer-progress", "clean", "test")
+        ProcessBuilder pb = new ProcessBuilder(
+                MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test")
                 .directory(projectDir.toFile());
         // 10m, not 3m: a TRACK-mode build forks its own nested `mvn clean test` in this
         // same directory (compile, then nested clean+compile+instrumented-test, then this

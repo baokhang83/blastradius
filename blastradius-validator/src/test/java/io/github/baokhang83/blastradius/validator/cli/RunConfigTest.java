@@ -77,6 +77,34 @@ class RunConfigTest {
                 () -> new RunConfig(repo, 10, tempDir.resolve("report.json"), -3));
     }
 
+    @Test
+    void buildTimeoutMinutesDefaultsToFiveWhenNotSupplied(@TempDir Path tempDir) throws Exception {
+        Path repo = initGitRepo(tempDir.resolve("repo"));
+
+        RunConfig config = new RunConfig(repo, 10, tempDir.resolve("report.json"));
+
+        assertEquals(RunConfig.DEFAULT_BUILD_TIMEOUT_MINUTES, config.buildTimeoutMinutes());
+    }
+
+    @Test
+    void buildTimeoutMinutesMustBePositiveWhenSupplied(@TempDir Path tempDir) throws Exception {
+        Path repo = initGitRepo(tempDir.resolve("repo"));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> new RunConfig(repo, 10, tempDir.resolve("report.json"), null, false, 1, 0));
+        assertThrows(IllegalArgumentException.class,
+                () -> new RunConfig(repo, 10, tempDir.resolve("report.json"), null, false, 1, -10));
+    }
+
+    @Test
+    void buildTimeoutMinutesIsCarriedThroughWhenSupplied(@TempDir Path tempDir) throws Exception {
+        Path repo = initGitRepo(tempDir.resolve("repo"));
+
+        RunConfig config = new RunConfig(repo, 10, tempDir.resolve("report.json"), 2, false, 4, 30);
+
+        assertEquals(30, config.buildTimeoutMinutes());
+    }
+
     private static Path initGitRepo(Path dir) throws Exception {
         Files.createDirectories(dir);
         Git.init().setDirectory(dir.toFile()).call().close();

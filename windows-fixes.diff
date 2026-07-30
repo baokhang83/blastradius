@@ -1,0 +1,640 @@
+diff --git a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/process/MavenLauncher.java b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/process/MavenLauncher.java
+new file mode 100644
+index 0000000..db5f1c8
+--- /dev/null
++++ b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/process/MavenLauncher.java
+@@ -0,0 +1,53 @@
++package io.github.baokhang83.blastradius.core.process;
++
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.util.Locale;
++
++/**
++ * Resolves the name of the Maven launcher to hand to {@link ProcessBuilder}, per operating
++ * system. On Windows there is no {@code mvn} executable — Maven ships {@code mvn.cmd} (and
++ * {@code mvn.bat} on older distributions) — and Java's process launcher only appends
++ * {@code .exe} when searching {@code PATH}, so a literal {@code "mvn"} fails with
++ * {@code CreateProcess error=2, The system cannot find the file specified}. Naming the
++ * {@code .cmd} explicitly (or an absolute path to it) is what makes the subprocess start.
++ *
++ * <p>Resolution order:
++ * <ol>
++ *   <li>{@code MAVEN_HOME}/{@code M2_HOME}{@code /bin/<launcher>} if that env var points at a
++ *       real installation — an absolute path never depends on {@code PATH} at all;</li>
++ *   <li>otherwise the bare platform launcher name ({@code mvn.cmd} on Windows, {@code mvn}
++ *       elsewhere), resolved against {@code PATH} by the OS.</li>
++ * </ol>
++ */
++public final class MavenLauncher {
++
++    private MavenLauncher() {}
++
++    private static final boolean IS_WINDOWS =
++            System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
++
++    /** The bare launcher name for this OS: {@code mvn.cmd} on Windows, {@code mvn} otherwise. */
++    public static String launcherName() {
++        return IS_WINDOWS ? "mvn.cmd" : "mvn";
++    }
++
++    /**
++     * The command token to pass as {@code argv[0]}: an absolute path to the launcher inside a
++     * {@code MAVEN_HOME}/{@code M2_HOME} installation when one is set and valid, else the bare
++     * platform launcher name (found via {@code PATH}).
++     */
++    public static String resolve() {
++        for (String var : new String[] {"MAVEN_HOME", "M2_HOME"}) {
++            String home = System.getenv(var);
++            if (home == null || home.isBlank()) {
++                continue;
++            }
++            Path candidate = Path.of(home, "bin", launcherName());
++            if (Files.isRegularFile(candidate)) {
++                return candidate.toAbsolutePath().toString();
++            }
++        }
++        return launcherName();
++    }
++}
+diff --git a/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/process/MavenLauncherTest.java b/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/process/MavenLauncherTest.java
+new file mode 100644
+index 0000000..a84ed99
+--- /dev/null
++++ b/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/process/MavenLauncherTest.java
+@@ -0,0 +1,48 @@
++package io.github.baokhang83.blastradius.core.process;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertTrue;
++
++import java.util.Locale;
++import org.junit.jupiter.api.Test;
++
++class MavenLauncherTest {
++
++    private static final boolean IS_WINDOWS =
++            System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
++
++    @Test
++    void launcherNameIsTheCmdScriptOnWindowsAndBareMvnElsewhere() {
++        // The whole point of this class: Windows has no `mvn` executable — Maven ships
++        // `mvn.cmd` — and Java's ProcessBuilder only appends `.exe` when resolving a bare
++        // name against PATH, so a literal "mvn" fails with CreateProcess error=2. Every
++        // other OS uses the bare `mvn` shell script.
++        if (IS_WINDOWS) {
++            assertEquals("mvn.cmd", MavenLauncher.launcherName());
++        } else {
++            assertEquals("mvn", MavenLauncher.launcherName());
++        }
++    }
++
++    @Test
++    void resolveFallsBackToTheBareLauncherNameWhenNoMavenHomePointsAtARealInstall() {
++        // With no valid MAVEN_HOME/M2_HOME on this machine, resolve() must degrade to the
++        // bare platform launcher name (found via PATH) rather than an absolute path — and
++        // that name must still be the OS-correct one, never a naked "mvn" on Windows.
++        String resolved = MavenLauncher.resolve();
++        assertTrue(resolved.endsWith(MavenLauncher.launcherName()),
++                "resolve() must end with the OS launcher name, got: " + resolved);
++    }
++
++    @Test
++    void resolveNeverReturnsABareMvnTokenThatWouldFailToLaunchOnWindows() {
++        // Guards the regression this class exists to prevent: on Windows the resolved
++        // command must never be the literal "mvn" (the token that throws CreateProcess
++        // error=2). It's either an absolute path into a Maven install or "mvn.cmd".
++        String resolved = MavenLauncher.resolve();
++        if (IS_WINDOWS) {
++            assertTrue(!resolved.equals("mvn"),
++                    "on Windows the launcher must be mvn.cmd or an absolute path, never bare mvn");
++        }
++    }
++}
+diff --git a/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/tracking/DependencyTrackingIntegrationTest.java b/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/tracking/DependencyTrackingIntegrationTest.java
+index e45925a..dbd98cd 100644
+--- a/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/tracking/DependencyTrackingIntegrationTest.java
++++ b/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/tracking/DependencyTrackingIntegrationTest.java
+@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
+ import static org.junit.jupiter.api.Assertions.assertTrue;
+ import static org.junit.jupiter.api.Assertions.fail;
+ 
++import io.github.baokhang83.blastradius.core.process.MavenLauncher;
+ import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
+ import java.io.IOException;
+ import java.nio.charset.StandardCharsets;
+@@ -260,7 +261,7 @@ class DependencyTrackingIntegrationTest {
+             throws IOException, InterruptedException {
+         String argLine = "-javaagent:" + agentJar.toAbsolutePath() + "=" + recordFile.toAbsolutePath();
+         ProcessBuilder pb = new ProcessBuilder(
+-                "mvn", "-B", "--no-transfer-progress", "test", "-DargLine=" + argLine)
++                MavenLauncher.resolve(), "-B", "--no-transfer-progress", "test", "-DargLine=" + argLine)
+                 .directory(projectDir.toFile())
+                 .redirectErrorStream(true);
+         Process process = pb.start();
+diff --git a/blastradius-maven-plugin/src/main/java/io/github/baokhang83/blastradius/plugin/track/TrackRunner.java b/blastradius-maven-plugin/src/main/java/io/github/baokhang83/blastradius/plugin/track/TrackRunner.java
+index 61414c4..7a3cc7f 100644
+--- a/blastradius-maven-plugin/src/main/java/io/github/baokhang83/blastradius/plugin/track/TrackRunner.java
++++ b/blastradius-maven-plugin/src/main/java/io/github/baokhang83/blastradius/plugin/track/TrackRunner.java
+@@ -1,5 +1,6 @@
+ package io.github.baokhang83.blastradius.plugin.track;
+ 
++import io.github.baokhang83.blastradius.core.process.MavenLauncher;
+ import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
+ import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
+ import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+@@ -60,7 +61,7 @@ public final class TrackRunner {
+         // resolve TRACK again (same commit, same baseRef) and recurse without bound — see
+         // SelectMojo.trackChild's javadoc.
+         ProcessBuilder processBuilder = new ProcessBuilder(
+-                "mvn", "-B", "--no-transfer-progress", "-Dblastradius.trackChild=true",
++                MavenLauncher.resolve(), "-B", "--no-transfer-progress", "-Dblastradius.trackChild=true",
+                 "-DargLine=" + trackedArgLine, "clean", "test")
+                 .directory(projectDir.toFile())
+                 .redirectErrorStream(true);
+diff --git a/blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/EndToEndTestSupport.java b/blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/EndToEndTestSupport.java
+index 83719c2..e3dcaf0 100644
+--- a/blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/EndToEndTestSupport.java
++++ b/blastradius-maven-plugin/src/test/java/io/github/baokhang83/blastradius/plugin/mojo/EndToEndTestSupport.java
+@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.fail;
+ 
+ import io.github.baokhang83.blastradius.core.index.FileIndexStore;
+ import io.github.baokhang83.blastradius.core.index.CommitIndexKey;
++import io.github.baokhang83.blastradius.core.process.MavenLauncher;
+ import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
+ import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
+ import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
+@@ -51,8 +52,8 @@ final class EndToEndTestSupport {
+     }
+ 
+     static List<String> pluginInstallCommand() {
+-        return List.of("mvn", "-q", "-pl", "blastradius-maven-plugin", "-am", "install", "-DskipTests",
+-                "-Dinvoker.skip=true");
++        return List.of(MavenLauncher.resolve(), "-q", "-pl", "blastradius-maven-plugin", "-am", "install",
++                "-DskipTests", "-Dinvoker.skip=true");
+     }
+ 
+     /**
+@@ -193,7 +194,8 @@ final class EndToEndTestSupport {
+         // from another module's built jar as belonging to this build, and leaves it ambient.
+         String agentOption = "-javaagent:" + agentJar.toAbsolutePath() + "=" + outputFile.toAbsolutePath()
+                 + " -Dblastradius.projectRoot=" + projectDir.toAbsolutePath();
+-        ProcessBuilder pb = new ProcessBuilder("mvn", "-B", "--no-transfer-progress", "clean", "test")
++        ProcessBuilder pb = new ProcessBuilder(
++                MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test")
+                 .directory(projectDir.toFile());
+         pb.environment().merge("JAVA_TOOL_OPTIONS", agentOption, (a, b) -> a + " " + b);
+         runToCompletion(pb);
+@@ -215,7 +217,8 @@ final class EndToEndTestSupport {
+     }
+ 
+     static String runMvnTest(Path projectDir) throws IOException, InterruptedException {
+-        ProcessBuilder pb = new ProcessBuilder("mvn", "-B", "--no-transfer-progress", "clean", "test")
++        ProcessBuilder pb = new ProcessBuilder(
++                MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test")
+                 .directory(projectDir.toFile());
+         // 10m, not 3m: a TRACK-mode build forks its own nested `mvn clean test` in this
+         // same directory (compile, then nested clean+compile+instrumented-test, then this
+diff --git a/blastradius-s3-index-store/src/main/java/io/github/baokhang83/blastradius/s3/S3IndexStore.java b/blastradius-s3-index-store/src/main/java/io/github/baokhang83/blastradius/s3/S3IndexStore.java
+index ed85eec..feae304 100644
+--- a/blastradius-s3-index-store/src/main/java/io/github/baokhang83/blastradius/s3/S3IndexStore.java
++++ b/blastradius-s3-index-store/src/main/java/io/github/baokhang83/blastradius/s3/S3IndexStore.java
+@@ -64,6 +64,14 @@ public final class S3IndexStore<T> implements IndexStore<T>, AutoCloseable {
+         if (key == null || key.isBlank()) {
+             throw new IllegalArgumentException("index key must not be blank");
+         }
++        // An S3 object key is a logical, always-forward-slash path, so absoluteness must be
++        // judged OS-independently: a leading '/' (or '\') is "absolute" for our purposes even
++        // though Path.of("/x").isAbsolute() is false on Windows, where an absolute path needs a
++        // drive letter — relying on Path.isAbsolute() alone lets "/absolute/key" slip the guard
++        // on Windows.
++        if (key.startsWith("/") || key.startsWith("\\")) {
++            throw new IllegalArgumentException("index key must stay below the configured S3 prefix: " + key);
++        }
+         try {
+             Path path = Path.of(key).normalize();
+             if (path.isAbsolute() || path.getNameCount() == 0 || path.startsWith("..")) {
+diff --git a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/build/MavenBuildRunner.java b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/build/MavenBuildRunner.java
+index 01768ed..ffaaecc 100644
+--- a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/build/MavenBuildRunner.java
++++ b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/build/MavenBuildRunner.java
+@@ -1,5 +1,6 @@
+ package io.github.baokhang83.blastradius.validator.build;
+ 
++import io.github.baokhang83.blastradius.core.process.MavenLauncher;
+ import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+ import java.io.IOException;
+ import java.io.UncheckedIOException;
+@@ -20,15 +21,26 @@ import java.util.Set;
+  */
+ public final class MavenBuildRunner {
+ 
+-    private static final long TIMEOUT_MINUTES = 5;
++    /**
++     * Default ceiling for a single {@code mvn} build, used when the operator doesn't override it
++     * via {@code --build-timeout-minutes}. Five minutes fits a small-to-medium reactor; a large
++     * one (e.g. apache/shenyu, whose full {@code clean test} runs well past this) needs a higher
++     * value or every build is killed mid-flight and misreported as a build failure.
++     */
++    private static final long DEFAULT_TIMEOUT_MINUTES = 5;
+ 
+     private final Integer parallelThreads;
++    private final long timeoutMinutes;
+ 
+     /** No {@code -T} flag: the target project's reactor builds serially, as it always has. */
+     public MavenBuildRunner() {
+         this(null);
+     }
+ 
++    public MavenBuildRunner(Integer parallelThreads) {
++        this(parallelThreads, DEFAULT_TIMEOUT_MINUTES);
++    }
++
+     /**
+      * @param parallelThreads value passed to Maven's own {@code -T} reactor-parallelism
+      *                        flag (e.g. {@code 4}), or {@code null} to omit it and build
+@@ -36,12 +48,20 @@ public final class MavenBuildRunner {
+      *                        the tracking agent attaches identically per fork; the risk
+      *                        this trades in is target projects with non-thread-safe
+      *                        build plugins that only misbehave under a parallel reactor.
++     * @param timeoutMinutes  how long a single {@code mvn} build may run before it is killed and
++     *                        reported as timed out. Must be positive. A large reactor legitimately
++     *                        exceeds the {@value #DEFAULT_TIMEOUT_MINUTES}-minute default, so this
++     *                        is operator-tunable rather than fixed.
+      */
+-    public MavenBuildRunner(Integer parallelThreads) {
++    public MavenBuildRunner(Integer parallelThreads, long timeoutMinutes) {
+         if (parallelThreads != null && parallelThreads < 1) {
+             throw new IllegalArgumentException("parallelThreads must be positive, got: " + parallelThreads);
+         }
++        if (timeoutMinutes < 1) {
++            throw new IllegalArgumentException("timeoutMinutes must be positive, got: " + timeoutMinutes);
++        }
+         this.parallelThreads = parallelThreads;
++        this.timeoutMinutes = timeoutMinutes;
+     }
+ 
+     /**
+@@ -148,13 +168,14 @@ public final class MavenBuildRunner {
+             outputReader.start();
+ 
+             Set<ProcessHandle> descendants =
+-                    awaitDescendantsWhileAlive(process, Duration.ofMinutes(TIMEOUT_MINUTES));
++                    awaitDescendantsWhileAlive(process, Duration.ofMinutes(timeoutMinutes));
+             outputReader.join();
+ 
+             if (process.isAlive()) {
+                 process.destroyForcibly();
+                 descendants.forEach(ProcessHandle::destroyForcibly);
+-                throw new IllegalStateException("mvn test timed out against " + projectDir);
++                throw new IllegalStateException(
++                        "mvn test timed out against " + projectDir + " after " + timeoutMinutes + "m");
+             }
+             // mvn itself exiting is not proof every process it spawned has: Surefire can
+             // give up on and report a broken/unresponsive fork as failed the instant its
+@@ -237,7 +258,7 @@ public final class MavenBuildRunner {
+         // instead of recompiling the whole module + its -am dependencies from scratch
+         // on every one of the N+1 reruns. Surefire still overwrites each rerun test
+         // class's own report file, so parsing stays correct without a clean.
+-        List<String> args = new ArrayList<>(List.of("mvn", "-B", "--no-transfer-progress"));
++        List<String> args = new ArrayList<>(List.of(MavenLauncher.resolve(), "-B", "--no-transfer-progress"));
+         if (clean) {
+             args.add("clean");
+         }
+diff --git a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/Main.java b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/Main.java
+index 5390a16..1b48473 100644
+--- a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/Main.java
++++ b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/Main.java
+@@ -10,7 +10,8 @@ import java.nio.file.Path;
+ /**
+  * CLI entry point. Usage:
+  * {@code blastradius-validator run --project-path <path> --commits <N> --report-out <path>
+- * [--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth] [--build-concurrency <K>]}
++ * [--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth] [--build-concurrency <K>]
++ * [--build-timeout-minutes <M>]}
+  */
+ public final class Main {
+ 
+@@ -18,7 +19,7 @@ public final class Main {
+         if (args.length == 0 || !"run".equals(args[0])) {
+             System.err.println("usage: run --project-path <path> --commits <N> --report-out <path> "
+                     + "[--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth] "
+-                    + "[--build-concurrency <K>]");
++                    + "[--build-concurrency <K>] [--build-timeout-minutes <M>]");
+             System.exit(2);
+             return;
+         }
+@@ -30,6 +31,7 @@ public final class Main {
+         Integer mavenThreads = null;
+         boolean fastGroundTruth = false;
+         int buildConcurrency = 1;
++        long buildTimeoutMinutes = RunConfig.DEFAULT_BUILD_TIMEOUT_MINUTES;
+ 
+         for (int i = 1; i < args.length; i++) {
+             switch (args[i]) {
+@@ -40,6 +42,7 @@ public final class Main {
+                 case "--maven-threads" -> mavenThreads = Integer.parseInt(args[++i]);
+                 case "--fast-ground-truth" -> fastGroundTruth = true;
+                 case "--build-concurrency" -> buildConcurrency = Integer.parseInt(args[++i]);
++                case "--build-timeout-minutes" -> buildTimeoutMinutes = Long.parseLong(args[++i]);
+                 default -> {
+                     System.err.println("unknown argument: " + args[i]);
+                     System.exit(2);
+@@ -55,8 +58,8 @@ public final class Main {
+         }
+ 
+         try {
+-            RunConfig config =
+-                    new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth, buildConcurrency);
++            RunConfig config = new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth,
++                    buildConcurrency, buildTimeoutMinutes);
+             int exitCode = new RunCommand().run(config);
+             printSummary(reportOut, summaryOut, exitCode);
+             System.exit(exitCode);
+diff --git a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/RunCommand.java b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/RunCommand.java
+index 5e9cc67..43356f3 100644
+--- a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/RunCommand.java
++++ b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/RunCommand.java
+@@ -105,7 +105,7 @@ public final class RunCommand {
+      */
+     public int run(RunConfig config, Path agentJar) {
+         try {
+-            buildRunner = new MavenBuildRunner(config.mavenParallelThreads());
++            buildRunner = new MavenBuildRunner(config.mavenParallelThreads(), config.buildTimeoutMinutes());
+             groundTruthResolver = new GroundTruthResolver(buildRunner);
+ 
+             jdkMismatchDetector.detect(config.projectPath()).ifPresent(System.err::println);
+@@ -324,12 +324,27 @@ public final class RunCommand {
+         GroundTruthResolution resolution = groundTruthResolver.resolve(
+                 workDir, agentAttached ? agentJar : null, depsFile);
+         if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), workDir)) {
+-            return CommitBuild.failed("commit " + sha + " failed to build");
++            return CommitBuild.failed("commit " + sha + " failed to build (exit "
++                    + resolution.initialBuild().exitCode() + "):\n"
++                    + tail(resolution.initialBuild().output(), 4000));
+         }
+         DependencyRecordSet recordSet = agentAttached ? new DependencyRecordReader().readAll(depsFile) : null;
+         return CommitBuild.succeeded(recordSet, resolution.results());
+     }
+ 
++    /**
++     * The last {@code maxChars} of {@code text} (whole thing if shorter), for surfacing why a
++     * build failed without dumping the entire reactor log into the failure reason. Maven prints
++     * the real cause — a compile error, an unresolved dependency, a plugin that can't launch —
++     * at the very end, so the tail is where the signal is.
++     */
++    private static String tail(String text, int maxChars) {
++        if (text == null || text.isEmpty()) {
++            return "(no build output captured)";
++        }
++        return text.length() <= maxChars ? text : "..." + text.substring(text.length() - maxChars);
++    }
++
+     /**
+      * Builds the reactor scope from an already-materialized head tree. Best-effort: if the tree
+      * can't be parsed into a graph (a malformed or unusual POM in some historical commit),
+diff --git a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/RunConfig.java b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/RunConfig.java
+index 4f085e6..9c30280 100644
+--- a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/RunConfig.java
++++ b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/RunConfig.java
+@@ -29,23 +29,40 @@ import java.util.Objects;
+  *                             (e.g. {@code -T 2} &times; {@code build-concurrency 4}). Purely
+  *                             a scheduling lever: it never changes which builds run or how
+  *                             they are compared, so it is orthogonal to §III.
++ * @param buildTimeoutMinutes  how long a single {@code mvn} build may run before it is killed and
++ *                             reported as timed out. Defaults to {@code 5}. A large reactor
++ *                             (e.g. apache/shenyu) legitimately runs a full {@code clean test}
++ *                             past five minutes, so this must be raised there or every build is
++ *                             killed mid-flight and misclassified as a build failure.
+  */
+ public record RunConfig(
+         Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
+-        boolean fastGroundTruth, int buildConcurrency) {
++        boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes) {
++
++    /** Default build timeout in minutes when the operator doesn't override it. */
++    public static final long DEFAULT_BUILD_TIMEOUT_MINUTES = 5;
+ 
+     public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath) {
+-        this(projectPath, commitWindowSize, reportOutputPath, null, false, 1);
++        this(projectPath, commitWindowSize, reportOutputPath, null, false, 1, DEFAULT_BUILD_TIMEOUT_MINUTES);
+     }
+ 
+     public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads) {
+-        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, false, 1);
++        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, false, 1,
++                DEFAULT_BUILD_TIMEOUT_MINUTES);
+     }
+ 
+     public RunConfig(
+             Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
+             boolean fastGroundTruth) {
+-        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth, 1);
++        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth, 1,
++                DEFAULT_BUILD_TIMEOUT_MINUTES);
++    }
++
++    public RunConfig(
++            Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
++            boolean fastGroundTruth, int buildConcurrency) {
++        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,
++                buildConcurrency, DEFAULT_BUILD_TIMEOUT_MINUTES);
+     }
+ 
+     public RunConfig {
+@@ -70,5 +87,8 @@ public record RunConfig(
+         if (buildConcurrency < 1) {
+             throw new IllegalArgumentException("buildConcurrency must be positive, got: " + buildConcurrency);
+         }
++        if (buildTimeoutMinutes < 1) {
++            throw new IllegalArgumentException("buildTimeoutMinutes must be positive, got: " + buildTimeoutMinutes);
++        }
+     }
+ }
+diff --git a/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/build/MavenBuildRunnerTest.java b/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/build/MavenBuildRunnerTest.java
+index 4c352b6..c89e48e 100644
+--- a/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/build/MavenBuildRunnerTest.java
++++ b/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/build/MavenBuildRunnerTest.java
+@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
+ import static org.junit.jupiter.api.Assertions.assertThrows;
+ import static org.junit.jupiter.api.Assertions.assertTrue;
+ 
++import io.github.baokhang83.blastradius.core.process.MavenLauncher;
+ import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
+ import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
+ import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+@@ -198,7 +199,7 @@ class MavenBuildRunnerTest {
+     void moduleScopedSingleTestAddsPlAndAlsoMake() {
+         assertArrayEquals(
+                 new String[] {
+-                    "mvn", "-B", "--no-transfer-progress", "clean", "test",
++                    MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test",
+                     "-Dtest=com.example.FooTest#passes",
+                     "-DfailIfNoTests=false", "-Dsurefire.failIfNoSpecifiedTests=false",
+                     "-pl", "moduleB", "-am"
+@@ -210,7 +211,7 @@ class MavenBuildRunnerTest {
+     void nullModulePathOmitsPlAndAlsoMake() {
+         assertArrayEquals(
+                 new String[] {
+-                    "mvn", "-B", "--no-transfer-progress", "clean", "test",
++                    MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test",
+                     "-Dtest=com.example.FooTest#passes",
+                     "-DfailIfNoTests=false", "-Dsurefire.failIfNoSpecifiedTests=false"
+                 },
+@@ -221,7 +222,7 @@ class MavenBuildRunnerTest {
+     void cleanFalseOmitsTheCleanGoal() {
+         assertArrayEquals(
+                 new String[] {
+-                    "mvn", "-B", "--no-transfer-progress", "test",
++                    MavenLauncher.resolve(), "-B", "--no-transfer-progress", "test",
+                     "-Dtest=com.example.FooTest#passes",
+                     "-DfailIfNoTests=false", "-Dsurefire.failIfNoSpecifiedTests=false",
+                     "-pl", "moduleB", "-am"
+@@ -277,14 +278,14 @@ class MavenBuildRunnerTest {
+     @Test
+     void noParallelThreadsOmitsTheTFlag() {
+         assertArrayEquals(
+-                new String[] {"mvn", "-B", "--no-transfer-progress", "clean", "test"},
++                new String[] {MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test"},
+                 new MavenBuildRunner().command(null));
+     }
+ 
+     @Test
+     void parallelThreadsAddsTheTFlagToTheMavenCommand() {
+         assertArrayEquals(
+-                new String[] {"mvn", "-B", "--no-transfer-progress", "clean", "test", "-T", "4"},
++                new String[] {MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test", "-T", "4"},
+                 new MavenBuildRunner(4).command(null));
+     }
+ 
+@@ -294,6 +295,12 @@ class MavenBuildRunnerTest {
+         assertThrows(IllegalArgumentException.class, () -> new MavenBuildRunner(-1));
+     }
+ 
++    @Test
++    void nonPositiveTimeoutIsRejected() {
++        assertThrows(IllegalArgumentException.class, () -> new MavenBuildRunner(null, 0));
++        assertThrows(IllegalArgumentException.class, () -> new MavenBuildRunner(2, -5));
++    }
++
+     private static Path findOwnAgentJar() throws IOException {
+         Path targetDir = Path.of("target");
+         try (var stream = Files.list(targetDir)) {
+diff --git a/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/cli/RunConfigTest.java b/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/cli/RunConfigTest.java
+index bd92912..1a3f43b 100644
+--- a/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/cli/RunConfigTest.java
++++ b/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/cli/RunConfigTest.java
+@@ -77,6 +77,34 @@ class RunConfigTest {
+                 () -> new RunConfig(repo, 10, tempDir.resolve("report.json"), -3));
+     }
+ 
++    @Test
++    void buildTimeoutMinutesDefaultsToFiveWhenNotSupplied(@TempDir Path tempDir) throws Exception {
++        Path repo = initGitRepo(tempDir.resolve("repo"));
++
++        RunConfig config = new RunConfig(repo, 10, tempDir.resolve("report.json"));
++
++        assertEquals(RunConfig.DEFAULT_BUILD_TIMEOUT_MINUTES, config.buildTimeoutMinutes());
++    }
++
++    @Test
++    void buildTimeoutMinutesMustBePositiveWhenSupplied(@TempDir Path tempDir) throws Exception {
++        Path repo = initGitRepo(tempDir.resolve("repo"));
++
++        assertThrows(IllegalArgumentException.class,
++                () -> new RunConfig(repo, 10, tempDir.resolve("report.json"), null, false, 1, 0));
++        assertThrows(IllegalArgumentException.class,
++                () -> new RunConfig(repo, 10, tempDir.resolve("report.json"), null, false, 1, -10));
++    }
++
++    @Test
++    void buildTimeoutMinutesIsCarriedThroughWhenSupplied(@TempDir Path tempDir) throws Exception {
++        Path repo = initGitRepo(tempDir.resolve("repo"));
++
++        RunConfig config = new RunConfig(repo, 10, tempDir.resolve("report.json"), 2, false, 4, 30);
++
++        assertEquals(30, config.buildTimeoutMinutes());
++    }
++
+     private static Path initGitRepo(Path dir) throws Exception {
+         Files.createDirectories(dir);
+         Git.init().setDirectory(dir.toFile()).call().close();
+diff --git a/docs/fluencyloop/features/cut-shadow-mode-validator-time-below-2-min-per-commit-pair-a/sessions/windows-mvn-launcher-fix.md b/docs/fluencyloop/features/cut-shadow-mode-validator-time-below-2-min-per-commit-pair-a/sessions/windows-mvn-launcher-fix.md
+new file mode 100644
+index 0000000..1d876f1
+--- /dev/null
++++ b/docs/fluencyloop/features/cut-shadow-mode-validator-time-below-2-min-per-commit-pair-a/sessions/windows-mvn-launcher-fix.md
+@@ -0,0 +1,73 @@
++# Session: Windows mvn launcher fix
++
++- **intent:** Windows mvn launcher fix
++- **started:** 2026-07-30
++
++<!--
++FluencyLoop Stage 3 — a session is a slice of the build. It holds two persistent records:
++  1. Knowledge transfer — what the developer was made fluent in this slice (you write it).
++  2. Decisions — the genuine forks, appended by `fluencyloop decision` (the script formats them).
++
++Everything below is scaffolding in comments — nothing to delete. Write knowledge transfer under
++its headings; add each decision with
++  fluencyloop decision --where <file/area> --why <rationale> [--alternative <rejected + why>] \
++                       [--title <chose X over Y>] [--constitution §N] [--trust verified|unverified]
++so the block is formatted deterministically and you never hand-write the bullet schema. No
++`commits:` field: the feature is a branch, so the PR view derives commits live from git.
++
++KNOWLEDGE-TRANSFER — one bullet per component/role/mechanism explained:
++  **<subject>** — <what it does, under what conditions> · status: documented | follow-up
++  Make it RICH: cover the inventory AND the non-obvious, hard-won lessons (a bug's root cause,
++  why something is done an odd way, a documented limitation). Describe the WORK, never a person
++  (no competence, no "who knew what") — these files are committed and name an author via git.
++
++DECISION fields (assembled by `fluencyloop decision`):
++  where        — file/area (NOT a line number — survives refactoring)
++  why          — the rationale, taught live before it was written
++  alternative  — the rejected option and why (what makes it rationale, not description)
++  design       — (optional) ../design.md#anchor
++  constitution — (optional) §N
++  trust        — ✓ verified | ⚠ not independently verified (about the DECISION, never the person)
++-->
++
++---
++
++## Knowledge transfer
++
++_The ground this slice makes understandable — components, roles, and conditions explained,
++persisted so the fluency doesn't evaporate with the conversation. About the work, never a person._
++
++### Components (role, conditions)
++
++- **`MavenLauncher` (blastradius-core, `process` package)** — the single OS-aware resolver for the command token every `mvn` fork in the codebase hands to `ProcessBuilder`. `launcherName()` returns `mvn.cmd` on Windows and `mvn` elsewhere; `resolve()` returns an absolute path into `MAVEN_HOME`/`M2_HOME`'s `bin/` when one is set and the launcher file actually exists there, else the bare `launcherName()`. Lives in core because both downstream modules already depend on core. · status: documented
++- **Two production call sites** — `MavenBuildRunner.command(...)` (validator) builds the argv list starting with `MavenLauncher.resolve()`; `TrackRunner.track(...)` (maven-plugin) does the same for its `clean test` fork. Both previously hardcoded the literal `"mvn"`. · status: documented
++- **Tests pin argv[0] to `MavenLauncher.resolve()`, not `"mvn"`** — `MavenBuildRunnerTest`'s five `command()`-composition assertions validate the *flags* (`-B`, `clean`, `-Dtest=`, `-pl/-am`, `-T`), so they must use the same resolver the production code does rather than re-asserting a literal launcher token that is wrong on Windows. A dedicated `MavenLauncherTest` (3 tests) covers the launcher logic itself. · status: documented
++
++### Hard-won conditions (gotchas, root causes, limitations)
++
++- **`CreateProcess error=2` on Windows was a bare-name resolution bug, not a missing Maven** — Windows has no `mvn` executable; Maven ships `mvn.cmd`. Java's `ProcessBuilder` only appends `.exe` (never `.cmd`/`.bat`) when resolving a bare argv[0] against `PATH`, so a literal `"mvn"` can never be found even with Maven fully installed and on `PATH`. Naming `mvn.cmd` explicitly — or an absolute path to it — is what makes the fork start. This is why ~21 validator tests that fork a real `mvn` were failing on this box; all 110 now pass. · status: documented
++- **Absolute-path-first resolution order is deliberate** — some CI/dev setups export `MAVEN_HOME` but don't put its `bin/` on `PATH`. Preferring the absolute path when the env var points at a real install works there; falling back to the bare OS-correct name works when it doesn't. The fallback is never the naked `"mvn"` on Windows — it's `mvn.cmd`. · status: documented
++
++---
++
++<!-- Decisions are appended below by `fluencyloop decision`. For reference, a block looks like:
++## Decision: chose X over Y
++- **where:** `path/to/File.ext`
++- **why:** the one-line why, engaged with — not post-hoc narration
++- **alternative:** the rejected option — rejected: why
++- **trust:** ⚠ not independently verified
++-->
++
++## Decision: put the OS-aware Maven launcher resolver in blastradius-core, not per call site
++
++- **where:** `blastradius-core/.../process/MavenLauncher.java`
++- **why:** Both the validator (MavenBuildRunner) and the maven-plugin (TrackRunner) fork mvn with ProcessBuilder, and both broke identically on Windows (literal "mvn" -> CreateProcess error=2, because Java only appends .exe to bare PATH names and Maven ships mvn.cmd). Both modules already depend on core, so a single MavenLauncher.resolve() there is reachable from both and the fix lives in exactly one place.
++- **alternative:** Inline the mvn.cmd check at each of the two call sites — rejected: duplicates the OS branch and the MAVEN_HOME lookup, and the next process fork would silently reintroduce the bug.
++- **trust:** ✓ verified
++
++## Decision: prefer an absolute MAVEN_HOME/M2_HOME path, fall back to the bare OS launcher name
++
++- **where:** `blastradius-core/.../process/MavenLauncher.java (resolve)`
++- **why:** An absolute path into a real Maven install never depends on PATH at all, so it works even where mvn.cmd isn't on PATH; when no env var points at a valid install, degrading to the bare OS-correct name (mvn.cmd on Windows, mvn elsewhere) lets the OS resolve it via PATH — still never the naked "mvn" that fails on Windows.
++- **alternative:** Always use the bare launcher name and trust PATH — rejected: some CI/dev setups set MAVEN_HOME but don't put its bin on PATH, so PATH-only resolution would still fail there.
++- **trust:** ✓ verified

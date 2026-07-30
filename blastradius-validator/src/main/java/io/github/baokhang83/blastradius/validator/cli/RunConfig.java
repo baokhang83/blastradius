@@ -29,23 +29,40 @@ import java.util.Objects;
  *                             (e.g. {@code -T 2} &times; {@code build-concurrency 4}). Purely
  *                             a scheduling lever: it never changes which builds run or how
  *                             they are compared, so it is orthogonal to §III.
+ * @param buildTimeoutMinutes  how long a single {@code mvn} build may run before it is killed and
+ *                             reported as timed out. Defaults to {@code 5}. A large reactor
+ *                             (e.g. apache/shenyu) legitimately runs a full {@code clean test}
+ *                             past five minutes, so this must be raised there or every build is
+ *                             killed mid-flight and misclassified as a build failure.
  */
 public record RunConfig(
         Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
-        boolean fastGroundTruth, int buildConcurrency) {
+        boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes) {
+
+    /** Default build timeout in minutes when the operator doesn't override it. */
+    public static final long DEFAULT_BUILD_TIMEOUT_MINUTES = 5;
 
     public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath) {
-        this(projectPath, commitWindowSize, reportOutputPath, null, false, 1);
+        this(projectPath, commitWindowSize, reportOutputPath, null, false, 1, DEFAULT_BUILD_TIMEOUT_MINUTES);
     }
 
     public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads) {
-        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, false, 1);
+        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, false, 1,
+                DEFAULT_BUILD_TIMEOUT_MINUTES);
     }
 
     public RunConfig(
             Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
             boolean fastGroundTruth) {
-        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth, 1);
+        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth, 1,
+                DEFAULT_BUILD_TIMEOUT_MINUTES);
+    }
+
+    public RunConfig(
+            Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
+            boolean fastGroundTruth, int buildConcurrency) {
+        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,
+                buildConcurrency, DEFAULT_BUILD_TIMEOUT_MINUTES);
     }
 
     public RunConfig {
@@ -69,6 +86,9 @@ public record RunConfig(
         }
         if (buildConcurrency < 1) {
             throw new IllegalArgumentException("buildConcurrency must be positive, got: " + buildConcurrency);
+        }
+        if (buildTimeoutMinutes < 1) {
+            throw new IllegalArgumentException("buildTimeoutMinutes must be positive, got: " + buildTimeoutMinutes);
         }
     }
 }

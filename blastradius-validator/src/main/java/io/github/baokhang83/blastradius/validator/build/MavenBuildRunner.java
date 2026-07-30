@@ -1,5 +1,6 @@
 package io.github.baokhang83.blastradius.validator.build;
 
+import io.github.baokhang83.blastradius.core.process.MavenLauncher;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -20,13 +21,24 @@ import java.util.Set;
  */
 public final class MavenBuildRunner {
 
-    private static final long TIMEOUT_MINUTES = 5;
+    /**
+     * Default ceiling for a single {@code mvn} build, used when the operator doesn't override it
+     * via {@code --build-timeout-minutes}. Five minutes fits a small-to-medium reactor; a large
+     * one (e.g. apache/shenyu, whose full {@code clean test} runs well past this) needs a higher
+     * value or every build is killed mid-flight and misreported as a build failure.
+     */
+    private static final long DEFAULT_TIMEOUT_MINUTES = 5;
 
     private final Integer parallelThreads;
+    private final long timeoutMinutes;
 
     /** No {@code -T} flag: the target project's reactor builds serially, as it always has. */
     public MavenBuildRunner() {
         this(null);
+    }
+
+    public MavenBuildRunner(Integer parallelThreads) {
+        this(parallelThreads, DEFAULT_TIMEOUT_MINUTES);
     }
 
     /**
@@ -36,12 +48,20 @@ public final class MavenBuildRunner {
      *                        the tracking agent attaches identically per fork; the risk
      *                        this trades in is target projects with non-thread-safe
      *                        build plugins that only misbehave under a parallel reactor.
+     * @param timeoutMinutes  how long a single {@code mvn} build may run before it is killed and
+     *                        reported as timed out. Must be positive. A large reactor legitimately
+     *                        exceeds the {@value #DEFAULT_TIMEOUT_MINUTES}-minute default, so this
+     *                        is operator-tunable rather than fixed.
      */
-    public MavenBuildRunner(Integer parallelThreads) {
+    public MavenBuildRunner(Integer parallelThreads, long timeoutMinutes) {
         if (parallelThreads != null && parallelThreads < 1) {
             throw new IllegalArgumentException("parallelThreads must be positive, got: " + parallelThreads);
         }
+        if (timeoutMinutes < 1) {
+            throw new IllegalArgumentException("timeoutMinutes must be positive, got: " + timeoutMinutes);
+        }
         this.parallelThreads = parallelThreads;
+        this.timeoutMinutes = timeoutMinutes;
     }
 
     /**
@@ -148,13 +168,14 @@ public final class MavenBuildRunner {
             outputReader.start();
 
             Set<ProcessHandle> descendants =
-                    awaitDescendantsWhileAlive(process, Duration.ofMinutes(TIMEOUT_MINUTES));
+                    awaitDescendantsWhileAlive(process, Duration.ofMinutes(timeoutMinutes));
             outputReader.join();
 
             if (process.isAlive()) {
                 process.destroyForcibly();
                 descendants.forEach(ProcessHandle::destroyForcibly);
-                throw new IllegalStateException("mvn test timed out against " + projectDir);
+                throw new IllegalStateException(
+                        "mvn test timed out against " + projectDir + " after " + timeoutMinutes + "m");
             }
             // mvn itself exiting is not proof every process it spawned has: Surefire can
             // give up on and report a broken/unresponsive fork as failed the instant its
@@ -237,7 +258,7 @@ public final class MavenBuildRunner {
         // instead of recompiling the whole module + its -am dependencies from scratch
         // on every one of the N+1 reruns. Surefire still overwrites each rerun test
         // class's own report file, so parsing stays correct without a clean.
-        List<String> args = new ArrayList<>(List.of("mvn", "-B", "--no-transfer-progress"));
+        List<String> args = new ArrayList<>(List.of(MavenLauncher.resolve(), "-B", "--no-transfer-progress"));
         if (clean) {
             args.add("clean");
         }

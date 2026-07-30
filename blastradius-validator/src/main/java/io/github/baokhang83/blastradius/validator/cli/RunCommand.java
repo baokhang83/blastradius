@@ -105,7 +105,7 @@ public final class RunCommand {
      */
     public int run(RunConfig config, Path agentJar) {
         try {
-            buildRunner = new MavenBuildRunner(config.mavenParallelThreads());
+            buildRunner = new MavenBuildRunner(config.mavenParallelThreads(), config.buildTimeoutMinutes());
             groundTruthResolver = new GroundTruthResolver(buildRunner);
 
             jdkMismatchDetector.detect(config.projectPath()).ifPresent(System.err::println);
@@ -324,10 +324,25 @@ public final class RunCommand {
         GroundTruthResolution resolution = groundTruthResolver.resolve(
                 workDir, agentAttached ? agentJar : null, depsFile);
         if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), workDir)) {
-            return CommitBuild.failed("commit " + sha + " failed to build");
+            return CommitBuild.failed("commit " + sha + " failed to build (exit "
+                    + resolution.initialBuild().exitCode() + "):\n"
+                    + tail(resolution.initialBuild().output(), 4000));
         }
         DependencyRecordSet recordSet = agentAttached ? new DependencyRecordReader().readAll(depsFile) : null;
         return CommitBuild.succeeded(recordSet, resolution.results());
+    }
+
+    /**
+     * The last {@code maxChars} of {@code text} (whole thing if shorter), for surfacing why a
+     * build failed without dumping the entire reactor log into the failure reason. Maven prints
+     * the real cause — a compile error, an unresolved dependency, a plugin that can't launch —
+     * at the very end, so the tail is where the signal is.
+     */
+    private static String tail(String text, int maxChars) {
+        if (text == null || text.isEmpty()) {
+            return "(no build output captured)";
+        }
+        return text.length() <= maxChars ? text : "..." + text.substring(text.length() - maxChars);
     }
 
     /**

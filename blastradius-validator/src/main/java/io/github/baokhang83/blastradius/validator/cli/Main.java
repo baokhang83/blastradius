@@ -10,7 +10,8 @@ import java.nio.file.Path;
 /**
  * CLI entry point. Usage:
  * {@code blastradius-validator run --project-path <path> --commits <N> --report-out <path>
- * [--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth] [--build-concurrency <K>]}
+ * [--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth] [--build-concurrency <K>]
+ * [--build-timeout-minutes <M>]}
  */
 public final class Main {
 
@@ -18,7 +19,7 @@ public final class Main {
         if (args.length == 0 || !"run".equals(args[0])) {
             System.err.println("usage: run --project-path <path> --commits <N> --report-out <path> "
                     + "[--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth] "
-                    + "[--build-concurrency <K>]");
+                    + "[--build-concurrency <K>] [--build-timeout-minutes <M>]");
             System.exit(2);
             return;
         }
@@ -30,6 +31,7 @@ public final class Main {
         Integer mavenThreads = null;
         boolean fastGroundTruth = false;
         int buildConcurrency = 1;
+        long buildTimeoutMinutes = RunConfig.DEFAULT_BUILD_TIMEOUT_MINUTES;
 
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
@@ -40,6 +42,7 @@ public final class Main {
                 case "--maven-threads" -> mavenThreads = Integer.parseInt(args[++i]);
                 case "--fast-ground-truth" -> fastGroundTruth = true;
                 case "--build-concurrency" -> buildConcurrency = Integer.parseInt(args[++i]);
+                case "--build-timeout-minutes" -> buildTimeoutMinutes = Long.parseLong(args[++i]);
                 default -> {
                     System.err.println("unknown argument: " + args[i]);
                     System.exit(2);
@@ -55,8 +58,8 @@ public final class Main {
         }
 
         try {
-            RunConfig config =
-                    new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth, buildConcurrency);
+            RunConfig config = new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth,
+                    buildConcurrency, buildTimeoutMinutes);
             int exitCode = new RunCommand().run(config);
             printSummary(reportOut, summaryOut, exitCode);
             System.exit(exitCode);
