@@ -34,35 +34,48 @@ import java.util.Objects;
  *                             (e.g. apache/shenyu) legitimately runs a full {@code clean test}
  *                             past five minutes, so this must be raised there or every build is
  *                             killed mid-flight and misclassified as a build failure.
+ * @param skipBuildExtras      opt-in, default {@code false}. When {@code true}, every target build
+ *                             switches off coverage/lint/license/resource-bundling plugins
+ *                             (JaCoCo, Checkstyle, apache-rat, maven-remote-resources) that run
+ *                             during {@code clean test} but change neither which tests run nor
+ *                             whether they pass. Pure per-build wall-clock savings; soundness-
+ *                             neutral (constitution §III), unlike scoping the reactor.
  */
 public record RunConfig(
         Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
-        boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes) {
+        boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes, boolean skipBuildExtras) {
 
     /** Default build timeout in minutes when the operator doesn't override it. */
     public static final long DEFAULT_BUILD_TIMEOUT_MINUTES = 5;
 
     public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath) {
-        this(projectPath, commitWindowSize, reportOutputPath, null, false, 1, DEFAULT_BUILD_TIMEOUT_MINUTES);
+        this(projectPath, commitWindowSize, reportOutputPath, null, false, 1, DEFAULT_BUILD_TIMEOUT_MINUTES, false);
     }
 
     public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads) {
         this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, false, 1,
-                DEFAULT_BUILD_TIMEOUT_MINUTES);
+                DEFAULT_BUILD_TIMEOUT_MINUTES, false);
     }
 
     public RunConfig(
             Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
             boolean fastGroundTruth) {
         this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth, 1,
-                DEFAULT_BUILD_TIMEOUT_MINUTES);
+                DEFAULT_BUILD_TIMEOUT_MINUTES, false);
     }
 
     public RunConfig(
             Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
             boolean fastGroundTruth, int buildConcurrency) {
         this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,
-                buildConcurrency, DEFAULT_BUILD_TIMEOUT_MINUTES);
+                buildConcurrency, DEFAULT_BUILD_TIMEOUT_MINUTES, false);
+    }
+
+    public RunConfig(
+            Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
+            boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes) {
+        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,
+                buildConcurrency, buildTimeoutMinutes, false);
     }
 
     public RunConfig {
