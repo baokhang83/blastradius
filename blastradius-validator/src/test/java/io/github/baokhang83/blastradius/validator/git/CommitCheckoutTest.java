@@ -131,6 +131,44 @@ class CommitCheckoutTest {
     }
 
     @Test
+    void isolatedMavenRepoIsASiblingOfTheWorkDirNotAChildSoCheckoutAndCleanupNeverWalkIt(
+            @TempDir Path parent) {
+        Path workDir = parent.resolve("blastradius-checkout-123");
+
+        Path repo = CommitCheckout.isolatedMavenRepoFor(workDir);
+
+        assertEquals(parent.toAbsolutePath().normalize(), repo.getParent(),
+                "the isolated repo must be a sibling of the work dir, so git checkout and the "
+                        + "target/-cleanup walk never descend into it");
+        assertEquals("blastradius-checkout-123-m2", repo.getFileName().toString());
+    }
+
+    @Test
+    void closeDeletesTheClonesIsolatedMavenRepoAlongsideItsScratchDir(
+            @TempDir Path targetDir, @TempDir Path scratchParent) throws Exception {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(targetDir);
+        fixture.commit("initial");
+
+        Path scratchDir;
+        Path isolatedRepo;
+        try (CommitCheckout checkout = CommitCheckout.forTargetProject(targetDir, scratchParent)) {
+            scratchDir = checkout.checkoutCommit("HEAD");
+            isolatedRepo = CommitCheckout.isolatedMavenRepoFor(scratchDir);
+            // Simulate a build having populated the clone's private local repo.
+            Files.createDirectories(isolatedRepo.resolve("com/example"));
+            Files.writeString(isolatedRepo.resolve("com/example/artifact.jar"), "cached", StandardCharsets.UTF_8);
+            assertTrue(Files.exists(isolatedRepo), "sanity check: isolated repo was created");
+        }
+
+        // The scratch clone's own deletion is deliberately not asserted here: JGit can hold
+        // memory-mapped locks on its .git pack files that keep them undeletable until GC on
+        // Windows, so deleteRecursively is documented best-effort. The isolated Maven repo has
+        // no such locks, so its cleanup — the behavior this test guards — is deterministic.
+        assertTrue(Files.notExists(isolatedRepo),
+                "close() must also delete the clone's isolated Maven repo, not leak it on disk");
+    }
+
+    @Test
     void checkingOutMultipleCommitsSequentiallyReusesTheSameScratchClone(
             @TempDir Path targetDir, @TempDir Path scratchParent) throws Exception {
         FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(targetDir);
