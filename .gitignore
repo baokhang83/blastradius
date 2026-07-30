@@ -30,6 +30,11 @@ replay_pid*
 
 target/
 build/
+# ...but never a Java source package literally named "build" (e.g. the validator's
+# io...validator.build package). Gradle only ever writes output to a module-root build/,
+# never under src/, so re-including any build dir beneath a src/ tree is safe and stops
+# new source files in that package from being silently un-committable.
+!**/src/**/build/
 .gradle/
 *.iml
 .idea/

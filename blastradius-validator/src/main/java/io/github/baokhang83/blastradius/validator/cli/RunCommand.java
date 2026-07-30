@@ -1,7 +1,10 @@
 package io.github.baokhang83.blastradius.validator.cli;
 
 import io.github.baokhang83.blastradius.validator.build.BuildFailureDetector;
-import io.github.baokhang83.blastradius.validator.build.BuildResult;
+import io.github.baokhang83.blastradius.validator.build.CheckoutPool;
+import io.github.baokhang83.blastradius.validator.build.CommitBuild;
+import io.github.baokhang83.blastradius.validator.build.CommitBuildService;
+import io.github.baokhang83.blastradius.validator.build.CommitBuildService.BuildKey;
 import io.github.baokhang83.blastradius.validator.build.GroundTruthResolution;
 import io.github.baokhang83.blastradius.validator.build.GroundTruthResolver;
 import io.github.baokhang83.blastradius.validator.build.GroundTruthResult;
@@ -44,6 +47,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 /**
@@ -72,6 +77,15 @@ public final class RunCommand {
     private final ReportWriter reportWriter = new ReportWriter();
     private final BuildFailureDetector buildFailureDetector = new BuildFailureDetector();
     private final JdkMismatchDetector jdkMismatchDetector = new JdkMismatchDetector();
+    private final ProgressLogger progress;
+
+    public RunCommand() {
+        this(ProgressLogger.toStderr());
+    }
+
+    RunCommand(ProgressLogger progress) {
+        this.progress = progress;
+    }
 
     // Set at the start of each run() from RunConfig#mavenParallelThreads, so the base/head
     // builds and GroundTruthResolver's own build all share one -T setting for that run.
@@ -96,58 +110,111 @@ public final class RunCommand {
 
             jdkMismatchDetector.detect(config.projectPath()).ifPresent(System.err::println);
 
+            long runStart = System.currentTimeMillis();
             List<CommitPair> window =
                     commitWindowResolver.resolveWindow(config.projectPath(), config.commitWindowSize());
+            progress.windowResolved(window.size());
 
-            List<CommitPair> analyzedPairs = new ArrayList<>();
-            List<CommitPair> excludedPairs = new ArrayList<>();
-            List<WouldMissCase> allMisses = new ArrayList<>();
-            List<SelectionDecision> allDecisions = new ArrayList<>();
-            List<FlakyFailure> allFlaky = new ArrayList<>();
-            // Only ever populated when config.fastGroundTruth() is true (§III — see
-            // RunConfig#fastGroundTruth): the safe, default path never unifies build types
-            // across pairs, so there is nothing to cache.
-            Map<String, CommitBuild> commitCache = new HashMap<>();
-            // Reactor scope per HEAD commit. Only used in --fast-ground-truth mode, where a
-            // cached head build may have skipped its checkout so the scope must be built from
-            // a freshly-materialized head tree; memoizing it stops repeated heads across the
-            // window from repaying the checkout + tree walk. In the default mode the scope is
-            // built straight from the already-checked-out head work dir, so this stays empty.
-            Map<String, ReactorScope> reactorScopeCache = new HashMap<>();
-
+            int concurrency = config.buildConcurrency();
             Path scratchParent = Files.createTempDirectory("blastradius-scratch-");
-            try (CommitCheckout checkout = CommitCheckout.forTargetProject(config.projectPath(), scratchParent)) {
-                for (CommitPair pair : window) {
-                    PairAnalysis analysis;
-                    try {
-                        analysis = analyzePair(
-                                pair, config.projectPath(), checkout, agentJar, config.fastGroundTruth(),
-                                commitCache, reactorScopeCache);
-                    } catch (Exception e) {
-                        analysis = excluded(pair, "analysis failed: " + e.getMessage());
-                    }
-                    if (analysis.pair().status() == PairStatus.EXCLUDED) {
-                        excludedPairs.add(analysis.pair());
-                    } else {
-                        analyzedPairs.add(analysis.pair());
-                        allMisses.addAll(analysis.misses());
-                        allDecisions.addAll(analysis.decisions());
-                        allFlaky.addAll(analysis.flakyFailures());
-                    }
-                }
+            ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+            try (CheckoutPool pool = CheckoutPool.of(config.projectPath(), scratchParent, concurrency)) {
+                // Phase 1 (expensive, now core-saturated): build every commit the window
+                // needs, concurrently across the pool of isolated clones.
+                Map<BuildKey, CommitBuild> builds =
+                        buildAllCommits(window, config.fastGroundTruth(), agentJar, pool, executor);
+
+                // Phase 2 (cheap, serial): select + compare per pair over the cached builds.
+                AnalysisReport report = analyzeWindow(window, config, builds, pool);
+                reportWriter.write(config.reportOutputPath(), report);
+
+                progress.summary(report.verdict().name(), System.currentTimeMillis() - runStart);
+                return report.verdict() == Verdict.PASS ? 0 : 1;
+            } finally {
+                executor.shutdownNow();
             }
-
-            Verdict verdict = verdictCalculator.calculate(allMisses);
-            SavingsSummary savingsSummary = savingsSummaryAggregator.aggregate(allDecisions);
-            AnalysisReport report = new AnalysisReport(
-                    verdict, analyzedPairs, excludedPairs, allMisses, allFlaky, savingsSummary);
-            reportWriter.write(config.reportOutputPath(), report);
-
-            return verdict == Verdict.PASS ? 0 : 1;
         } catch (Exception e) {
             System.err.println("blastradius-validator: " + e.getMessage());
             return 2;
         }
+    }
+
+    /**
+     * Phase 1: enumerates the distinct builds the whole window needs and runs them
+     * concurrently. The base commit of every pair is always built with the agent attached
+     * (to record the dependency baseline). The head commit is built with the agent in
+     * {@code --fast-ground-truth} mode (reused as both baseline and ground truth) but
+     * <em>without</em> it in the safe default mode, so ground truth stays independent of the
+     * tracking agent (§III). Because a commit that is the head of one pair is the base of the
+     * next, the default mode legitimately builds that commit twice — once with the agent
+     * (as a base) and once without (as a head) — which distinct {@link BuildKey}s capture,
+     * while fast mode collapses them to a single agent-attached build.
+     */
+    private Map<BuildKey, CommitBuild> buildAllCommits(
+            List<CommitPair> window, boolean fastGroundTruth, Path agentJar,
+            CheckoutPool pool, ExecutorService executor) throws InterruptedException {
+        List<BuildKey> keys = new ArrayList<>();
+        for (CommitPair pair : window) {
+            keys.add(new BuildKey(pair.baseCommit(), true));
+            keys.add(new BuildKey(pair.headCommit(), fastGroundTruth));
+        }
+        CommitBuildService service = new CommitBuildService(
+                pool, executor, progress,
+                (checkout, sha, agentAttached) -> buildCommit(checkout, sha, agentAttached, agentJar));
+        return service.buildAll(keys);
+    }
+
+    /**
+     * Phase 2: the cheap per-pair selection + comparison, run serially over the already-built
+     * commits. Holds a single borrowed clone for the whole phase, used only to materialize a
+     * head tree when a pair actually needs a reactor scope (a NON_SOURCE change); since phase 1
+     * has finished, every clone is idle, so this borrow never blocks.
+     */
+    private AnalysisReport analyzeWindow(
+            List<CommitPair> window, RunConfig config, Map<BuildKey, CommitBuild> builds, CheckoutPool pool)
+            throws InterruptedException {
+        List<CommitPair> analyzedPairs = new ArrayList<>();
+        List<CommitPair> excludedPairs = new ArrayList<>();
+        List<WouldMissCase> allMisses = new ArrayList<>();
+        List<SelectionDecision> allDecisions = new ArrayList<>();
+        List<FlakyFailure> allFlaky = new ArrayList<>();
+        // Reactor scope per HEAD commit: a repeated head across the window repays neither the
+        // checkout nor the tree walk. Only populated for pairs with a NON_SOURCE change.
+        Map<String, ReactorScope> reactorScopeCache = new HashMap<>();
+
+        CommitCheckout scopeCheckout = pool.borrow();
+        try {
+            int pairIndex = 0;
+            for (CommitPair pair : window) {
+                pairIndex++;
+                long pairStart = System.currentTimeMillis();
+                PairAnalysis analysis;
+                try {
+                    analysis = analyzePair(
+                            pair, config.projectPath(), builds, config.fastGroundTruth(),
+                            scopeCheckout, reactorScopeCache);
+                } catch (Exception e) {
+                    analysis = excluded(pair, "analysis failed: " + e.getMessage());
+                }
+                long pairMillis = System.currentTimeMillis() - pairStart;
+                if (analysis.pair().status() == PairStatus.EXCLUDED) {
+                    excludedPairs.add(analysis.pair());
+                    progress.pairExcluded(pairIndex, window.size(), analysis.pair().exclusionReason());
+                } else {
+                    analyzedPairs.add(analysis.pair());
+                    allMisses.addAll(analysis.misses());
+                    allDecisions.addAll(analysis.decisions());
+                    allFlaky.addAll(analysis.flakyFailures());
+                    progress.pairCompleted(pairIndex, window.size(), analysis.misses().size(), pairMillis);
+                }
+            }
+        } finally {
+            pool.release(scopeCheckout);
+        }
+
+        Verdict verdict = verdictCalculator.calculate(allMisses);
+        SavingsSummary savingsSummary = savingsSummaryAggregator.aggregate(allDecisions);
+        return new AnalysisReport(verdict, analyzedPairs, excludedPairs, allMisses, allFlaky, savingsSummary);
     }
 
     private record PairAnalysis(
@@ -156,67 +223,22 @@ public final class RunCommand {
             List<SelectionDecision> decisions,
             List<FlakyFailure> flakyFailures) {}
 
-    /**
-     * One commit's canonical build outcome under {@code --fast-ground-truth} (RunConfig
-     * #fastGroundTruth): a single agent-attached build serving both the "dependency
-     * baseline" role and the "ground truth" role, cached across every pair in the window
-     * that references this commit. Never populated in the safe, default mode.
-     */
-    private record CommitBuild(
-            boolean failed, String failureReason, DependencyRecordSet dependencyRecordSet,
-            List<GroundTruthResult> groundTruth) {}
-
     private PairAnalysis analyzePair(
-            CommitPair pair, Path targetRepo, CommitCheckout checkout, Path agentJar,
-            boolean fastGroundTruth, Map<String, CommitBuild> commitCache,
-            Map<String, ReactorScope> reactorScopeCache) throws Exception {
-        DependencyRecordSet baseRecordSet;
-        List<GroundTruthResult> groundTruth;
-        List<GroundTruthResult> baseGroundTruth;
-        // The scratch tree already materialized at HEAD by the default (non-fast) build path,
-        // reused to build the reactor scope with no extra checkout. Stays null in fast mode,
-        // where a cached head build may have skipped its checkout (see buildReactorScope).
-        Path headWorkDirForScope = null;
-
-        if (fastGroundTruth) {
-            CommitBuild base = buildCommit(pair.baseCommit(), checkout, agentJar, commitCache);
-            if (base.failed()) {
-                return excluded(pair, base.failureReason());
-            }
-            CommitBuild head = buildCommit(pair.headCommit(), checkout, agentJar, commitCache);
-            if (head.failed()) {
-                return excluded(pair, head.failureReason());
-            }
-            baseRecordSet = base.dependencyRecordSet();
-            groundTruth = head.groundTruth();
-            baseGroundTruth = base.groundTruth();
-        } else {
-            // Baseline: build the BASE commit with the agent attached, to learn what each
-            // test depended on as of that commit. Routed through GroundTruthResolver
-            // (rather than a plain buildRunner.run()) so a test that's already broken at
-            // the base commit — for reasons unrelated to this pair's diff — is confirmed
-            // and recorded as such (WouldMissComparator#compare needs it to avoid flagging
-            // a pre-existing failure as something selection should have caught).
-            Path baseWorkDir = checkout.checkoutCommit(pair.baseCommit());
-            Path baseDepsFile = Files.createTempFile("blastradius-base-deps-", ".json");
-            GroundTruthResolution baseResolution = groundTruthResolver.resolve(baseWorkDir, agentJar, baseDepsFile);
-            if (buildFailureDetector.isBuildFailure(baseResolution.initialBuild(), baseWorkDir)) {
-                return excluded(pair, "base commit " + pair.baseCommit() + " failed to build");
-            }
-            baseRecordSet = new DependencyRecordReader().readAll(baseDepsFile);
-            baseGroundTruth = baseResolution.results();
-
-            // Ground truth: GroundTruthResolver's own build result tells us whether the
-            // HEAD commit built at all, so a compile failure is caught here rather than
-            // silently looking like "zero tests" — without a second, separate probe build.
-            Path headWorkDir = checkout.checkoutCommit(pair.headCommit());
-            GroundTruthResolution resolution = groundTruthResolver.resolve(headWorkDir, null, null);
-            if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), headWorkDir)) {
-                return excluded(pair, "head commit " + pair.headCommit() + " failed to build");
-            }
-            groundTruth = resolution.results();
-            headWorkDirForScope = headWorkDir;
+            CommitPair pair, Path targetRepo, Map<BuildKey, CommitBuild> builds, boolean fastGroundTruth,
+            CommitCheckout scopeCheckout, Map<String, ReactorScope> reactorScopeCache) throws Exception {
+        // The base commit is always the agent-attached build; the head build's agent flag
+        // matches how phase 1 enumerated its key (with in fast mode, without in safe mode).
+        CommitBuild base = builds.get(new BuildKey(pair.baseCommit(), true));
+        if (base.failed()) {
+            return excluded(pair, base.failureReason());
         }
+        CommitBuild head = builds.get(new BuildKey(pair.headCommit(), fastGroundTruth));
+        if (head.failed()) {
+            return excluded(pair, head.failureReason());
+        }
+        DependencyRecordSet baseRecordSet = base.dependencyRecordSet();
+        List<GroundTruthResult> baseGroundTruth = base.groundTruth();
+        List<GroundTruthResult> groundTruth = head.groundTruth();
 
         Map<TestIdentity, Map<String, String>> baseRecord = baseRecordSet.tests();
         // Keyed by baselineKey(), not the raw tracked identity, so a ground-truth lookup
@@ -247,11 +269,10 @@ public final class RunCommand {
                 .collect(Collectors.toSet());
 
         // Reactor scope for the NON_SOURCE fallback: built from the HEAD tree so module layout
-        // and inter-module edges reflect the commit selection runs against. In the default mode
-        // the scratch clone is already materialized at head (headWorkDirForScope, set above), so
-        // the scope is built straight from it — no redundant checkout. Only in --fast-ground-truth
-        // mode, where a cached head build may have skipped its checkout and left the tree on base,
-        // is head re-materialized (and the resulting scope memoized per commit).
+        // and inter-module edges reflect the commit selection runs against. Phase 1's concurrent
+        // builds don't retain their working trees, so here the head commit is re-materialized on
+        // the phase-2 scopeCheckout, memoized per commit so a head repeated across the window
+        // repays neither the checkout nor the tree walk.
         //
         // Only built when this pair actually has a NON_SOURCE change: SelectionEngine consults
         // the scope solely inside its fallback branch, so on a source-only pair (the common case)
@@ -259,10 +280,8 @@ public final class RunCommand {
         // there (see SelectionEngine#selectAll).
         ReactorScope reactorScope = null;
         if (fallbackSelector.shouldFallback(changedFiles)) {
-            reactorScope = headWorkDirForScope != null
-                    ? buildReactorScope(headWorkDirForScope)
-                    : reactorScopeCache.computeIfAbsent(
-                            pair.headCommit(), sha -> buildReactorScope(checkout.checkoutCommit(sha)));
+            reactorScope = reactorScopeCache.computeIfAbsent(
+                    pair.headCommit(), sha -> buildReactorScope(scopeCheckout.checkoutCommit(sha)));
         }
 
         List<SelectionDecision> decisions = selectionEngine.selectAll(
@@ -280,30 +299,35 @@ public final class RunCommand {
     }
 
     /**
-     * {@code --fast-ground-truth} only: one canonical, agent-attached build per commit,
-     * memoized in {@code commitCache} for the lifetime of this {@code run()} call. A cache
-     * hit means the commit was already checked out and built by an earlier pair — it is
-     * <em>not</em> re-checked-out (see {@link CommitCheckout}, which wipes {@code target/}
-     * on every checkout), so a hit returns the results extracted the first time, never a
-     * stale working directory.
+     * The per-build worker for phase 1, invoked once per distinct {@link BuildKey} on a clone
+     * the {@link CheckoutPool} has already handed the caller. Checks out {@code sha} on that
+     * clone (which wipes {@code target/} — §VII) and runs the suite through
+     * {@link GroundTruthResolver} so a test already broken at this commit is confirmed and
+     * recorded, which {@link WouldMissComparator} needs to avoid flagging a pre-existing
+     * failure as a miss.
+     *
+     * <p>When {@code agentAttached} is true the tracking agent records each test's
+     * dependencies (the baseline); when false it is an independent ground-truth build with no
+     * agent (§III). A build failure becomes a {@linkplain CommitBuild#failed(String) failed}
+     * result rather than an exception, so the referencing pair is excluded (FR-009).
      */
-    private CommitBuild buildCommit(
-            String commitSha, CommitCheckout checkout, Path agentJar, Map<String, CommitBuild> commitCache) {
-        return commitCache.computeIfAbsent(commitSha, sha -> {
-            Path workDir = checkout.checkoutCommit(sha);
-            Path depsFile;
+    private CommitBuild buildCommit(CommitCheckout checkout, String sha, boolean agentAttached, Path agentJar) {
+        Path workDir = checkout.checkoutCommit(sha);
+        Path depsFile = null;
+        if (agentAttached) {
             try {
                 depsFile = Files.createTempFile("blastradius-commit-deps-", ".json");
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-            GroundTruthResolution resolution = groundTruthResolver.resolve(workDir, agentJar, depsFile);
-            if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), workDir)) {
-                return new CommitBuild(true, "commit " + sha + " failed to build", null, List.of());
-            }
-            DependencyRecordSet recordSet = new DependencyRecordReader().readAll(depsFile);
-            return new CommitBuild(false, null, recordSet, resolution.results());
-        });
+        }
+        GroundTruthResolution resolution = groundTruthResolver.resolve(
+                workDir, agentAttached ? agentJar : null, depsFile);
+        if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), workDir)) {
+            return CommitBuild.failed("commit " + sha + " failed to build");
+        }
+        DependencyRecordSet recordSet = agentAttached ? new DependencyRecordReader().readAll(depsFile) : null;
+        return CommitBuild.succeeded(recordSet, resolution.results());
     }
 
     /**

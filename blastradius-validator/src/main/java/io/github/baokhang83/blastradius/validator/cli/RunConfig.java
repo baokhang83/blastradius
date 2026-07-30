@@ -20,17 +20,32 @@ import java.util.Objects;
  *                             fewer builds. Never implied by anything else; must be requested
  *                             explicitly (constitution §III — see design.md for the full
  *                             reasoning).
+ * @param buildConcurrency     how many commit builds run at once, each in its own isolated
+ *                             working copy (see CommitBuildService / CheckoutPool). Defaults
+ *                             to {@code 1} — today's exact serial behavior, so existing
+ *                             callers are unchanged. Higher values fill the cores a single
+ *                             {@code -T} reactor build leaves idle on its critical path; on an
+ *                             8-core box a modest {@code -T} times this &asymp; core count
+ *                             (e.g. {@code -T 2} &times; {@code build-concurrency 4}). Purely
+ *                             a scheduling lever: it never changes which builds run or how
+ *                             they are compared, so it is orthogonal to §III.
  */
 public record RunConfig(
         Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
-        boolean fastGroundTruth) {
+        boolean fastGroundTruth, int buildConcurrency) {
 
     public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath) {
-        this(projectPath, commitWindowSize, reportOutputPath, null, false);
+        this(projectPath, commitWindowSize, reportOutputPath, null, false, 1);
     }
 
     public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads) {
-        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, false);
+        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, false, 1);
+    }
+
+    public RunConfig(
+            Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
+            boolean fastGroundTruth) {
+        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth, 1);
     }
 
     public RunConfig {
@@ -51,6 +66,9 @@ public record RunConfig(
         if (mavenParallelThreads != null && mavenParallelThreads < 1) {
             throw new IllegalArgumentException(
                     "mavenParallelThreads must be positive, got: " + mavenParallelThreads);
+        }
+        if (buildConcurrency < 1) {
+            throw new IllegalArgumentException("buildConcurrency must be positive, got: " + buildConcurrency);
         }
     }
 }
