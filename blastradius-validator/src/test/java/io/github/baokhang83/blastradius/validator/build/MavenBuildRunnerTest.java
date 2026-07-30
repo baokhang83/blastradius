@@ -304,6 +304,27 @@ class MavenBuildRunnerTest {
     }
 
     @Test
+    void skipBuildExtrasAppendsCoverageLintAndResourceSkipsWithoutTouchingTestSelection() {
+        // The skips must not include -DskipTests or any -pl/-am scoping: those would change which
+        // tests run or whether they pass, corrupting the ground truth (§III). Only build-quality
+        // plugins that don't decide test outcomes are switched off.
+        assertArrayEquals(
+                new String[] {
+                    MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test",
+                    "-Djacoco.skip=true", "-Dcheckstyle.skip=true", "-Drat.skip=true",
+                    "-DskipRemoteResources=true"
+                },
+                new MavenBuildRunner(null, 5, false, true).command(null));
+    }
+
+    @Test
+    void skipBuildExtrasDefaultsOffSoUnconfiguredRunnersBuildExactlyAsBefore() {
+        assertArrayEquals(
+                new String[] {MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test"},
+                new MavenBuildRunner(null, 5, false, false).command(null));
+    }
+
+    @Test
     void isolatedRepoAppendsAClonePrivateMavenRepoLocalDerivedFromTheWorkingCopy(@TempDir Path projectDir) {
         MavenBuildRunner isolated = new MavenBuildRunner(null, 5, true);
         String[] base = isolated.command(null);
