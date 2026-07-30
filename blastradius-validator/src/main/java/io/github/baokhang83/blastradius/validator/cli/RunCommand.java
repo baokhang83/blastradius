@@ -105,7 +105,14 @@ public final class RunCommand {
      */
     public int run(RunConfig config, Path agentJar) {
         try {
-            buildRunner = new MavenBuildRunner(config.mavenParallelThreads(), config.buildTimeoutMinutes());
+            // Isolate each build's local Maven repo only when builds actually run concurrently:
+            // it's what removes the ~/.m2 file-lock contention that serializes parallel builds
+            // (apache/shenyu's maven-remote-resources-plugin "Could not acquire lock(s)"), and it
+            // costs a one-time dependency download per clone, so there's no reason to pay it when
+            // build-concurrency is 1.
+            boolean isolatedRepo = config.buildConcurrency() > 1;
+            buildRunner = new MavenBuildRunner(
+                    config.mavenParallelThreads(), config.buildTimeoutMinutes(), isolatedRepo);
             groundTruthResolver = new GroundTruthResolver(buildRunner);
 
             jdkMismatchDetector.detect(config.projectPath()).ifPresent(System.err::println);
