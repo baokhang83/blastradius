@@ -96,28 +96,52 @@ public final class CommitCheckout implements AutoCloseable {
 <span class="fc" id="L96">        }</span>
 <span class="fc" id="L97">    }</span>
 
-    /** Closes the scratch clone and deletes its directory. The target repo is untouched. */
+    /**
+     * The isolated local Maven repository ({@code -Dmaven.repo.local}) to use for builds on
+     * &lt;em&gt;this&lt;/em&gt; clone's working copy, as a sibling of the scratch checkout dir. Kept out of
+     * the working tree (a sibling, not a child) so {@code git checkout} never sees it as an
+     * untracked dir to scan and {@code deleteAllTargetDirectories} never walks it.
+     *
+     * &lt;p&gt;Why per-clone rather than per-build or shared: {@code maven-remote-resources-plugin}
+     * (and other plugins) take a &lt;em&gt;file lock&lt;/em&gt; inside the local repo, so K concurrent builds
+     * against one shared {@code ~/.m2} serialize on that lock — the exact &quot;Could not acquire
+     * lock(s)&quot; contention apache/shenyu itself documents. One repo per clone gives each concurrent
+     * build its own lock file (no contention) while staying warm across the many commits that
+     * clone builds over a run — a fresh empty repo per build would instead re-download every
+     * dependency every time.
+     *
+     * &lt;p&gt;Static so the one place that defines this {@code &lt;scratch&gt;-m2} convention is also the one
+     * that cleans it up ({@link #close()}); callers that need the path (the Maven runner) derive it
+     * from the same method rather than re-encoding the suffix.
+     */
+    public static Path isolatedMavenRepoFor(Path workDir) {
+<span class="fc" id="L118">        Path abs = workDir.toAbsolutePath().normalize();</span>
+<span class="fc" id="L119">        return abs.resolveSibling(abs.getFileName() + &quot;-m2&quot;);</span>
+    }
+
+    /** Closes the scratch clone and deletes its directory and its isolated Maven repo, if any. */
     @Override
     public void close() {
-<span class="fc" id="L102">        scratchGit.close();</span>
-<span class="fc" id="L103">        deleteRecursively(scratchDir);</span>
-<span class="fc" id="L104">    }</span>
+<span class="fc" id="L125">        scratchGit.close();</span>
+<span class="fc" id="L126">        deleteRecursively(scratchDir);</span>
+<span class="fc" id="L127">        deleteRecursively(isolatedMavenRepoFor(scratchDir));</span>
+<span class="fc" id="L128">    }</span>
 
     private static void deleteRecursively(Path dir) {
-<span class="fc bfc" id="L107" title="All 2 branches covered.">        if (Files.notExists(dir)) {</span>
-<span class="fc" id="L108">            return;</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">        if (Files.notExists(dir)) {</span>
+<span class="fc" id="L132">            return;</span>
         }
-<span class="fc" id="L110">        try (var stream = Files.walk(dir)) {</span>
-<span class="fc" id="L111">            stream.sorted(Comparator.reverseOrder()).forEach(p -&gt; {</span>
+<span class="fc" id="L134">        try (var stream = Files.walk(dir)) {</span>
+<span class="fc" id="L135">            stream.sorted(Comparator.reverseOrder()).forEach(p -&gt; {</span>
                 try {
-<span class="fc" id="L113">                    Files.delete(p);</span>
-<span class="nc" id="L114">                } catch (IOException ignored) {</span>
+<span class="fc" id="L137">                    Files.delete(p);</span>
+<span class="nc" id="L138">                } catch (IOException ignored) {</span>
                     // best-effort scratch cleanup
-<span class="fc" id="L116">                }</span>
-<span class="fc" id="L117">            });</span>
-<span class="nc" id="L118">        } catch (IOException ignored) {</span>
+<span class="fc" id="L140">                }</span>
+<span class="fc" id="L141">            });</span>
+<span class="nc" id="L142">        } catch (IOException ignored) {</span>
             // best-effort scratch cleanup
-<span class="fc" id="L120">        }</span>
-<span class="fc" id="L121">    }</span>
+<span class="fc" id="L144">        }</span>
+<span class="fc" id="L145">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
