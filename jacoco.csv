@@ -45,18 +45,18 @@ coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,Co
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,CommitCheckout.new SimpleFileVisitor() {...},0,23,0,4,0,8,0,4,0,2
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,CommitPair,0,59,0,0,0,10,0,3,0,3
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,CommitCheckout,28,96,0,2,8,31,0,9,0,8
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,Main,206,0,25,0,50,0,19,0,3,0
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,Main,212,0,26,0,52,0,20,0,3,0
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand.PairAnalysis,0,15,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,ProgressLogger,4,192,1,13,1,44,2,20,1,14
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunConfig,26,123,1,15,5,21,3,10,2,3
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand,98,648,7,27,19,130,13,25,6,15
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunConfig,28,139,1,15,5,23,3,11,2,4
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand,98,650,7,27,19,131,13,25,6,15
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,CheckoutPool,19,80,3,7,6,21,2,8,0,5
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,CommitBuildService,8,155,0,8,2,31,0,9,0,5
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,SurefireReportParser,18,151,0,18,4,36,0,15,0,6
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResult,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,CommitBuild,0,31,0,0,0,3,0,3,0,3
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,Outcome,0,21,0,0,0,4,0,1,0,1
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,MavenBuildRunner,64,371,9,29,13,88,8,29,1,17
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,MavenBuildRunner,64,394,9,31,13,94,8,31,1,18
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,CommitBuildService.BuildKey,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,JdkMismatchDetector,5,117,1,13,3,28,1,14,0,8
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResolver,9,179,0,8,2,36,0,12,0,8
