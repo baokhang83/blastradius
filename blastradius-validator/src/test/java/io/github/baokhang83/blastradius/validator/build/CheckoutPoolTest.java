@@ -92,10 +92,14 @@ class CheckoutPoolTest {
             CommitCheckout b = pool.borrow();
             distinctDirs.add(a.checkoutCommit("HEAD"));
             distinctDirs.add(b.checkoutCommit("HEAD"));
+
+            // Assert WHILE the pool is still open: close() deletes every clone's directory
+            // (best-effort — CommitCheckout swallows the IOException), so checking .git after
+            // the try-with-resources races that deletion and flakes on Windows.
+            assertEquals(2, distinctDirs.size(), "two clones must be two distinct working directories");
+            assertTrue(distinctDirs.stream().allMatch(d -> Files.isDirectory(d.resolve(".git"))),
+                    "each clone must be a real checkout with its own .git");
         }
-        // Two clones -> two distinct on-disk working directories, both real checkouts.
-        assertEquals(2, distinctDirs.size());
-        assertTrue(distinctDirs.stream().allMatch(d -> Files.isDirectory(d.resolve(".git"))));
     }
 
     @Test
