@@ -31,9 +31,29 @@ public final class MavenBuildRunner {
      */
     private static final long DEFAULT_TIMEOUT_MINUTES = 5;
 
+    /**
+     * Properties that switch off build-quality plugins which run during {@code clean test} but
+     * cannot change <em>which tests run or whether they pass</em> — coverage instrumentation,
+     * lint, license-header and resource-bundling checks. Appended only when the operator opts in
+     * via {@code --skip-build-extras}. Kept to standard plugin skip properties (plus apache/shenyu's
+     * own {@code skipRemoteResources}); on a project without a given plugin the matching property is
+     * simply an unread system property, so the set is a harmless no-op rather than an error.
+     *
+     * <p>Deliberately does <em>not</em> include anything that alters test selection or execution
+     * ({@code -DskipTests}, {@code -pl}, fork settings): those would silently corrupt the ground
+     * truth this tool exists to establish (constitution §III), which is why this is a curated set
+     * rather than a free-form {@code mvn} argument pass-through.
+     */
+    private static final List<String> BUILD_EXTRA_SKIPS = List.of(
+            "-Djacoco.skip=true",
+            "-Dcheckstyle.skip=true",
+            "-Drat.skip=true",
+            "-DskipRemoteResources=true");
+
     private final Integer parallelThreads;
     private final long timeoutMinutes;
     private final boolean isolatedRepo;
+    private final boolean skipBuildExtras;
 
     /** No {@code -T} flag: the target project's reactor builds serially, as it always has. */
     public MavenBuildRunner() {
@@ -46,6 +66,10 @@ public final class MavenBuildRunner {
 
     public MavenBuildRunner(Integer parallelThreads, long timeoutMinutes) {
         this(parallelThreads, timeoutMinutes, false);
+    }
+
+    public MavenBuildRunner(Integer parallelThreads, long timeoutMinutes, boolean isolatedRepo) {
+        this(parallelThreads, timeoutMinutes, isolatedRepo, false);
     }
 
     /**
@@ -67,8 +91,14 @@ public final class MavenBuildRunner {
      *                        like {@code maven-remote-resources-plugin} suffer under parallel
      *                        builds (apache/shenyu's documented "Could not acquire lock(s)"), at
      *                        the cost of a one-time dependency download per distinct working copy.
+     * @param skipBuildExtras when {@code true}, appends {@link #BUILD_EXTRA_SKIPS} to every build so
+     *                        coverage/lint/license/resource-bundling plugins don't run. These change
+     *                        neither which tests run nor whether they pass, so the ground truth is
+     *                        unaffected (constitution §III); they are pure per-build wall-clock
+     *                        overhead the operator can shed on projects that don't need them.
      */
-    public MavenBuildRunner(Integer parallelThreads, long timeoutMinutes, boolean isolatedRepo) {
+    public MavenBuildRunner(Integer parallelThreads, long timeoutMinutes, boolean isolatedRepo,
+            boolean skipBuildExtras) {
         if (parallelThreads != null && parallelThreads < 1) {
             throw new IllegalArgumentException("parallelThreads must be positive, got: " + parallelThreads);
         }
@@ -78,6 +108,7 @@ public final class MavenBuildRunner {
         this.parallelThreads = parallelThreads;
         this.timeoutMinutes = timeoutMinutes;
         this.isolatedRepo = isolatedRepo;
+        this.skipBuildExtras = skipBuildExtras;
     }
 
     /**
@@ -324,6 +355,12 @@ public final class MavenBuildRunner {
             args.add("-pl");
             args.add(modulePath);
             args.add("-am");
+        }
+        if (skipBuildExtras) {
+            // Soundness-neutral: coverage/lint/license/resource-bundling plugins don't decide
+            // which tests run or whether they pass (§III). Applied to single-test confirmFailure
+            // reruns too — same rationale, and it keeps those reruns cheap.
+            args.addAll(BUILD_EXTRA_SKIPS);
         }
         return args.toArray(new String[0]);
     }
