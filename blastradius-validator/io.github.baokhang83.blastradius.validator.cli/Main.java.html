@@ -10,74 +10,78 @@ import java.nio.file.Path;
 /**
  * CLI entry point. Usage:
  * {@code blastradius-validator run --project-path &lt;path&gt; --commits &lt;N&gt; --report-out &lt;path&gt;
- * [--summary-out &lt;path&gt;] [--maven-threads &lt;N&gt;] [--fast-ground-truth]}
+ * [--summary-out &lt;path&gt;] [--maven-threads &lt;N&gt;] [--fast-ground-truth] [--build-concurrency &lt;K&gt;]}
  */
 <span class="nc" id="L15">public final class Main {</span>
 
     public static void main(String[] args) {
 <span class="nc bnc" id="L18" title="All 4 branches missed.">        if (args.length == 0 || !&quot;run&quot;.equals(args[0])) {</span>
 <span class="nc" id="L19">            System.err.println(&quot;usage: run --project-path &lt;path&gt; --commits &lt;N&gt; --report-out &lt;path&gt; &quot;</span>
-                    + &quot;[--summary-out &lt;path&gt;] [--maven-threads &lt;N&gt;] [--fast-ground-truth]&quot;);
-<span class="nc" id="L21">            System.exit(2);</span>
-<span class="nc" id="L22">            return;</span>
+                    + &quot;[--summary-out &lt;path&gt;] [--maven-threads &lt;N&gt;] [--fast-ground-truth] &quot;
+                    + &quot;[--build-concurrency &lt;K&gt;]&quot;);
+<span class="nc" id="L22">            System.exit(2);</span>
+<span class="nc" id="L23">            return;</span>
         }
 
-<span class="nc" id="L25">        Path projectPath = null;</span>
-<span class="nc" id="L26">        Integer commits = null;</span>
-<span class="nc" id="L27">        Path reportOut = null;</span>
-<span class="nc" id="L28">        Path summaryOut = null;</span>
-<span class="nc" id="L29">        Integer mavenThreads = null;</span>
-<span class="nc" id="L30">        boolean fastGroundTruth = false;</span>
+<span class="nc" id="L26">        Path projectPath = null;</span>
+<span class="nc" id="L27">        Integer commits = null;</span>
+<span class="nc" id="L28">        Path reportOut = null;</span>
+<span class="nc" id="L29">        Path summaryOut = null;</span>
+<span class="nc" id="L30">        Integer mavenThreads = null;</span>
+<span class="nc" id="L31">        boolean fastGroundTruth = false;</span>
+<span class="nc" id="L32">        int buildConcurrency = 1;</span>
 
-<span class="nc bnc" id="L32" title="All 2 branches missed.">        for (int i = 1; i &lt; args.length; i++) {</span>
-<span class="nc bnc" id="L33" title="All 7 branches missed.">            switch (args[i]) {</span>
-<span class="nc" id="L34">                case &quot;--project-path&quot; -&gt; projectPath = Path.of(args[++i]);</span>
-<span class="nc" id="L35">                case &quot;--commits&quot; -&gt; commits = Integer.parseInt(args[++i]);</span>
-<span class="nc" id="L36">                case &quot;--report-out&quot; -&gt; reportOut = Path.of(args[++i]);</span>
-<span class="nc" id="L37">                case &quot;--summary-out&quot; -&gt; summaryOut = Path.of(args[++i]);</span>
-<span class="nc" id="L38">                case &quot;--maven-threads&quot; -&gt; mavenThreads = Integer.parseInt(args[++i]);</span>
-<span class="nc" id="L39">                case &quot;--fast-ground-truth&quot; -&gt; fastGroundTruth = true;</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">        for (int i = 1; i &lt; args.length; i++) {</span>
+<span class="nc bnc" id="L35" title="All 8 branches missed.">            switch (args[i]) {</span>
+<span class="nc" id="L36">                case &quot;--project-path&quot; -&gt; projectPath = Path.of(args[++i]);</span>
+<span class="nc" id="L37">                case &quot;--commits&quot; -&gt; commits = Integer.parseInt(args[++i]);</span>
+<span class="nc" id="L38">                case &quot;--report-out&quot; -&gt; reportOut = Path.of(args[++i]);</span>
+<span class="nc" id="L39">                case &quot;--summary-out&quot; -&gt; summaryOut = Path.of(args[++i]);</span>
+<span class="nc" id="L40">                case &quot;--maven-threads&quot; -&gt; mavenThreads = Integer.parseInt(args[++i]);</span>
+<span class="nc" id="L41">                case &quot;--fast-ground-truth&quot; -&gt; fastGroundTruth = true;</span>
+<span class="nc" id="L42">                case &quot;--build-concurrency&quot; -&gt; buildConcurrency = Integer.parseInt(args[++i]);</span>
                 default -&gt; {
-<span class="nc" id="L41">                    System.err.println(&quot;unknown argument: &quot; + args[i]);</span>
-<span class="nc" id="L42">                    System.exit(2);</span>
-<span class="nc" id="L43">                    return;</span>
+<span class="nc" id="L44">                    System.err.println(&quot;unknown argument: &quot; + args[i]);</span>
+<span class="nc" id="L45">                    System.exit(2);</span>
+<span class="nc" id="L46">                    return;</span>
                 }
             }
         }
 
-<span class="nc bnc" id="L48" title="All 6 branches missed.">        if (projectPath == null || commits == null || reportOut == null) {</span>
-<span class="nc" id="L49">            System.err.println(&quot;missing required argument(s): --project-path, --commits, --report-out are all required&quot;);</span>
-<span class="nc" id="L50">            System.exit(2);</span>
-<span class="nc" id="L51">            return;</span>
+<span class="nc bnc" id="L51" title="All 6 branches missed.">        if (projectPath == null || commits == null || reportOut == null) {</span>
+<span class="nc" id="L52">            System.err.println(&quot;missing required argument(s): --project-path, --commits, --report-out are all required&quot;);</span>
+<span class="nc" id="L53">            System.exit(2);</span>
+<span class="nc" id="L54">            return;</span>
         }
 
         try {
-<span class="nc" id="L55">            RunConfig config = new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth);</span>
-<span class="nc" id="L56">            int exitCode = new RunCommand().run(config);</span>
-<span class="nc" id="L57">            printSummary(reportOut, summaryOut, exitCode);</span>
-<span class="nc" id="L58">            System.exit(exitCode);</span>
-<span class="nc" id="L59">        } catch (IllegalArgumentException e) {</span>
-<span class="nc" id="L60">            System.err.println(&quot;invalid configuration: &quot; + e.getMessage());</span>
-<span class="nc" id="L61">            System.exit(2);</span>
-<span class="nc" id="L62">        }</span>
-<span class="nc" id="L63">    }</span>
+<span class="nc" id="L58">            RunConfig config =</span>
+<span class="nc" id="L59">                    new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth, buildConcurrency);</span>
+<span class="nc" id="L60">            int exitCode = new RunCommand().run(config);</span>
+<span class="nc" id="L61">            printSummary(reportOut, summaryOut, exitCode);</span>
+<span class="nc" id="L62">            System.exit(exitCode);</span>
+<span class="nc" id="L63">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L64">            System.err.println(&quot;invalid configuration: &quot; + e.getMessage());</span>
+<span class="nc" id="L65">            System.exit(2);</span>
+<span class="nc" id="L66">        }</span>
+<span class="nc" id="L67">    }</span>
 
     /** Renders the just-written report as text — to stdout by default, or {@code --summary-out}. */
     private static void printSummary(Path reportOut, Path summaryOut, int exitCode) {
-<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (exitCode == 2) {</span>
-<span class="nc" id="L68">            return; // the run itself never completed; there is no report to render</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        if (exitCode == 2) {</span>
+<span class="nc" id="L72">            return; // the run itself never completed; there is no report to render</span>
         }
         try {
-<span class="nc" id="L71">            AnalysisReport report = new ObjectMapper().readValue(reportOut.toFile(), AnalysisReport.class);</span>
-<span class="nc" id="L72">            String text = new TextSummaryRenderer().render(report);</span>
-<span class="nc bnc" id="L73" title="All 2 branches missed.">            if (summaryOut != null) {</span>
-<span class="nc" id="L74">                Files.writeString(summaryOut, text);</span>
+<span class="nc" id="L75">            AnalysisReport report = new ObjectMapper().readValue(reportOut.toFile(), AnalysisReport.class);</span>
+<span class="nc" id="L76">            String text = new TextSummaryRenderer().render(report);</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            if (summaryOut != null) {</span>
+<span class="nc" id="L78">                Files.writeString(summaryOut, text);</span>
             } else {
-<span class="nc" id="L76">                System.out.print(text);</span>
+<span class="nc" id="L80">                System.out.print(text);</span>
             }
-<span class="nc" id="L78">        } catch (IOException e) {</span>
-<span class="nc" id="L79">            System.err.println(&quot;warning: could not render text summary: &quot; + e.getMessage());</span>
-<span class="nc" id="L80">        }</span>
-<span class="nc" id="L81">    }</span>
+<span class="nc" id="L82">        } catch (IOException e) {</span>
+<span class="nc" id="L83">            System.err.println(&quot;warning: could not render text summary: &quot; + e.getMessage());</span>
+<span class="nc" id="L84">        }</span>
+<span class="nc" id="L85">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

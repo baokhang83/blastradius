@@ -43,16 +43,20 @@ coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,Pa
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,CommitWindowResolver,17,102,3,7,3,23,2,5,0,2
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,CommitCheckout.new SimpleFileVisitor() {...},0,23,0,4,0,8,0,4,0,2
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,CommitPair,0,59,0,0,0,10,0,3,0,3
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,CommitCheckout,29,80,1,1,9,27,1,7,0,7
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,Main,186,0,23,0,46,0,17,0,3,0
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.git,CommitCheckout,28,81,0,2,8,28,0,8,0,7
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,Main,196,0,24,0,49,0,18,0,3,0
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand.PairAnalysis,0,15,0,0,0,1,0,1,0,1
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunConfig,8,92,1,11,2,16,2,7,1,2
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand.CommitBuild,0,15,0,0,0,1,0,1,0,1
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand,105,548,8,18,21,109,13,17,6,11
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,ProgressLogger,4,192,1,13,1,44,2,20,1,14
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunConfig,15,108,2,12,3,19,3,8,1,3
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand,87,619,3,23,18,124,9,24,6,14
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,CheckoutPool,19,80,3,7,6,21,2,8,0,5
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,CommitBuildService,8,155,0,8,2,31,0,9,0,5
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,SurefireReportParser,18,151,0,18,4,36,0,15,0,6
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResult,0,9,0,0,0,1,0,1,0,1
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,CommitBuild,0,31,0,0,0,3,0,3,0,3
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,Outcome,0,21,0,0,0,4,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,MavenBuildRunner,62,315,9,25,13,74,8,24,1,14
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,CommitBuildService.BuildKey,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,JdkMismatchDetector,5,117,1,13,3,28,1,14,0,8
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResolver,9,179,0,8,2,36,0,12,0,8
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResolver.new SimpleFileVisitor() {...},2,36,2,6,0,8,2,4,0,2

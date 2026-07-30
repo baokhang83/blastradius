@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>CommitBuildService.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.build</a> &gt; <span class="el_source">CommitBuildService.java</span></div><h1>CommitBuildService.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.build;
+
+import io.github.baokhang83.blastradius.validator.cli.ProgressLogger;
+import io.github.baokhang83.blastradius.validator.git.CommitCheckout;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+
+/**
+ * Phase 1 of a run: builds every commit the window needs, concurrently, across a
+ * {@link CheckoutPool} of isolated working copies — the redesign's core lever for getting
+ * wall-clock per pair down. A single {@code -T} reactor build leaves cores idle on its
+ * critical path; running several commits' builds at once (each in its own clone) fills them.
+ *
+ * &lt;p&gt;The &lt;em&gt;set&lt;/em&gt; of builds is decided by the caller and expressed as {@link BuildKey}s
+ * — a {@code (sha, agentAttached)} pair. Two keys with the same sha but different
+ * {@code agentAttached} are genuinely different builds (safe mode's base-with-agent vs.
+ * head-without-agent, which keeps ground truth independent of the tracking agent — §III),
+ * so they are built separately; identical keys (a commit shared by consecutive pairs) are
+ * deduplicated and built once.
+ *
+ * &lt;p&gt;The pool — not the executor — is the concurrency throttle: a worker blocks on
+ * {@link CheckoutPool#borrow()} until a clone is free, so at most {@code pool size} builds
+ * ever run at once regardless of how many jobs or executor threads exist. A build that
+ * fails, or a builder that throws, becomes a {@linkplain CommitBuild#failed(String) failed}
+ * result for that one key rather than sinking the whole phase (FR-009).
+ */
+public final class CommitBuildService {
+
+    /**
+     * Identifies a single build the window needs: a commit, built either with the tracking
+     * agent attached (to record dependencies) or without it (an independent ground-truth
+     * build). Its {@code equals}/{@code hashCode} are what dedupe and memoize builds.
+     */
+<span class="fc" id="L39">    public record BuildKey(String sha, boolean agentAttached) {}</span>
+
+    /** Performs one commit's build on a borrowed, already-owned checkout. */
+    @FunctionalInterface
+    public interface CommitBuilder {
+        CommitBuild build(CommitCheckout checkout, String sha, boolean agentAttached);
+    }
+
+    private final CheckoutPool pool;
+    private final ExecutorService executor;
+    private final ProgressLogger progress;
+    private final CommitBuilder builder;
+
+    public CommitBuildService(
+<span class="fc" id="L53">            CheckoutPool pool, ExecutorService executor, ProgressLogger progress, CommitBuilder builder) {</span>
+<span class="fc" id="L54">        this.pool = pool;</span>
+<span class="fc" id="L55">        this.executor = executor;</span>
+<span class="fc" id="L56">        this.progress = progress;</span>
+<span class="fc" id="L57">        this.builder = builder;</span>
+<span class="fc" id="L58">    }</span>
+
+    /**
+     * Builds every distinct key concurrently and returns a map from key to its outcome.
+     * Duplicate keys are collapsed, so each {@code (sha, agentAttached)} is built exactly
+     * once even if several pairs reference it. Blocks until all builds have completed.
+     */
+    public Map&lt;BuildKey, CommitBuild&gt; buildAll(List&lt;BuildKey&gt; keys) throws InterruptedException {
+        // LinkedHashMap keyed by BuildKey both deduplicates (a repeated key maps to the same
+        // future) and preserves the caller's ordering for deterministic submission.
+<span class="fc" id="L68">        Map&lt;BuildKey, Future&lt;CommitBuild&gt;&gt; futures = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">        for (BuildKey key : keys) {</span>
+<span class="fc" id="L70">            futures.computeIfAbsent(key, k -&gt; executor.submit(() -&gt; buildOne(k)));</span>
+<span class="fc" id="L71">        }</span>
+
+<span class="fc" id="L73">        Map&lt;BuildKey, CommitBuild&gt; results = new ConcurrentHashMap&lt;&gt;();</span>
+        try {
+<span class="fc bfc" id="L75" title="All 2 branches covered.">            for (Map.Entry&lt;BuildKey, Future&lt;CommitBuild&gt;&gt; entry : futures.entrySet()) {</span>
+<span class="fc" id="L76">                results.put(entry.getKey(), entry.getValue().get());</span>
+<span class="fc" id="L77">            }</span>
+<span class="nc" id="L78">        } catch (ExecutionException e) {</span>
+            // buildOne never throws — it converts every builder failure into a failed
+            // CommitBuild — so an ExecutionException here can only be an unchecked error in
+            // the orchestration itself, which should abort the phase rather than be masked.
+<span class="nc" id="L82">            throw new IllegalStateException(&quot;unexpected failure while building commits&quot;, e.getCause());</span>
+<span class="fc" id="L83">        }</span>
+<span class="fc" id="L84">        return results;</span>
+    }
+
+    private CommitBuild buildOne(BuildKey key) throws InterruptedException {
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        String role = key.agentAttached() ? &quot;with agent&quot; : &quot;no agent&quot;;</span>
+<span class="fc" id="L89">        progress.buildStarted(key.sha(), role);</span>
+<span class="fc" id="L90">        long start = System.currentTimeMillis();</span>
+<span class="fc" id="L91">        CommitCheckout checkout = pool.borrow();</span>
+        try {
+<span class="fc" id="L93">            CommitBuild build = builder.build(checkout, key.sha(), key.agentAttached());</span>
+<span class="fc" id="L94">            long millis = System.currentTimeMillis() - start;</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">            if (build.failed()) {</span>
+<span class="fc" id="L96">                progress.buildFailed(key.sha(), role, build.failureReason());</span>
+            } else {
+<span class="fc" id="L98">                progress.buildFinished(key.sha(), role, millis);</span>
+            }
+<span class="fc" id="L100">            return build;</span>
+<span class="fc" id="L101">        } catch (RuntimeException e) {</span>
+            // A builder that throws (e.g. an I/O error materializing the checkout) must not
+            // lose the job or crash the phase: record it as a failed build so the referencing
+            // pair is excluded, and let every other commit finish (FR-009).
+<span class="fc" id="L105">            String reason = &quot;commit &quot; + key.sha() + &quot; build error: &quot; + e.getMessage();</span>
+<span class="fc" id="L106">            progress.buildFailed(key.sha(), role, reason);</span>
+<span class="fc" id="L107">            return CommitBuild.failed(reason);</span>
+        } finally {
+<span class="fc" id="L109">            pool.release(checkout);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

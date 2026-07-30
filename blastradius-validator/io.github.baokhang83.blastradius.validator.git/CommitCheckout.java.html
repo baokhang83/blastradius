@@ -104,8 +104,8 @@ public final class CommitCheckout implements AutoCloseable {
 <span class="fc" id="L104">    }</span>
 
     private static void deleteRecursively(Path dir) {
-<span class="pc bpc" id="L107" title="1 of 2 branches missed.">        if (Files.notExists(dir)) {</span>
-<span class="nc" id="L108">            return;</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">        if (Files.notExists(dir)) {</span>
+<span class="fc" id="L108">            return;</span>
         }
 <span class="fc" id="L110">        try (var stream = Files.walk(dir)) {</span>
 <span class="fc" id="L111">            stream.sorted(Comparator.reverseOrder()).forEach(p -&gt; {</span>

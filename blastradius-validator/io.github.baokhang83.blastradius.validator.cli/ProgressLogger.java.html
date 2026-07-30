@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ProgressLogger.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.cli</a> &gt; <span class="el_source">ProgressLogger.java</span></div><h1>ProgressLogger.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.cli;
+
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.function.LongSupplier;
+
+/**
+ * Emits timestamped, human-readable progress lines while a run is in flight, so the jar is
+ * no longer silent for the many minutes a real run takes. Writes to &lt;em&gt;stderr&lt;/em&gt; by
+ * design: the machine-readable {@code AnalysisReport} goes to {@code --report-out} (and the
+ * text summary to stdout), so narration here never contaminates either.
+ *
+ * &lt;p&gt;Thread-safe: {@link #buildStarted}/{@link #buildFinished} are called from the
+ * concurrent build workers (see CommitBuildService), so every emit is synchronized to keep
+ * a line from interleaving with another thread's.
+ */
+public final class ProgressLogger {
+
+    private final PrintStream out;
+    private final LongSupplier epochMillis;
+    private final boolean enabled;
+
+    ProgressLogger(PrintStream out, LongSupplier epochMillis) {
+<span class="fc" id="L26">        this(out, epochMillis, true);</span>
+<span class="fc" id="L27">    }</span>
+
+<span class="fc" id="L29">    private ProgressLogger(PrintStream out, LongSupplier epochMillis, boolean enabled) {</span>
+<span class="fc" id="L30">        this.out = out;</span>
+<span class="fc" id="L31">        this.epochMillis = epochMillis;</span>
+<span class="fc" id="L32">        this.enabled = enabled;</span>
+<span class="fc" id="L33">    }</span>
+
+    /** Logs to {@code System.err} with a wall-clock timestamp source. */
+    public static ProgressLogger toStderr() {
+<span class="fc" id="L37">        return new ProgressLogger(System.err, System::currentTimeMillis, true);</span>
+    }
+
+    /** A no-op logger — for callers (and tests) that want the pipeline silent. */
+    public static ProgressLogger silent() {
+<span class="fc" id="L42">        PrintStream discard = new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8);</span>
+<span class="pc" id="L43">        return new ProgressLogger(discard, () -&gt; 0L, false);</span>
+    }
+
+    public void windowResolved(int pairCount) {
+<span class="fc" id="L47">        line(&quot;resolved window of &quot; + pairCount + &quot; commit pair(s)&quot;);</span>
+<span class="fc" id="L48">    }</span>
+
+    public void buildStarted(String sha, String role) {
+<span class="fc" id="L51">        line(&quot;building &quot; + shortSha(sha) + &quot; [&quot; + role + &quot;] ...&quot;);</span>
+<span class="fc" id="L52">    }</span>
+
+    public void buildFinished(String sha, String role, long millis) {
+<span class="fc" id="L55">        line(&quot;built &quot; + shortSha(sha) + &quot; [&quot; + role + &quot;] in &quot; + duration(millis));</span>
+<span class="fc" id="L56">    }</span>
+
+    public void buildFailed(String sha, String role, String reason) {
+<span class="fc" id="L59">        line(&quot;build FAILED &quot; + shortSha(sha) + &quot; [&quot; + role + &quot;]: &quot; + reason);</span>
+<span class="fc" id="L60">    }</span>
+
+    public void pairCompleted(int index, int total, int wouldMissCount, long millis) {
+<span class="fc" id="L63">        line(&quot;pair &quot; + index + &quot;/&quot; + total + &quot; done in &quot; + duration(millis)</span>
+                + &quot; — &quot; + wouldMissCount + &quot; would-miss case(s)&quot;);
+<span class="fc" id="L65">    }</span>
+
+    public void pairExcluded(int index, int total, String reason) {
+<span class="fc" id="L68">        line(&quot;pair &quot; + index + &quot;/&quot; + total + &quot; excluded: &quot; + reason);</span>
+<span class="fc" id="L69">    }</span>
+
+    public void summary(String verdict, long totalMillis) {
+<span class="fc" id="L72">        line(&quot;run complete: &quot; + verdict + &quot; in &quot; + duration(totalMillis));</span>
+<span class="fc" id="L73">    }</span>
+
+    private synchronized void line(String message) {
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (!enabled) {</span>
+<span class="fc" id="L77">            return;</span>
+        }
+<span class="fc" id="L79">        out.println(&quot;[&quot; + Instant.ofEpochMilli(epochMillis.getAsLong()) + &quot;] &quot; + message);</span>
+<span class="fc" id="L80">    }</span>
+
+    /** First 7 chars of a git sha, or the whole thing if shorter — enough to scan by eye. */
+    private static String shortSha(String sha) {
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">        if (sha == null) {</span>
+<span class="nc" id="L85">            return &quot;?&quot;;</span>
+        }
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        return sha.length() &lt;= 7 ? sha : sha.substring(0, 7);</span>
+    }
+
+    /**
+     * Renders a millisecond span as {@code Xh Ym Zs} / {@code Ym Zs} / {@code Zs}, dropping
+     * higher units that are zero. Sub-second spans show one decimal (e.g. {@code 0.5s}) so a
+     * fast step doesn't collapse to a bare {@code 0s}.
+     */
+    static String duration(long millis) {
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        if (millis &lt; 1000) {</span>
+<span class="fc" id="L97">            double seconds = millis / 1000.0;</span>
+<span class="fc" id="L98">            return (Math.round(seconds * 10.0) / 10.0) + &quot;s&quot;;</span>
+        }
+<span class="fc" id="L100">        long totalSeconds = millis / 1000;</span>
+<span class="fc" id="L101">        long hours = totalSeconds / 3600;</span>
+<span class="fc" id="L102">        long minutes = (totalSeconds % 3600) / 60;</span>
+<span class="fc" id="L103">        long seconds = totalSeconds % 60;</span>
+<span class="fc" id="L104">        StringBuilder sb = new StringBuilder();</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">        if (hours &gt; 0) {</span>
+<span class="fc" id="L106">            sb.append(hours).append(&quot;h &quot;);</span>
+        }
+<span class="fc bfc" id="L108" title="All 4 branches covered.">        if (hours &gt; 0 || minutes &gt; 0) {</span>
+<span class="fc" id="L109">            sb.append(minutes).append(&quot;m &quot;);</span>
+        }
+<span class="fc" id="L111">        sb.append(seconds).append('s');</span>
+<span class="fc" id="L112">        return sb.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
