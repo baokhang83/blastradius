@@ -3,13 +3,15 @@ package io.github.baokhang83.blastradius.validator.build;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  * Runs a target project's full suite once (optionally with the tracking agent attached),
@@ -82,16 +84,31 @@ public final class GroundTruthResolver {
     }
 
     private static List<Path> findReportsDirectories(Path projectDir) {
-        try (Stream<Path> stream = Files.walk(projectDir)) {
-            return stream
-                    .filter(Files::isDirectory)
-                    .filter(p -> {
-                        String name = p.getFileName().toString();
-                        return name.equals("surefire-reports") || name.equals("failsafe-reports");
-                    })
-                    .toList();
+        List<Path> reportDirs = new ArrayList<>();
+        try {
+            // walkFileTree pruning .git: reports live under target/, so that can't be skipped,
+            // but .git holds no reports and (on a big repo) is the largest tree — not descending
+            // it is the win. This scan runs after every build AND every confirmFailure rerun,
+            // so its cost is paid many times per pair.
+            Files.walkFileTree(projectDir, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                    String name = dir.getFileName() == null ? "" : dir.getFileName().toString();
+                    if (".git".equals(name)) {
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+                    if (name.equals("surefire-reports") || name.equals("failsafe-reports")) {
+                        reportDirs.add(dir);
+                        // A reports dir contains only report files — no nested reports dir — so
+                        // there's nothing to gain from descending into it.
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
         } catch (IOException e) {
             throw new UncheckedIOException("failed to scan for test reports under " + projectDir, e);
         }
+        return reportDirs;
     }
 }

@@ -22,6 +22,7 @@ import io.github.baokhang83.blastradius.validator.report.AnalysisReport;
 import io.github.baokhang83.blastradius.validator.report.ReportWriter;
 import io.github.baokhang83.blastradius.validator.report.SavingsSummary;
 import io.github.baokhang83.blastradius.validator.report.SavingsSummaryAggregator;
+import io.github.baokhang83.blastradius.core.selection.FallbackSelector;
 import io.github.baokhang83.blastradius.core.selection.NewOrModifiedTestSelector;
 import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
 import io.github.baokhang83.blastradius.core.selection.SelectionEngine;
@@ -62,6 +63,7 @@ public final class RunCommand {
     private final CommitWindowResolver commitWindowResolver = new CommitWindowResolver();
     private final ChangedFileClassifier changedFileClassifier = new ChangedFileClassifier();
     private final ReactorModuleGraphBuilder reactorModuleGraphBuilder = new ReactorModuleGraphBuilder();
+    private final FallbackSelector fallbackSelector = new FallbackSelector();
     private final SelectionEngine selectionEngine = new SelectionEngine();
     private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();
     private final WouldMissComparator wouldMissComparator = new WouldMissComparator();
@@ -250,10 +252,18 @@ public final class RunCommand {
         // the scope is built straight from it — no redundant checkout. Only in --fast-ground-truth
         // mode, where a cached head build may have skipped its checkout and left the tree on base,
         // is head re-materialized (and the resulting scope memoized per commit).
-        ReactorScope reactorScope = headWorkDirForScope != null
-                ? buildReactorScope(headWorkDirForScope)
-                : reactorScopeCache.computeIfAbsent(
-                        pair.headCommit(), sha -> buildReactorScope(checkout.checkoutCommit(sha)));
+        //
+        // Only built when this pair actually has a NON_SOURCE change: SelectionEngine consults
+        // the scope solely inside its fallback branch, so on a source-only pair (the common case)
+        // the two full-tree scans would be pure waste — a null scope is behaviorally identical
+        // there (see SelectionEngine#selectAll).
+        ReactorScope reactorScope = null;
+        if (fallbackSelector.shouldFallback(changedFiles)) {
+            reactorScope = headWorkDirForScope != null
+                    ? buildReactorScope(headWorkDirForScope)
+                    : reactorScopeCache.computeIfAbsent(
+                            pair.headCommit(), sha -> buildReactorScope(checkout.checkoutCommit(sha)));
+        }
 
         List<SelectionDecision> decisions = selectionEngine.selectAll(
                 allTests, testDependencies, newOrModifiedTests, changedFiles,
