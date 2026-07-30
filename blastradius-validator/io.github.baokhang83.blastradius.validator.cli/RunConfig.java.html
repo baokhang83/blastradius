@@ -29,47 +29,67 @@ import java.util.Objects;
  *                             (e.g. {@code -T 2} &amp;times; {@code build-concurrency 4}). Purely
  *                             a scheduling lever: it never changes which builds run or how
  *                             they are compared, so it is orthogonal to §III.
+ * @param buildTimeoutMinutes  how long a single {@code mvn} build may run before it is killed and
+ *                             reported as timed out. Defaults to {@code 5}. A large reactor
+ *                             (e.g. apache/shenyu) legitimately runs a full {@code clean test}
+ *                             past five minutes, so this must be raised there or every build is
+ *                             killed mid-flight and misclassified as a build failure.
  */
 public record RunConfig(
         Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
-        boolean fastGroundTruth, int buildConcurrency) {
+        boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes) {
+
+    /** Default build timeout in minutes when the operator doesn't override it. */
+    public static final long DEFAULT_BUILD_TIMEOUT_MINUTES = 5;
 
     public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath) {
-<span class="fc" id="L38">        this(projectPath, commitWindowSize, reportOutputPath, null, false, 1);</span>
-<span class="fc" id="L39">    }</span>
+<span class="fc" id="L46">        this(projectPath, commitWindowSize, reportOutputPath, null, false, 1, DEFAULT_BUILD_TIMEOUT_MINUTES);</span>
+<span class="fc" id="L47">    }</span>
 
     public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads) {
-<span class="nc" id="L42">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, false, 1);</span>
-<span class="nc" id="L43">    }</span>
+<span class="nc" id="L50">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, false, 1,</span>
+                DEFAULT_BUILD_TIMEOUT_MINUTES);
+<span class="nc" id="L52">    }</span>
 
     public RunConfig(
             Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
             boolean fastGroundTruth) {
-<span class="fc" id="L48">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth, 1);</span>
-<span class="fc" id="L49">    }</span>
+<span class="fc" id="L57">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth, 1,</span>
+                DEFAULT_BUILD_TIMEOUT_MINUTES);
+<span class="fc" id="L59">    }</span>
 
-<span class="fc" id="L51">    public RunConfig {</span>
-<span class="fc" id="L52">        Objects.requireNonNull(projectPath, &quot;projectPath&quot;);</span>
-<span class="fc bfc" id="L53" title="All 2 branches covered.">        if (!Files.isDirectory(projectPath)) {</span>
-<span class="fc" id="L54">            throw new IllegalArgumentException(&quot;projectPath does not exist or is not a directory: &quot; + projectPath);</span>
+    public RunConfig(
+            Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
+            boolean fastGroundTruth, int buildConcurrency) {
+<span class="nc" id="L64">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,</span>
+                buildConcurrency, DEFAULT_BUILD_TIMEOUT_MINUTES);
+<span class="nc" id="L66">    }</span>
+
+<span class="fc" id="L68">    public RunConfig {</span>
+<span class="fc" id="L69">        Objects.requireNonNull(projectPath, &quot;projectPath&quot;);</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (!Files.isDirectory(projectPath)) {</span>
+<span class="fc" id="L71">            throw new IllegalArgumentException(&quot;projectPath does not exist or is not a directory: &quot; + projectPath);</span>
         }
-<span class="fc bfc" id="L56" title="All 2 branches covered.">        if (!Files.isDirectory(projectPath.resolve(&quot;.git&quot;))) {</span>
-<span class="fc" id="L57">            throw new IllegalArgumentException(&quot;projectPath is not a git repository: &quot; + projectPath);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (!Files.isDirectory(projectPath.resolve(&quot;.git&quot;))) {</span>
+<span class="fc" id="L74">            throw new IllegalArgumentException(&quot;projectPath is not a git repository: &quot; + projectPath);</span>
         }
-<span class="fc bfc" id="L59" title="All 2 branches covered.">        if (commitWindowSize &lt;= 0) {</span>
-<span class="fc" id="L60">            throw new IllegalArgumentException(&quot;commitWindowSize must be positive, got: &quot; + commitWindowSize);</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (commitWindowSize &lt;= 0) {</span>
+<span class="fc" id="L77">            throw new IllegalArgumentException(&quot;commitWindowSize must be positive, got: &quot; + commitWindowSize);</span>
         }
-<span class="fc" id="L62">        Objects.requireNonNull(reportOutputPath, &quot;reportOutputPath&quot;);</span>
-<span class="fc bfc" id="L63" title="All 2 branches covered.">        if (Files.isDirectory(reportOutputPath)) {</span>
-<span class="fc" id="L64">            throw new IllegalArgumentException(&quot;reportOutputPath must be a file path, not a directory: &quot; + reportOutputPath);</span>
+<span class="fc" id="L79">        Objects.requireNonNull(reportOutputPath, &quot;reportOutputPath&quot;);</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (Files.isDirectory(reportOutputPath)) {</span>
+<span class="fc" id="L81">            throw new IllegalArgumentException(&quot;reportOutputPath must be a file path, not a directory: &quot; + reportOutputPath);</span>
         }
-<span class="pc bpc" id="L66" title="1 of 4 branches missed.">        if (mavenParallelThreads != null &amp;&amp; mavenParallelThreads &lt; 1) {</span>
-<span class="fc" id="L67">            throw new IllegalArgumentException(</span>
+<span class="fc bfc" id="L83" title="All 4 branches covered.">        if (mavenParallelThreads != null &amp;&amp; mavenParallelThreads &lt; 1) {</span>
+<span class="fc" id="L84">            throw new IllegalArgumentException(</span>
                     &quot;mavenParallelThreads must be positive, got: &quot; + mavenParallelThreads);
         }
-<span class="pc bpc" id="L70" title="1 of 2 branches missed.">        if (buildConcurrency &lt; 1) {</span>
-<span class="nc" id="L71">            throw new IllegalArgumentException(&quot;buildConcurrency must be positive, got: &quot; + buildConcurrency);</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">        if (buildConcurrency &lt; 1) {</span>
+<span class="nc" id="L88">            throw new IllegalArgumentException(&quot;buildConcurrency must be positive, got: &quot; + buildConcurrency);</span>
         }
-<span class="fc" id="L73">    }</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        if (buildTimeoutMinutes &lt; 1) {</span>
+<span class="fc" id="L91">            throw new IllegalArgumentException(&quot;buildTimeoutMinutes must be positive, got: &quot; + buildTimeoutMinutes);</span>
+        }
+<span class="fc" id="L93">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -64,51 +64,59 @@ public final class S3IndexStore&lt;T&gt; implements IndexStore&lt;T&gt;, AutoClo
 <span class="pc bpc" id="L64" title="2 of 4 branches missed.">        if (key == null || key.isBlank()) {</span>
 <span class="nc" id="L65">            throw new IllegalArgumentException(&quot;index key must not be blank&quot;);</span>
         }
+        // An S3 object key is a logical, always-forward-slash path, so absoluteness must be
+        // judged OS-independently: a leading '/' (or '\') is &quot;absolute&quot; for our purposes even
+        // though Path.of(&quot;/x&quot;).isAbsolute() is false on Windows, where an absolute path needs a
+        // drive letter — relying on Path.isAbsolute() alone lets &quot;/absolute/key&quot; slip the guard
+        // on Windows.
+<span class="pc bpc" id="L72" title="1 of 4 branches missed.">        if (key.startsWith(&quot;/&quot;) || key.startsWith(&quot;\\&quot;)) {</span>
+<span class="fc" id="L73">            throw new IllegalArgumentException(&quot;index key must stay below the configured S3 prefix: &quot; + key);</span>
+        }
         try {
-<span class="fc" id="L68">            Path path = Path.of(key).normalize();</span>
-<span class="pc bpc" id="L69" title="1 of 6 branches missed.">            if (path.isAbsolute() || path.getNameCount() == 0 || path.startsWith(&quot;..&quot;)) {</span>
-<span class="fc" id="L70">                throw new IllegalArgumentException(&quot;index key must stay below the configured S3 prefix: &quot; + key);</span>
+<span class="fc" id="L76">            Path path = Path.of(key).normalize();</span>
+<span class="pc bpc" id="L77" title="2 of 6 branches missed.">            if (path.isAbsolute() || path.getNameCount() == 0 || path.startsWith(&quot;..&quot;)) {</span>
+<span class="fc" id="L78">                throw new IllegalArgumentException(&quot;index key must stay below the configured S3 prefix: &quot; + key);</span>
             }
-<span class="fc" id="L72">            String normalizedKey = path.toString().replace('\\', '/');</span>
-<span class="pc bpc" id="L73" title="1 of 2 branches missed.">            return prefix.isEmpty() ? normalizedKey : prefix + &quot;/&quot; + normalizedKey;</span>
-<span class="nc" id="L74">        } catch (InvalidPathException e) {</span>
-<span class="nc" id="L75">            throw new IllegalArgumentException(&quot;invalid index key: &quot; + key, e);</span>
+<span class="fc" id="L80">            String normalizedKey = path.toString().replace('\\', '/');</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">            return prefix.isEmpty() ? normalizedKey : prefix + &quot;/&quot; + normalizedKey;</span>
+<span class="nc" id="L82">        } catch (InvalidPathException e) {</span>
+<span class="nc" id="L83">            throw new IllegalArgumentException(&quot;invalid index key: &quot; + key, e);</span>
         }
     }
 
     private String objectPrefix(String relativePrefix) {
-<span class="pc bpc" id="L80" title="1 of 4 branches missed.">        if (relativePrefix == null || relativePrefix.isBlank()) {</span>
-<span class="fc" id="L81">            return prefix;</span>
+<span class="pc bpc" id="L88" title="1 of 4 branches missed.">        if (relativePrefix == null || relativePrefix.isBlank()) {</span>
+<span class="fc" id="L89">            return prefix;</span>
         }
-<span class="fc" id="L83">        return objectKey(relativePrefix);</span>
+<span class="fc" id="L91">        return objectKey(relativePrefix);</span>
     }
 
     private String relativeKey(String objectKey) {
-<span class="pc bpc" id="L87" title="1 of 2 branches missed.">        if (prefix.isEmpty()) {</span>
-<span class="nc" id="L88">            return objectKey;</span>
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">        if (prefix.isEmpty()) {</span>
+<span class="nc" id="L96">            return objectKey;</span>
         }
-<span class="fc" id="L90">        String prefixWithSeparator = prefix + &quot;/&quot;;</span>
-<span class="pc bpc" id="L91" title="1 of 2 branches missed.">        if (!objectKey.startsWith(prefixWithSeparator)) {</span>
-<span class="nc" id="L92">            throw new IllegalArgumentException(&quot;S3 object key is outside the configured prefix: &quot; + objectKey);</span>
+<span class="fc" id="L98">        String prefixWithSeparator = prefix + &quot;/&quot;;</span>
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">        if (!objectKey.startsWith(prefixWithSeparator)) {</span>
+<span class="nc" id="L100">            throw new IllegalArgumentException(&quot;S3 object key is outside the configured prefix: &quot; + objectKey);</span>
         }
-<span class="fc" id="L94">        return objectKey.substring(prefixWithSeparator.length());</span>
+<span class="fc" id="L102">        return objectKey.substring(prefixWithSeparator.length());</span>
     }
 
     private static String normalizePrefix(String prefix) {
-<span class="pc bpc" id="L98" title="2 of 4 branches missed.">        if (prefix == null || prefix.isBlank()) {</span>
-<span class="nc" id="L99">            return &quot;&quot;;</span>
+<span class="pc bpc" id="L106" title="2 of 4 branches missed.">        if (prefix == null || prefix.isBlank()) {</span>
+<span class="nc" id="L107">            return &quot;&quot;;</span>
         }
-<span class="fc" id="L101">        String normalized = prefix.replace('\\', '/');</span>
-<span class="pc bpc" id="L102" title="1 of 2 branches missed.">        while (normalized.startsWith(&quot;/&quot;)) {</span>
-<span class="nc" id="L103">            normalized = normalized.substring(1);</span>
+<span class="fc" id="L109">        String normalized = prefix.replace('\\', '/');</span>
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">        while (normalized.startsWith(&quot;/&quot;)) {</span>
+<span class="nc" id="L111">            normalized = normalized.substring(1);</span>
         }
-<span class="pc bpc" id="L105" title="1 of 2 branches missed.">        while (normalized.endsWith(&quot;/&quot;)) {</span>
-<span class="nc" id="L106">            normalized = normalized.substring(0, normalized.length() - 1);</span>
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">        while (normalized.endsWith(&quot;/&quot;)) {</span>
+<span class="nc" id="L114">            normalized = normalized.substring(0, normalized.length() - 1);</span>
         }
-<span class="pc bpc" id="L108" title="4 of 8 branches missed.">        if (normalized.isBlank() || normalized.equals(&quot;.&quot;) || normalized.startsWith(&quot;../&quot;) || normalized.contains(&quot;/../&quot;)) {</span>
-<span class="nc" id="L109">            throw new IllegalArgumentException(&quot;S3 prefix must not escape its bucket: &quot; + prefix);</span>
+<span class="pc bpc" id="L116" title="4 of 8 branches missed.">        if (normalized.isBlank() || normalized.equals(&quot;.&quot;) || normalized.startsWith(&quot;../&quot;) || normalized.contains(&quot;/../&quot;)) {</span>
+<span class="nc" id="L117">            throw new IllegalArgumentException(&quot;S3 prefix must not escape its bucket: &quot; + prefix);</span>
         }
-<span class="fc" id="L111">        return normalized;</span>
+<span class="fc" id="L119">        return normalized;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

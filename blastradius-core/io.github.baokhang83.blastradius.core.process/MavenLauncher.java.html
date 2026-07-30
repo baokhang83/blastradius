@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>MavenLauncher.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.process</a> &gt; <span class="el_source">MavenLauncher.java</span></div><h1>MavenLauncher.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.process;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Locale;
+
+/**
+ * Resolves the name of the Maven launcher to hand to {@link ProcessBuilder}, per operating
+ * system. On Windows there is no {@code mvn} executable — Maven ships {@code mvn.cmd} (and
+ * {@code mvn.bat} on older distributions) — and Java's process launcher only appends
+ * {@code .exe} when searching {@code PATH}, so a literal {@code &quot;mvn&quot;} fails with
+ * {@code CreateProcess error=2, The system cannot find the file specified}. Naming the
+ * {@code .cmd} explicitly (or an absolute path to it) is what makes the subprocess start.
+ *
+ * &lt;p&gt;Resolution order:
+ * &lt;ol&gt;
+ *   &lt;li&gt;{@code MAVEN_HOME}/{@code M2_HOME}{@code /bin/&lt;launcher&gt;} if that env var points at a
+ *       real installation — an absolute path never depends on {@code PATH} at all;&lt;/li&gt;
+ *   &lt;li&gt;otherwise the bare platform launcher name ({@code mvn.cmd} on Windows, {@code mvn}
+ *       elsewhere), resolved against {@code PATH} by the OS.&lt;/li&gt;
+ * &lt;/ol&gt;
+ */
+public final class MavenLauncher {
+
+    private MavenLauncher() {}
+
+<span class="fc" id="L27">    private static final boolean IS_WINDOWS =</span>
+<span class="fc" id="L28">            System.getProperty(&quot;os.name&quot;, &quot;&quot;).toLowerCase(Locale.ROOT).contains(&quot;win&quot;);</span>
+
+    /** The bare launcher name for this OS: {@code mvn.cmd} on Windows, {@code mvn} otherwise. */
+    public static String launcherName() {
+<span class="pc bpc" id="L32" title="1 of 2 branches missed.">        return IS_WINDOWS ? &quot;mvn.cmd&quot; : &quot;mvn&quot;;</span>
+    }
+
+    /**
+     * The command token to pass as {@code argv[0]}: an absolute path to the launcher inside a
+     * {@code MAVEN_HOME}/{@code M2_HOME} installation when one is set and valid, else the bare
+     * platform launcher name (found via {@code PATH}).
+     */
+    public static String resolve() {
+<span class="fc bfc" id="L41" title="All 2 branches covered.">        for (String var : new String[] {&quot;MAVEN_HOME&quot;, &quot;M2_HOME&quot;}) {</span>
+<span class="fc" id="L42">            String home = System.getenv(var);</span>
+<span class="pc bpc" id="L43" title="3 of 4 branches missed.">            if (home == null || home.isBlank()) {</span>
+<span class="nc" id="L44">                continue;</span>
+            }
+<span class="nc" id="L46">            Path candidate = Path.of(home, &quot;bin&quot;, launcherName());</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">            if (Files.isRegularFile(candidate)) {</span>
+<span class="nc" id="L48">                return candidate.toAbsolutePath().toString();</span>
+            }
+        }
+<span class="fc" id="L51">        return launcherName();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

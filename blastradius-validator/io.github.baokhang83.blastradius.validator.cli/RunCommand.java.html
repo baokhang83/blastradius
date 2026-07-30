@@ -105,7 +105,7 @@ public final class RunCommand {
      */
     public int run(RunConfig config, Path agentJar) {
         try {
-<span class="fc" id="L108">            buildRunner = new MavenBuildRunner(config.mavenParallelThreads());</span>
+<span class="fc" id="L108">            buildRunner = new MavenBuildRunner(config.mavenParallelThreads(), config.buildTimeoutMinutes());</span>
 <span class="fc" id="L109">            groundTruthResolver = new GroundTruthResolver(buildRunner);</span>
 
 <span class="fc" id="L111">            jdkMismatchDetector.detect(config.projectPath()).ifPresent(System.err::println);</span>
@@ -324,10 +324,25 @@ public final class RunCommand {
 <span class="fc" id="L324">        GroundTruthResolution resolution = groundTruthResolver.resolve(</span>
 <span class="fc bfc" id="L325" title="All 2 branches covered.">                workDir, agentAttached ? agentJar : null, depsFile);</span>
 <span class="fc bfc" id="L326" title="All 2 branches covered.">        if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), workDir)) {</span>
-<span class="fc" id="L327">            return CommitBuild.failed(&quot;commit &quot; + sha + &quot; failed to build&quot;);</span>
+<span class="fc" id="L327">            return CommitBuild.failed(&quot;commit &quot; + sha + &quot; failed to build (exit &quot;</span>
+<span class="fc" id="L328">                    + resolution.initialBuild().exitCode() + &quot;):\n&quot;</span>
+<span class="fc" id="L329">                    + tail(resolution.initialBuild().output(), 4000));</span>
         }
-<span class="fc bfc" id="L329" title="All 2 branches covered.">        DependencyRecordSet recordSet = agentAttached ? new DependencyRecordReader().readAll(depsFile) : null;</span>
-<span class="fc" id="L330">        return CommitBuild.succeeded(recordSet, resolution.results());</span>
+<span class="fc bfc" id="L331" title="All 2 branches covered.">        DependencyRecordSet recordSet = agentAttached ? new DependencyRecordReader().readAll(depsFile) : null;</span>
+<span class="fc" id="L332">        return CommitBuild.succeeded(recordSet, resolution.results());</span>
+    }
+
+    /**
+     * The last {@code maxChars} of {@code text} (whole thing if shorter), for surfacing why a
+     * build failed without dumping the entire reactor log into the failure reason. Maven prints
+     * the real cause — a compile error, an unresolved dependency, a plugin that can't launch —
+     * at the very end, so the tail is where the signal is.
+     */
+    private static String tail(String text, int maxChars) {
+<span class="pc bpc" id="L342" title="2 of 4 branches missed.">        if (text == null || text.isEmpty()) {</span>
+<span class="nc" id="L343">            return &quot;(no build output captured)&quot;;</span>
+        }
+<span class="pc bpc" id="L345" title="1 of 2 branches missed.">        return text.length() &lt;= maxChars ? text : &quot;...&quot; + text.substring(text.length() - maxChars);</span>
     }
 
     /**
@@ -340,24 +355,24 @@ public final class RunCommand {
      */
     private ReactorScope buildReactorScope(Path headTree) {
         try {
-<span class="nc" id="L343">            ReactorModuleGraph graph = reactorModuleGraphBuilder.fromRepoTree(headTree);</span>
-<span class="nc" id="L344">            return new ReactorScope(graph, TestModuleIndex.fromRepoTree(headTree, graph));</span>
-<span class="nc" id="L345">        } catch (RuntimeException e) {</span>
-<span class="nc" id="L346">            return null;</span>
+<span class="nc" id="L358">            ReactorModuleGraph graph = reactorModuleGraphBuilder.fromRepoTree(headTree);</span>
+<span class="nc" id="L359">            return new ReactorScope(graph, TestModuleIndex.fromRepoTree(headTree, graph));</span>
+<span class="nc" id="L360">        } catch (RuntimeException e) {</span>
+<span class="nc" id="L361">            return null;</span>
         }
     }
 
     private static PairAnalysis excluded(CommitPair pair, String reason) {
-<span class="fc" id="L351">        CommitPair excludedPair = CommitPair.excluded(pair.baseCommit(), pair.headCommit(), reason);</span>
-<span class="fc" id="L352">        return new PairAnalysis(excludedPair, List.of(), List.of(), List.of());</span>
+<span class="fc" id="L366">        CommitPair excludedPair = CommitPair.excluded(pair.baseCommit(), pair.headCommit(), reason);</span>
+<span class="fc" id="L367">        return new PairAnalysis(excludedPair, List.of(), List.of(), List.of());</span>
     }
 
     private static Path locateOwnJar() {
         try {
-<span class="nc" id="L357">            URI uri = RunCommand.class.getProtectionDomain().getCodeSource().getLocation().toURI();</span>
-<span class="nc" id="L358">            return Path.of(uri);</span>
-<span class="nc" id="L359">        } catch (Exception e) {</span>
-<span class="nc" id="L360">            throw new IllegalStateException(&quot;could not locate this tool's own jar for -javaagent attachment&quot;, e);</span>
+<span class="nc" id="L372">            URI uri = RunCommand.class.getProtectionDomain().getCodeSource().getLocation().toURI();</span>
+<span class="nc" id="L373">            return Path.of(uri);</span>
+<span class="nc" id="L374">        } catch (Exception e) {</span>
+<span class="nc" id="L375">            throw new IllegalStateException(&quot;could not locate this tool's own jar for -javaagent attachment&quot;, e);</span>
         }
     }
 }
