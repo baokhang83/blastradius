@@ -112,7 +112,8 @@ public final class RunCommand {
             // build-concurrency is 1.
             boolean isolatedRepo = config.buildConcurrency() > 1;
             buildRunner = new MavenBuildRunner(
-                    config.mavenParallelThreads(), config.buildTimeoutMinutes(), isolatedRepo);
+                    config.mavenParallelThreads(), config.buildTimeoutMinutes(), isolatedRepo,
+                    config.skipBuildExtras());
             groundTruthResolver = new GroundTruthResolver(buildRunner);
 
             jdkMismatchDetector.detect(config.projectPath()).ifPresent(System.err::println);
