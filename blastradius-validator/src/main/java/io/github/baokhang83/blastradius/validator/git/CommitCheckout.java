@@ -96,11 +96,35 @@ public final class CommitCheckout implements AutoCloseable {
         }
     }
 
-    /** Closes the scratch clone and deletes its directory. The target repo is untouched. */
+    /**
+     * The isolated local Maven repository ({@code -Dmaven.repo.local}) to use for builds on
+     * <em>this</em> clone's working copy, as a sibling of the scratch checkout dir. Kept out of
+     * the working tree (a sibling, not a child) so {@code git checkout} never sees it as an
+     * untracked dir to scan and {@code deleteAllTargetDirectories} never walks it.
+     *
+     * <p>Why per-clone rather than per-build or shared: {@code maven-remote-resources-plugin}
+     * (and other plugins) take a <em>file lock</em> inside the local repo, so K concurrent builds
+     * against one shared {@code ~/.m2} serialize on that lock — the exact "Could not acquire
+     * lock(s)" contention apache/shenyu itself documents. One repo per clone gives each concurrent
+     * build its own lock file (no contention) while staying warm across the many commits that
+     * clone builds over a run — a fresh empty repo per build would instead re-download every
+     * dependency every time.
+     *
+     * <p>Static so the one place that defines this {@code <scratch>-m2} convention is also the one
+     * that cleans it up ({@link #close()}); callers that need the path (the Maven runner) derive it
+     * from the same method rather than re-encoding the suffix.
+     */
+    public static Path isolatedMavenRepoFor(Path workDir) {
+        Path abs = workDir.toAbsolutePath().normalize();
+        return abs.resolveSibling(abs.getFileName() + "-m2");
+    }
+
+    /** Closes the scratch clone and deletes its directory and its isolated Maven repo, if any. */
     @Override
     public void close() {
         scratchGit.close();
         deleteRecursively(scratchDir);
+        deleteRecursively(isolatedMavenRepoFor(scratchDir));
     }
 
     private static void deleteRecursively(Path dir) {
