@@ -3,12 +3,14 @@
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 /**
  * Maps a {@link TestIdentity} (a class FQN with no path) to its owning reactor module, by
@@ -26,65 +28,82 @@ public final class TestModuleIndex {
 
     private final Map&lt;String, ModuleId&gt; moduleByClassName;
 
-<span class="fc" id="L29">    private TestModuleIndex(Map&lt;String, ModuleId&gt; moduleByClassName) {</span>
-<span class="fc" id="L30">        this.moduleByClassName = Map.copyOf(moduleByClassName);</span>
-<span class="fc" id="L31">    }</span>
+<span class="fc" id="L31">    private TestModuleIndex(Map&lt;String, ModuleId&gt; moduleByClassName) {</span>
+<span class="fc" id="L32">        this.moduleByClassName = Map.copyOf(moduleByClassName);</span>
+<span class="fc" id="L33">    }</span>
 
     /**
      * The module owning {@code test}'s class, or empty if the class was found under no
      * module's test-source root (caller falls back to the whole suite).
      */
     public Optional&lt;ModuleId&gt; moduleOf(TestIdentity test) {
-<span class="fc" id="L38">        return Optional.ofNullable(moduleByClassName.get(test.className()));</span>
+<span class="fc" id="L40">        return Optional.ofNullable(moduleByClassName.get(test.className()));</span>
     }
 
     public static TestModuleIndex fromRepoTree(Path repoRoot, ReactorModuleGraph graph) {
-<span class="fc" id="L42">        Map&lt;String, ModuleId&gt; byClassName = new HashMap&lt;&gt;();</span>
-<span class="fc" id="L43">        try (Stream&lt;Path&gt; tree = Files.walk(repoRoot)) {</span>
-<span class="fc" id="L44">            tree.filter(Files::isRegularFile)</span>
-<span class="fc" id="L45">                    .filter(TestModuleIndex::isTestSource)</span>
-<span class="fc" id="L46">                    .forEach(sourceFile -&gt; {</span>
-<span class="fc" id="L47">                        String relative = repoRoot.relativize(sourceFile).toString().replace('\\', '/');</span>
-<span class="fc" id="L48">                        String className = classNameOf(relative);</span>
-<span class="pc bpc" id="L49" title="1 of 2 branches missed.">                        if (className == null) {</span>
-<span class="nc" id="L50">                            return;</span>
-                        }
-<span class="fc" id="L52">                        graph.moduleOf(relative).ifPresent(module -&gt; byClassName.put(className, module));</span>
-<span class="fc" id="L53">                    });</span>
-<span class="nc" id="L54">        } catch (IOException e) {</span>
-<span class="nc" id="L55">            throw new UncheckedIOException(&quot;failed to scan test sources under &quot; + repoRoot, e);</span>
-<span class="fc" id="L56">        }</span>
-<span class="fc" id="L57">        return new TestModuleIndex(byClassName);</span>
+<span class="fc" id="L44">        Map&lt;String, ModuleId&gt; byClassName = new HashMap&lt;&gt;();</span>
+        try {
+            // walkFileTree, not Files.walk: prune .git / target / build whole-subtree rather
+            // than walking every file and post-filtering (isTestSource still excludes any
+            // build output that slips through). On a big repo the .git object store alone
+            // dwarfs the source tree, so not descending it is the win.
+<span class="fc" id="L50">            Files.walkFileTree(repoRoot, new SimpleFileVisitor&lt;&gt;() {</span>
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">                    String name = dir.getFileName() == null ? &quot;&quot; : dir.getFileName().toString();</span>
+<span class="pc bpc" id="L54" title="2 of 6 branches missed.">                    if (&quot;.git&quot;.equals(name) || &quot;target&quot;.equals(name) || &quot;build&quot;.equals(name)) {</span>
+<span class="fc" id="L55">                        return FileVisitResult.SKIP_SUBTREE;</span>
+                    }
+<span class="fc" id="L57">                    return FileVisitResult.CONTINUE;</span>
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path sourceFile, BasicFileAttributes attrs) {
+<span class="fc bfc" id="L62" title="All 2 branches covered.">                    if (!isTestSource(sourceFile)) {</span>
+<span class="fc" id="L63">                        return FileVisitResult.CONTINUE;</span>
+                    }
+<span class="fc" id="L65">                    String relative = repoRoot.relativize(sourceFile).toString().replace('\\', '/');</span>
+<span class="fc" id="L66">                    String className = classNameOf(relative);</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">                    if (className != null) {</span>
+<span class="fc" id="L68">                        graph.moduleOf(relative).ifPresent(module -&gt; byClassName.put(className, module));</span>
+                    }
+<span class="fc" id="L70">                    return FileVisitResult.CONTINUE;</span>
+                }
+            });
+<span class="nc" id="L73">        } catch (IOException e) {</span>
+<span class="nc" id="L74">            throw new UncheckedIOException(&quot;failed to scan test sources under &quot; + repoRoot, e);</span>
+<span class="fc" id="L75">        }</span>
+<span class="fc" id="L76">        return new TestModuleIndex(byClassName);</span>
     }
 
     private static boolean isTestSource(Path file) {
-<span class="fc" id="L61">        String path = file.toString().replace('\\', '/');</span>
-<span class="pc bpc" id="L62" title="1 of 4 branches missed.">        if (path.contains(&quot;/target/&quot;) || path.contains(&quot;/build/&quot;)) {</span>
-<span class="fc" id="L63">            return false;</span>
+<span class="fc" id="L80">        String path = file.toString().replace('\\', '/');</span>
+<span class="pc bpc" id="L81" title="2 of 4 branches missed.">        if (path.contains(&quot;/target/&quot;) || path.contains(&quot;/build/&quot;)) {</span>
+<span class="nc" id="L82">            return false;</span>
         }
-<span class="fc bfc" id="L65" title="All 4 branches covered.">        boolean underTestRoot = path.contains(&quot;/src/test/java/&quot;) || path.contains(&quot;/src/test/kotlin/&quot;);</span>
-<span class="pc bpc" id="L66" title="1 of 6 branches missed.">        return underTestRoot &amp;&amp; (path.endsWith(&quot;.java&quot;) || path.endsWith(&quot;.kt&quot;));</span>
+<span class="fc bfc" id="L84" title="All 4 branches covered.">        boolean underTestRoot = path.contains(&quot;/src/test/java/&quot;) || path.contains(&quot;/src/test/kotlin/&quot;);</span>
+<span class="pc bpc" id="L85" title="1 of 6 branches missed.">        return underTestRoot &amp;&amp; (path.endsWith(&quot;.java&quot;) || path.endsWith(&quot;.kt&quot;));</span>
     }
 
     /** Derive the FQN from a test-source path by stripping the {@code src/test/{java,kotlin}/} root. */
     private static String classNameOf(String relativePath) {
-<span class="fc" id="L71">        int javaRoot = relativePath.indexOf(&quot;src/test/java/&quot;);</span>
-<span class="fc" id="L72">        int kotlinRoot = relativePath.indexOf(&quot;src/test/kotlin/&quot;);</span>
+<span class="fc" id="L90">        int javaRoot = relativePath.indexOf(&quot;src/test/java/&quot;);</span>
+<span class="fc" id="L91">        int kotlinRoot = relativePath.indexOf(&quot;src/test/kotlin/&quot;);</span>
         int start;
         int rootLength;
-<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (javaRoot &gt;= 0) {</span>
-<span class="fc" id="L76">            start = javaRoot;</span>
-<span class="fc" id="L77">            rootLength = &quot;src/test/java/&quot;.length();</span>
-<span class="pc bpc" id="L78" title="1 of 2 branches missed.">        } else if (kotlinRoot &gt;= 0) {</span>
-<span class="fc" id="L79">            start = kotlinRoot;</span>
-<span class="fc" id="L80">            rootLength = &quot;src/test/kotlin/&quot;.length();</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        if (javaRoot &gt;= 0) {</span>
+<span class="fc" id="L95">            start = javaRoot;</span>
+<span class="fc" id="L96">            rootLength = &quot;src/test/java/&quot;.length();</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        } else if (kotlinRoot &gt;= 0) {</span>
+<span class="fc" id="L98">            start = kotlinRoot;</span>
+<span class="fc" id="L99">            rootLength = &quot;src/test/kotlin/&quot;.length();</span>
         } else {
-<span class="nc" id="L82">            return null;</span>
+<span class="nc" id="L101">            return null;</span>
         }
-<span class="fc" id="L84">        String packagePath = relativePath.substring(start + rootLength);</span>
-<span class="fc" id="L85">        int dot = packagePath.lastIndexOf('.');</span>
-<span class="pc bpc" id="L86" title="1 of 2 branches missed.">        String withoutExtension = dot &gt;= 0 ? packagePath.substring(0, dot) : packagePath;</span>
-<span class="fc" id="L87">        return withoutExtension.replace('/', '.');</span>
+<span class="fc" id="L103">        String packagePath = relativePath.substring(start + rootLength);</span>
+<span class="fc" id="L104">        int dot = packagePath.lastIndexOf('.');</span>
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">        String withoutExtension = dot &gt;= 0 ? packagePath.substring(0, dot) : packagePath;</span>
+<span class="fc" id="L106">        return withoutExtension.replace('/', '.');</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
