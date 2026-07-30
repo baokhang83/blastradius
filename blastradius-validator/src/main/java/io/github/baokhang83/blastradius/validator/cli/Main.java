@@ -10,14 +10,15 @@ import java.nio.file.Path;
 /**
  * CLI entry point. Usage:
  * {@code blastradius-validator run --project-path <path> --commits <N> --report-out <path>
- * [--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth]}
+ * [--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth] [--build-concurrency <K>]}
  */
 public final class Main {
 
     public static void main(String[] args) {
         if (args.length == 0 || !"run".equals(args[0])) {
             System.err.println("usage: run --project-path <path> --commits <N> --report-out <path> "
-                    + "[--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth]");
+                    + "[--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth] "
+                    + "[--build-concurrency <K>]");
             System.exit(2);
             return;
         }
@@ -28,6 +29,7 @@ public final class Main {
         Path summaryOut = null;
         Integer mavenThreads = null;
         boolean fastGroundTruth = false;
+        int buildConcurrency = 1;
 
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
@@ -37,6 +39,7 @@ public final class Main {
                 case "--summary-out" -> summaryOut = Path.of(args[++i]);
                 case "--maven-threads" -> mavenThreads = Integer.parseInt(args[++i]);
                 case "--fast-ground-truth" -> fastGroundTruth = true;
+                case "--build-concurrency" -> buildConcurrency = Integer.parseInt(args[++i]);
                 default -> {
                     System.err.println("unknown argument: " + args[i]);
                     System.exit(2);
@@ -52,7 +55,8 @@ public final class Main {
         }
 
         try {
-            RunConfig config = new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth);
+            RunConfig config =
+                    new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth, buildConcurrency);
             int exitCode = new RunCommand().run(config);
             printSummary(reportOut, summaryOut, exitCode);
             System.exit(exitCode);
