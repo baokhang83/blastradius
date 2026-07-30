@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.baokhang83.blastradius.core.process.MavenLauncher;
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
@@ -198,7 +199,7 @@ class MavenBuildRunnerTest {
     void moduleScopedSingleTestAddsPlAndAlsoMake() {
         assertArrayEquals(
                 new String[] {
-                    "mvn", "-B", "--no-transfer-progress", "clean", "test",
+                    MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test",
                     "-Dtest=com.example.FooTest#passes",
                     "-DfailIfNoTests=false", "-Dsurefire.failIfNoSpecifiedTests=false",
                     "-pl", "moduleB", "-am"
@@ -210,7 +211,7 @@ class MavenBuildRunnerTest {
     void nullModulePathOmitsPlAndAlsoMake() {
         assertArrayEquals(
                 new String[] {
-                    "mvn", "-B", "--no-transfer-progress", "clean", "test",
+                    MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test",
                     "-Dtest=com.example.FooTest#passes",
                     "-DfailIfNoTests=false", "-Dsurefire.failIfNoSpecifiedTests=false"
                 },
@@ -221,7 +222,7 @@ class MavenBuildRunnerTest {
     void cleanFalseOmitsTheCleanGoal() {
         assertArrayEquals(
                 new String[] {
-                    "mvn", "-B", "--no-transfer-progress", "test",
+                    MavenLauncher.resolve(), "-B", "--no-transfer-progress", "test",
                     "-Dtest=com.example.FooTest#passes",
                     "-DfailIfNoTests=false", "-Dsurefire.failIfNoSpecifiedTests=false",
                     "-pl", "moduleB", "-am"
@@ -277,14 +278,14 @@ class MavenBuildRunnerTest {
     @Test
     void noParallelThreadsOmitsTheTFlag() {
         assertArrayEquals(
-                new String[] {"mvn", "-B", "--no-transfer-progress", "clean", "test"},
+                new String[] {MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test"},
                 new MavenBuildRunner().command(null));
     }
 
     @Test
     void parallelThreadsAddsTheTFlagToTheMavenCommand() {
         assertArrayEquals(
-                new String[] {"mvn", "-B", "--no-transfer-progress", "clean", "test", "-T", "4"},
+                new String[] {MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test", "-T", "4"},
                 new MavenBuildRunner(4).command(null));
     }
 
@@ -292,6 +293,12 @@ class MavenBuildRunnerTest {
     void nonPositiveParallelThreadsIsRejected() {
         assertThrows(IllegalArgumentException.class, () -> new MavenBuildRunner(0));
         assertThrows(IllegalArgumentException.class, () -> new MavenBuildRunner(-1));
+    }
+
+    @Test
+    void nonPositiveTimeoutIsRejected() {
+        assertThrows(IllegalArgumentException.class, () -> new MavenBuildRunner(null, 0));
+        assertThrows(IllegalArgumentException.class, () -> new MavenBuildRunner(2, -5));
     }
 
     private static Path findOwnAgentJar() throws IOException {

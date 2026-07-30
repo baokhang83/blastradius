@@ -1,5 +1,6 @@
 package io.github.baokhang83.blastradius.plugin.track;
 
+import io.github.baokhang83.blastradius.core.process.MavenLauncher;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
@@ -60,7 +61,7 @@ public final class TrackRunner {
         // resolve TRACK again (same commit, same baseRef) and recurse without bound — see
         // SelectMojo.trackChild's javadoc.
         ProcessBuilder processBuilder = new ProcessBuilder(
-                "mvn", "-B", "--no-transfer-progress", "-Dblastradius.trackChild=true",
+                MavenLauncher.resolve(), "-B", "--no-transfer-progress", "-Dblastradius.trackChild=true",
                 "-DargLine=" + trackedArgLine, "clean", "test")
                 .directory(projectDir.toFile())
                 .redirectErrorStream(true);

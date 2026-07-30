@@ -64,6 +64,14 @@ public final class S3IndexStore<T> implements IndexStore<T>, AutoCloseable {
         if (key == null || key.isBlank()) {
             throw new IllegalArgumentException("index key must not be blank");
         }
+        // An S3 object key is a logical, always-forward-slash path, so absoluteness must be
+        // judged OS-independently: a leading '/' (or '\') is "absolute" for our purposes even
+        // though Path.of("/x").isAbsolute() is false on Windows, where an absolute path needs a
+        // drive letter — relying on Path.isAbsolute() alone lets "/absolute/key" slip the guard
+        // on Windows.
+        if (key.startsWith("/") || key.startsWith("\\")) {
+            throw new IllegalArgumentException("index key must stay below the configured S3 prefix: " + key);
+        }
         try {
             Path path = Path.of(key).normalize();
             if (path.isAbsolute() || path.getNameCount() == 0 || path.startsWith("..")) {

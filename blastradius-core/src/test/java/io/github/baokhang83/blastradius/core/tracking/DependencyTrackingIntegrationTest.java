@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import io.github.baokhang83.blastradius.core.process.MavenLauncher;
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -260,7 +261,7 @@ class DependencyTrackingIntegrationTest {
             throws IOException, InterruptedException {
         String argLine = "-javaagent:" + agentJar.toAbsolutePath() + "=" + recordFile.toAbsolutePath();
         ProcessBuilder pb = new ProcessBuilder(
-                "mvn", "-B", "--no-transfer-progress", "test", "-DargLine=" + argLine)
+                MavenLauncher.resolve(), "-B", "--no-transfer-progress", "test", "-DargLine=" + argLine)
                 .directory(projectDir.toFile())
                 .redirectErrorStream(true);
         Process process = pb.start();
