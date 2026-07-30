@@ -9,9 +9,11 @@ import io.github.baokhang83.blastradius.core.process.MavenLauncher;
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import io.github.baokhang83.blastradius.validator.git.CommitCheckout;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -299,6 +301,30 @@ class MavenBuildRunnerTest {
     void nonPositiveTimeoutIsRejected() {
         assertThrows(IllegalArgumentException.class, () -> new MavenBuildRunner(null, 0));
         assertThrows(IllegalArgumentException.class, () -> new MavenBuildRunner(2, -5));
+    }
+
+    @Test
+    void isolatedRepoAppendsAClonePrivateMavenRepoLocalDerivedFromTheWorkingCopy(@TempDir Path projectDir) {
+        MavenBuildRunner isolated = new MavenBuildRunner(null, 5, true);
+        String[] base = isolated.command(null);
+
+        String[] augmented = isolated.withIsolatedRepo(base, projectDir);
+
+        Path expectedRepo = CommitCheckout.isolatedMavenRepoFor(projectDir);
+        String[] expected = Arrays.copyOf(base, base.length + 1);
+        expected[base.length] = "-Dmaven.repo.local=" + expectedRepo;
+        assertArrayEquals(expected, augmented,
+                "an isolated runner must append exactly one -Dmaven.repo.local pointing at the clone's private repo");
+    }
+
+    @Test
+    void defaultRunnerLeavesTheCommandUntouchedSoTheSharedM2AndEveryExistingCallerAreUnaffected(
+            @TempDir Path projectDir) {
+        MavenBuildRunner shared = new MavenBuildRunner();
+        String[] base = shared.command(null);
+
+        assertArrayEquals(base, shared.withIsolatedRepo(base, projectDir),
+                "a non-isolated runner must not touch the argument list command() composed");
     }
 
     private static Path findOwnAgentJar() throws IOException {
