@@ -106,6 +106,12 @@ public final class RunCommand {
             // RunConfig#fastGroundTruth): the safe, default path never unifies build types
             // across pairs, so there is nothing to cache.
             Map<String, CommitBuild> commitCache = new HashMap<>();
+            // Reactor scope per HEAD commit. Only used in --fast-ground-truth mode, where a
+            // cached head build may have skipped its checkout so the scope must be built from
+            // a freshly-materialized head tree; memoizing it stops repeated heads across the
+            // window from repaying the checkout + tree walk. In the default mode the scope is
+            // built straight from the already-checked-out head work dir, so this stays empty.
+            Map<String, ReactorScope> reactorScopeCache = new HashMap<>();
 
             Path scratchParent = Files.createTempDirectory("blastradius-scratch-");
             try (CommitCheckout checkout = CommitCheckout.forTargetProject(config.projectPath(), scratchParent)) {
@@ -113,7 +119,8 @@ public final class RunCommand {
                     PairAnalysis analysis;
                     try {
                         analysis = analyzePair(
-                                pair, config.projectPath(), checkout, agentJar, config.fastGroundTruth(), commitCache);
+                                pair, config.projectPath(), checkout, agentJar, config.fastGroundTruth(),
+                                commitCache, reactorScopeCache);
                     } catch (Exception e) {
                         analysis = excluded(pair, "analysis failed: " + e.getMessage());
                     }
@@ -159,10 +166,15 @@ public final class RunCommand {
 
     private PairAnalysis analyzePair(
             CommitPair pair, Path targetRepo, CommitCheckout checkout, Path agentJar,
-            boolean fastGroundTruth, Map<String, CommitBuild> commitCache) throws Exception {
+            boolean fastGroundTruth, Map<String, CommitBuild> commitCache,
+            Map<String, ReactorScope> reactorScopeCache) throws Exception {
         DependencyRecordSet baseRecordSet;
         List<GroundTruthResult> groundTruth;
         List<GroundTruthResult> baseGroundTruth;
+        // The scratch tree already materialized at HEAD by the default (non-fast) build path,
+        // reused to build the reactor scope with no extra checkout. Stays null in fast mode,
+        // where a cached head build may have skipped its checkout (see buildReactorScope).
+        Path headWorkDirForScope = null;
 
         if (fastGroundTruth) {
             CommitBuild base = buildCommit(pair.baseCommit(), checkout, agentJar, commitCache);
@@ -201,6 +213,7 @@ public final class RunCommand {
                 return excluded(pair, "head commit " + pair.headCommit() + " failed to build");
             }
             groundTruth = resolution.results();
+            headWorkDirForScope = headWorkDir;
         }
 
         Map<TestIdentity, Map<String, String>> baseRecord = baseRecordSet.tests();
@@ -232,12 +245,15 @@ public final class RunCommand {
                 .collect(Collectors.toSet());
 
         // Reactor scope for the NON_SOURCE fallback: built from the HEAD tree so module layout
-        // and inter-module edges reflect the commit selection runs against. Explicitly re-check
-        // out head — in --fast-ground-truth mode the scratch clone may still reflect base (a
-        // cached head build skips its checkout), and building the graph from the wrong tree
-        // could silently mis-scope. The build results are already extracted, so wiping target/
-        // here is harmless; a git checkout is negligible next to a Maven build.
-        ReactorScope reactorScope = buildReactorScope(checkout, pair.headCommit());
+        // and inter-module edges reflect the commit selection runs against. In the default mode
+        // the scratch clone is already materialized at head (headWorkDirForScope, set above), so
+        // the scope is built straight from it — no redundant checkout. Only in --fast-ground-truth
+        // mode, where a cached head build may have skipped its checkout and left the tree on base,
+        // is head re-materialized (and the resulting scope memoized per commit).
+        ReactorScope reactorScope = headWorkDirForScope != null
+                ? buildReactorScope(headWorkDirForScope)
+                : reactorScopeCache.computeIfAbsent(
+                        pair.headCommit(), sha -> buildReactorScope(checkout.checkoutCommit(sha)));
 
         List<SelectionDecision> decisions = selectionEngine.selectAll(
                 allTests, testDependencies, newOrModifiedTests, changedFiles,
@@ -281,14 +297,15 @@ public final class RunCommand {
     }
 
     /**
-     * Builds the reactor scope from {@code headCommit}'s tree. Best-effort: if the tree can't
-     * be parsed into a graph (a malformed or unusual POM in some historical commit), returns
-     * {@code null} so selection falls back to the safe whole-suite behavior rather than
-     * aborting the pair — never a narrower scope on uncertainty (Constitution §III).
+     * Builds the reactor scope from an already-materialized head tree. Best-effort: if the tree
+     * can't be parsed into a graph (a malformed or unusual POM in some historical commit),
+     * returns {@code null} so selection falls back to the safe whole-suite behavior rather than
+     * aborting the pair — never a narrower scope on uncertainty (Constitution §III). The caller
+     * owns getting {@code headTree} onto the head commit; both tree walks here skip {@code
+     * target/}, so a populated build output on that tree costs nothing extra.
      */
-    private ReactorScope buildReactorScope(CommitCheckout checkout, String headCommit) {
+    private ReactorScope buildReactorScope(Path headTree) {
         try {
-            Path headTree = checkout.checkoutCommit(headCommit);
             ReactorModuleGraph graph = reactorModuleGraphBuilder.fromRepoTree(headTree);
             return new ReactorScope(graph, TestModuleIndex.fromRepoTree(headTree, graph));
         } catch (RuntimeException e) {
