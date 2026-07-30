@@ -11,7 +11,7 @@ import java.nio.file.Path;
  * CLI entry point. Usage:
  * {@code blastradius-validator run --project-path <path> --commits <N> --report-out <path>
  * [--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth] [--build-concurrency <K>]
- * [--build-timeout-minutes <M>]}
+ * [--build-timeout-minutes <M>] [--skip-build-extras]}
  */
 public final class Main {
 
@@ -19,7 +19,7 @@ public final class Main {
         if (args.length == 0 || !"run".equals(args[0])) {
             System.err.println("usage: run --project-path <path> --commits <N> --report-out <path> "
                     + "[--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth] "
-                    + "[--build-concurrency <K>] [--build-timeout-minutes <M>]");
+                    + "[--build-concurrency <K>] [--build-timeout-minutes <M>] [--skip-build-extras]");
             System.exit(2);
             return;
         }
@@ -32,6 +32,7 @@ public final class Main {
         boolean fastGroundTruth = false;
         int buildConcurrency = 1;
         long buildTimeoutMinutes = RunConfig.DEFAULT_BUILD_TIMEOUT_MINUTES;
+        boolean skipBuildExtras = false;
 
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
@@ -43,6 +44,7 @@ public final class Main {
                 case "--fast-ground-truth" -> fastGroundTruth = true;
                 case "--build-concurrency" -> buildConcurrency = Integer.parseInt(args[++i]);
                 case "--build-timeout-minutes" -> buildTimeoutMinutes = Long.parseLong(args[++i]);
+                case "--skip-build-extras" -> skipBuildExtras = true;
                 default -> {
                     System.err.println("unknown argument: " + args[i]);
                     System.exit(2);
@@ -59,7 +61,7 @@ public final class Main {
 
         try {
             RunConfig config = new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth,
-                    buildConcurrency, buildTimeoutMinutes);
+                    buildConcurrency, buildTimeoutMinutes, skipBuildExtras);
             int exitCode = new RunCommand().run(config);
             printSummary(reportOut, summaryOut, exitCode);
             System.exit(exitCode);
