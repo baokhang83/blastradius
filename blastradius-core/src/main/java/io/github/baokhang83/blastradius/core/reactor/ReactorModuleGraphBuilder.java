@@ -2,8 +2,11 @@ package io.github.baokhang83.blastradius.core.reactor;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -11,7 +14,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -71,20 +73,40 @@ public final class ReactorModuleGraphBuilder {
 
     private static List<PomInfo> parseAllPoms(Path repoRoot) {
         DocumentBuilder documentBuilder = newDocumentBuilder();
-        try (Stream<Path> tree = Files.walk(repoRoot)) {
-            List<Path> pomFiles = tree
-                    .filter(p -> p.getFileName() != null && p.getFileName().toString().equals("pom.xml"))
-                    .filter(Files::isRegularFile)
-                    .filter(p -> !isUnderBuildOutput(repoRoot, p))
-                    .toList();
-            List<PomInfo> result = new ArrayList<>();
-            for (Path pomFile : pomFiles) {
-                result.add(parsePom(documentBuilder, repoRoot, pomFile));
-            }
-            return result;
+        List<Path> pomFiles = new ArrayList<>();
+        try {
+            // walkFileTree, not Files.walk: pruning .git / target / build whole-subtree here
+            // (SKIP_SUBTREE) avoids descending the repo's largest directories — on a big repo
+            // the .git object store alone dwarfs the source tree — instead of walking every
+            // file and post-filtering. build/target are skipped for the same reason the old
+            // isUnderBuildOutput filter excluded them: a pom.xml copied into build output is
+            // not a reactor module.
+            Files.walkFileTree(repoRoot, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                    String name = dir.getFileName() == null ? "" : dir.getFileName().toString();
+                    if (".git".equals(name) || "target".equals(name) || "build".equals(name)) {
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    if (file.getFileName() != null && file.getFileName().toString().equals("pom.xml")) {
+                        pomFiles.add(file);
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
         } catch (IOException e) {
             throw new UncheckedIOException("failed to walk repository tree at " + repoRoot, e);
         }
+        List<PomInfo> result = new ArrayList<>();
+        for (Path pomFile : pomFiles) {
+            result.add(parsePom(documentBuilder, repoRoot, pomFile));
+        }
+        return result;
     }
 
     private static PomInfo parsePom(DocumentBuilder documentBuilder, Path repoRoot, Path pomFile) {
@@ -160,11 +182,6 @@ public final class ReactorModuleGraphBuilder {
 
     private static String pomPath(String moduleRelativePath) {
         return moduleRelativePath.isEmpty() ? "pom.xml" : moduleRelativePath + "/pom.xml";
-    }
-
-    private static boolean isUnderBuildOutput(Path repoRoot, Path pomFile) {
-        String relative = repoRoot.relativize(pomFile).toString().replace('\\', '/');
-        return relative.contains("/target/") || relative.contains("/build/");
     }
 
     private static DocumentBuilder newDocumentBuilder() {

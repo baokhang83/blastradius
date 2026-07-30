@@ -1,1506 +1,287 @@
-diff --git a/.fluencyloop/state.json b/.fluencyloop/state.json
-index 0cde25c..1da0d34 100644
---- a/.fluencyloop/state.json
-+++ b/.fluencyloop/state.json
-@@ -1,8 +1,8 @@
- {
--  "feature": "cache-commit-build-results-across-the-sliding-window-to-elim",
--  "branch": "feature/cache-commit-build-results-across-the-sliding-window-to-elim",
-+  "feature": "scope-the-non-source-fallback-to-the-changed-module-plus-its",
-+  "branch": "feature/scope-the-non-source-fallback-to-the-changed-module-plus-its",
-   "stage": "build",
--  "last_session": "docs/fluencyloop/features/cache-commit-build-results-across-the-sliding-window-to-elim/sessions/add-fast-ground-truth-integration-tests-and-verify-the-full.md",
-+  "last_session": "docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/sessions/surface-module-scoped-fallback-in-the-savings-summary.md",
-   "base_ref": "main",
--  "updated": "2026-07-28"
-+  "updated": "2026-07-29"
- }
-diff --git a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/ModuleId.java b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/ModuleId.java
-new file mode 100644
-index 0000000..5f018f5
---- /dev/null
-+++ b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/ModuleId.java
-@@ -0,0 +1,20 @@
-+package io.github.baokhang83.blastradius.core.reactor;
-+
-+import java.util.Objects;
-+
-+/**
-+ * One reactor module, identified by its Maven {@code artifactId} and its repo-relative
-+ * directory. The {@code relativePath} is what attributes a changed file or a test source to
-+ * this module; the {@code artifactId} is what inter-module dependency edges reference.
-+ *
-+ * @param artifactId   the module's Maven artifactId
-+ * @param relativePath the module directory, repo-relative, forward-slashed, no trailing slash
-+ *                     ({@code ""} for a module rooted at the repository root)
-+ */
-+public record ModuleId(String artifactId, String relativePath) {
-+
-+    public ModuleId {
-+        Objects.requireNonNull(artifactId, "artifactId");
-+        Objects.requireNonNull(relativePath, "relativePath");
-+    }
-+}
-diff --git a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/ReactorModuleGraph.java b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/ReactorModuleGraph.java
-new file mode 100644
-index 0000000..4d529d6
---- /dev/null
-+++ b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/ReactorModuleGraph.java
-@@ -0,0 +1,90 @@
-+package io.github.baokhang83.blastradius.core.reactor;
-+
-+import java.util.HashSet;
-+import java.util.List;
-+import java.util.Map;
-+import java.util.Optional;
-+import java.util.Set;
-+
-+/**
-+ * The reactor's inter-module dependency graph, derived from the git tree's POM files
-+ * (never from Maven's runtime reactor — the shadow-mode validator has no live
-+ * {@code MavenProject}). Used to scope the conservative {@code NON_SOURCE} fallback: a change
-+ * inside module X can only affect X and the modules that (transitively) depend on X.
-+ *
-+ * <p>Immutable; build one per commit pair via {@link ReactorModuleGraphBuilder}.
-+ */
-+public final class ReactorModuleGraph {
-+
-+    /** Modules with a real directory, longest {@code relativePath} first for deepest-match. */
-+    private final List<ModuleId> modulesByDepth;
-+    /** For each module, the set of modules that directly depend on it (reverse edges). */
-+    private final Map<ModuleId, Set<ModuleId>> directDependents;
-+    /** Repo-relative paths whose change affects every module (root aggregator / parent pom). */
-+    private final Set<String> reactorWidePaths;
-+
-+    ReactorModuleGraph(
-+            List<ModuleId> modulesByDepth,
-+            Map<ModuleId, Set<ModuleId>> directDependents,
-+            Set<String> reactorWidePaths) {
-+        this.modulesByDepth = List.copyOf(modulesByDepth);
-+        this.directDependents = Map.copyOf(directDependents);
-+        this.reactorWidePaths = Set.copyOf(reactorWidePaths);
-+    }
-+
-+    /**
-+     * The deepest module whose directory contains {@code repoRelativePath}, or empty if the
-+     * path lies under no known module (the caller must then treat it as reactor-wide — never
-+     * guess narrower).
-+     */
-+    public Optional<ModuleId> moduleOf(String repoRelativePath) {
-+        String path = normalize(repoRelativePath);
-+        for (ModuleId module : modulesByDepth) {
-+            if (containsPath(module, path)) {
-+                return Optional.of(module);
-+            }
-+        }
-+        return Optional.empty();
-+    }
-+
-+    /**
-+     * {@code module} plus every module that transitively depends on it — the full set of
-+     * modules a change inside {@code module} could affect.
-+     */
-+    public Set<ModuleId> dependentsOf(ModuleId module) {
-+        Set<ModuleId> reached = new HashSet<>();
-+        collectDependents(module, reached);
-+        return reached;
-+    }
-+
-+    /**
-+     * True when a change to {@code repoRelativePath} must select the whole suite — the root
-+     * aggregator pom or any file attributable to no single leaf module.
-+     */
-+    public boolean isReactorWide(String repoRelativePath) {
-+        String path = normalize(repoRelativePath);
-+        return reactorWidePaths.contains(path) || moduleOf(path).isEmpty();
-+    }
-+
-+    private void collectDependents(ModuleId module, Set<ModuleId> reached) {
-+        if (!reached.add(module)) {
-+            return;
-+        }
-+        for (ModuleId dependent : directDependents.getOrDefault(module, Set.of())) {
-+            collectDependents(dependent, reached);
-+        }
-+    }
-+
-+    private static boolean containsPath(ModuleId module, String path) {
-+        String dir = module.relativePath();
-+        if (dir.isEmpty()) {
-+            return true;
-+        }
-+        return path.equals(dir) || path.startsWith(dir + "/");
-+    }
-+
-+    private static String normalize(String path) {
-+        String forward = path.replace('\\', '/');
-+        return forward.startsWith("./") ? forward.substring(2) : forward;
-+    }
-+}
 diff --git a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/ReactorModuleGraphBuilder.java b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/ReactorModuleGraphBuilder.java
-new file mode 100644
-index 0000000..d573494
---- /dev/null
+index d573494..44d1157 100644
+--- a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/ReactorModuleGraphBuilder.java
 +++ b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/ReactorModuleGraphBuilder.java
-@@ -0,0 +1,181 @@
-+package io.github.baokhang83.blastradius.core.reactor;
-+
-+import java.io.IOException;
-+import java.io.UncheckedIOException;
-+import java.nio.file.Files;
-+import java.nio.file.Path;
-+import java.util.ArrayList;
-+import java.util.Comparator;
-+import java.util.HashMap;
-+import java.util.HashSet;
-+import java.util.List;
-+import java.util.Map;
-+import java.util.Set;
-+import java.util.stream.Stream;
-+import javax.xml.XMLConstants;
-+import javax.xml.parsers.DocumentBuilder;
-+import javax.xml.parsers.DocumentBuilderFactory;
-+import javax.xml.parsers.ParserConfigurationException;
-+import org.w3c.dom.Document;
-+import org.w3c.dom.Element;
-+import org.w3c.dom.Node;
-+import org.w3c.dom.NodeList;
-+
-+/**
-+ * Builds a {@link ReactorModuleGraph} by walking a repository tree for {@code pom.xml} files
-+ * and parsing each one's coordinates, dependencies, and parent — all from disk, so it works
-+ * identically for the Maven plugin (working tree) and the validator (a checked-out scratch
-+ * copy). Never consults Maven's runtime model.
-+ */
-+public final class ReactorModuleGraphBuilder {
-+
-+    /** One parsed POM: where it lives and which artifacts it references. */
-+    private record PomInfo(
-+            String artifactId, String relativePath, boolean aggregator, Set<String> referencedArtifactIds) {}
-+
-+    public ReactorModuleGraph fromRepoTree(Path repoRoot) {
-+        List<PomInfo> poms = parseAllPoms(repoRoot);
-+
-+        Map<String, ModuleId> byArtifactId = new HashMap<>();
-+        List<ModuleId> leafModules = new ArrayList<>();
-+        Set<String> reactorWidePaths = new HashSet<>();
-+        for (PomInfo pom : poms) {
-+            ModuleId id = new ModuleId(pom.artifactId(), pom.relativePath());
-+            byArtifactId.put(pom.artifactId(), id);
-+            // The reactor-root pom, and any file under no leaf module, is reactor-wide (handled
-+            // in ReactorModuleGraph.isReactorWide via an empty moduleOf). A module is only a
-+            // fallback-scoping unit if it has a real directory to attribute files to.
-+            if (!pom.relativePath().isEmpty()) {
-+                leafModules.add(id);
-+            } else {
-+                reactorWidePaths.add(pomPath(pom.relativePath()));
-+            }
-+        }
-+
-+        // Reverse edges: for each module referencing artifact R, R -> referrer is a dependent.
-+        Map<ModuleId, Set<ModuleId>> directDependents = new HashMap<>();
-+        for (PomInfo pom : poms) {
-+            ModuleId referrer = byArtifactId.get(pom.artifactId());
-+            for (String referenced : pom.referencedArtifactIds()) {
-+                ModuleId target = byArtifactId.get(referenced);
-+                if (target != null && !target.equals(referrer)) {
-+                    directDependents.computeIfAbsent(target, ignored -> new HashSet<>()).add(referrer);
-+                }
-+            }
-+        }
-+
-+        List<ModuleId> byDepth = new ArrayList<>(leafModules);
-+        byDepth.sort(Comparator.comparingInt((ModuleId m) -> m.relativePath().length()).reversed());
-+        return new ReactorModuleGraph(byDepth, directDependents, reactorWidePaths);
-+    }
-+
-+    private static List<PomInfo> parseAllPoms(Path repoRoot) {
-+        DocumentBuilder documentBuilder = newDocumentBuilder();
-+        try (Stream<Path> tree = Files.walk(repoRoot)) {
-+            List<Path> pomFiles = tree
-+                    .filter(p -> p.getFileName() != null && p.getFileName().toString().equals("pom.xml"))
-+                    .filter(Files::isRegularFile)
-+                    .filter(p -> !isUnderBuildOutput(repoRoot, p))
-+                    .toList();
-+            List<PomInfo> result = new ArrayList<>();
-+            for (Path pomFile : pomFiles) {
-+                result.add(parsePom(documentBuilder, repoRoot, pomFile));
-+            }
-+            return result;
-+        } catch (IOException e) {
-+            throw new UncheckedIOException("failed to walk repository tree at " + repoRoot, e);
-+        }
-+    }
-+
-+    private static PomInfo parsePom(DocumentBuilder documentBuilder, Path repoRoot, Path pomFile) {
-+        try {
-+            Document doc = documentBuilder.parse(pomFile.toFile());
-+            doc.getDocumentElement().normalize();
-+            Element project = doc.getDocumentElement();
-+
-+            String artifactId = childText(project, "artifactId");
-+            String packaging = childTextOrDefault(project, "packaging", "jar");
-+            String relativePath = toRelativePath(repoRoot, pomFile.getParent());
-+
-+            Set<String> referenced = new HashSet<>();
-+            referenced.addAll(dependencyArtifactIds(project));
-+            parentArtifactId(project).ifPresent(referenced::add);
-+
-+            return new PomInfo(artifactId, relativePath, "pom".equals(packaging), referenced);
-+        } catch (Exception e) {
-+            throw new IllegalStateException("failed to parse pom " + pomFile, e);
-+        }
-+    }
-+
-+    private static List<String> dependencyArtifactIds(Element project) {
-+        Element dependencies = firstChildElement(project, "dependencies");
-+        if (dependencies == null) {
-+            return List.of();
-+        }
-+        List<String> ids = new ArrayList<>();
-+        NodeList deps = dependencies.getElementsByTagName("dependency");
-+        for (int i = 0; i < deps.getLength(); i++) {
-+            if (deps.item(i) instanceof Element dep) {
-+                String id = childText(dep, "artifactId");
-+                if (id != null) {
-+                    ids.add(id);
-+                }
-+            }
-+        }
-+        return ids;
-+    }
-+
-+    private static java.util.Optional<String> parentArtifactId(Element project) {
-+        Element parent = firstChildElement(project, "parent");
-+        return parent == null ? java.util.Optional.empty()
-+                : java.util.Optional.ofNullable(childText(parent, "artifactId"));
-+    }
-+
-+    /** Direct-child element text, ignoring same-named descendants (e.g. dependency/artifactId). */
-+    private static String childText(Element parent, String tag) {
-+        Element child = firstChildElement(parent, tag);
-+        return child == null ? null : child.getTextContent().trim();
-+    }
-+
-+    private static String childTextOrDefault(Element parent, String tag, String fallback) {
-+        String value = childText(parent, tag);
-+        return value == null || value.isEmpty() ? fallback : value;
-+    }
-+
-+    private static Element firstChildElement(Element parent, String tag) {
-+        NodeList children = parent.getChildNodes();
-+        for (int i = 0; i < children.getLength(); i++) {
-+            Node node = children.item(i);
-+            if (node.getNodeType() == Node.ELEMENT_NODE && node.getNodeName().equals(tag)) {
-+                return (Element) node;
-+            }
-+        }
-+        return null;
-+    }
-+
-+    private static String toRelativePath(Path repoRoot, Path moduleDir) {
-+        String relative = repoRoot.relativize(moduleDir).toString().replace('\\', '/');
-+        return relative.equals(".") ? "" : relative;
-+    }
-+
-+    private static String pomPath(String moduleRelativePath) {
-+        return moduleRelativePath.isEmpty() ? "pom.xml" : moduleRelativePath + "/pom.xml";
-+    }
-+
-+    private static boolean isUnderBuildOutput(Path repoRoot, Path pomFile) {
-+        String relative = repoRoot.relativize(pomFile).toString().replace('\\', '/');
-+        return relative.contains("/target/") || relative.contains("/build/");
-+    }
-+
-+    private static DocumentBuilder newDocumentBuilder() {
-+        try {
-+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-+            factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
-+            factory.setNamespaceAware(false);
-+            return factory.newDocumentBuilder();
-+        } catch (ParserConfigurationException e) {
-+            throw new IllegalStateException("failed to configure XML parser", e);
-+        }
-+    }
-+}
-diff --git a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/ReactorScope.java b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/ReactorScope.java
-new file mode 100644
-index 0000000..92836a1
---- /dev/null
-+++ b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/ReactorScope.java
-@@ -0,0 +1,80 @@
-+package io.github.baokhang83.blastradius.core.reactor;
-+
-+import io.github.baokhang83.blastradius.core.git.ChangedFile;
-+import io.github.baokhang83.blastradius.core.git.FileKind;
-+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
-+import java.util.HashSet;
-+import java.util.List;
-+import java.util.Optional;
-+import java.util.Set;
-+
-+/**
-+ * The reactor's answer to "which tests can a NON_SOURCE change actually affect?" — the graph
-+ * ({@link ReactorModuleGraph}) plus the {@link TestModuleIndex}, computed once per commit pair
-+ * and handed to the {@code SelectionEngine} so it can scope the otherwise whole-suite fallback.
-+ *
-+ * <p>Soundness (Constitution &sect;III) is preserved by two escape hatches, both of which widen
-+ * back to the whole suite rather than risk a silent skip:
-+ * <ul>
-+ *   <li>{@link #isReactorWide(List)} — a root/parent-pom change, or any changed file attributable
-+ *       to no leaf module, affects everything.</li>
-+ *   <li>{@link #affects(TestIdentity)} returns {@code true} for any test whose own module can't be
-+ *       determined — never guess a test into a narrower scope.</li>
-+ * </ul>
-+ */
-+public final class ReactorScope {
-+
-+    private final ReactorModuleGraph graph;
-+    private final TestModuleIndex testModuleIndex;
-+    private final Set<ModuleId> affectedModules;
-+
-+    public ReactorScope(ReactorModuleGraph graph, TestModuleIndex testModuleIndex) {
-+        this.graph = graph;
-+        this.testModuleIndex = testModuleIndex;
-+        this.affectedModules = Set.of();
-+    }
-+
-+    private ReactorScope(ReactorModuleGraph graph, TestModuleIndex testModuleIndex, Set<ModuleId> affectedModules) {
-+        this.graph = graph;
-+        this.testModuleIndex = testModuleIndex;
-+        this.affectedModules = affectedModules;
-+    }
-+
-+    /**
-+     * True when the NON_SOURCE change set must select the whole suite because at least one
-+     * changed file is reactor-wide (root/parent pom, or unattributable to any leaf module).
-+     */
-+    public boolean isReactorWide(List<ChangedFile> changedFiles) {
-+        return nonSourcePaths(changedFiles).stream().anyMatch(graph::isReactorWide);
-+    }
-+
-+    /**
-+     * Returns a scope carrying the set of modules affected by {@code changedFiles}: for each
-+     * NON_SOURCE changed file, its owning module plus every module that transitively depends
-+     * on it. Call {@link #isReactorWide(List)} first; this assumes no changed file is
-+     * reactor-wide.
-+     */
-+    public ReactorScope forChanges(List<ChangedFile> changedFiles) {
-+        Set<ModuleId> affected = new HashSet<>();
-+        for (String path : nonSourcePaths(changedFiles)) {
-+            graph.moduleOf(path).map(graph::dependentsOf).ifPresent(affected::addAll);
-+        }
-+        return new ReactorScope(graph, testModuleIndex, Set.copyOf(affected));
-+    }
-+
-+    /**
-+     * Whether {@code test} lives in a module the current change set affects. A test whose
-+     * module can't be resolved is conservatively treated as affected.
-+     */
-+    public boolean affects(TestIdentity test) {
-+        Optional<ModuleId> module = testModuleIndex.moduleOf(test);
-+        return module.isEmpty() || affectedModules.contains(module.get());
-+    }
-+
-+    private static List<String> nonSourcePaths(List<ChangedFile> changedFiles) {
-+        return changedFiles.stream()
-+                .filter(f -> f.kind() == FileKind.NON_SOURCE)
-+                .map(ChangedFile::path)
-+                .toList();
-+    }
-+}
-diff --git a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/TestModuleIndex.java b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/TestModuleIndex.java
-new file mode 100644
-index 0000000..b86a104
---- /dev/null
-+++ b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/TestModuleIndex.java
-@@ -0,0 +1,89 @@
-+package io.github.baokhang83.blastradius.core.reactor;
-+
-+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
-+import java.io.IOException;
-+import java.io.UncheckedIOException;
-+import java.nio.file.Files;
-+import java.nio.file.Path;
-+import java.util.HashMap;
-+import java.util.Map;
-+import java.util.Optional;
-+import java.util.stream.Stream;
-+
-+/**
-+ * Maps a {@link TestIdentity} (a class FQN with no path) to its owning reactor module, by
-+ * scanning each module's test-source roots ({@code src/test/java}, {@code src/test/kotlin})
-+ * once per commit pair and attributing every discovered source file through the same
-+ * {@link ReactorModuleGraph#moduleOf(String)} the changed-file side uses.
-+ *
-+ * <p>This resolves the design's open decision (option 1, package-root scan). It is derived
-+ * purely from the git tree, so it works identically for the Maven plugin and the shadow-mode
-+ * validator's historical replay &mdash; neither has a live {@code MavenProject}. A class not
-+ * found here resolves to empty, and the caller must then treat the test as reactor-wide
-+ * (never guess it into a narrower scope).
-+ */
-+public final class TestModuleIndex {
-+
-+    private final Map<String, ModuleId> moduleByClassName;
-+
-+    private TestModuleIndex(Map<String, ModuleId> moduleByClassName) {
-+        this.moduleByClassName = Map.copyOf(moduleByClassName);
-+    }
-+
-+    /**
-+     * The module owning {@code test}'s class, or empty if the class was found under no
-+     * module's test-source root (caller falls back to the whole suite).
-+     */
-+    public Optional<ModuleId> moduleOf(TestIdentity test) {
-+        return Optional.ofNullable(moduleByClassName.get(test.className()));
-+    }
-+
-+    public static TestModuleIndex fromRepoTree(Path repoRoot, ReactorModuleGraph graph) {
-+        Map<String, ModuleId> byClassName = new HashMap<>();
-+        try (Stream<Path> tree = Files.walk(repoRoot)) {
-+            tree.filter(Files::isRegularFile)
-+                    .filter(TestModuleIndex::isTestSource)
-+                    .forEach(sourceFile -> {
-+                        String relative = repoRoot.relativize(sourceFile).toString().replace('\\', '/');
-+                        String className = classNameOf(relative);
-+                        if (className == null) {
-+                            return;
-+                        }
-+                        graph.moduleOf(relative).ifPresent(module -> byClassName.put(className, module));
-+                    });
-+        } catch (IOException e) {
-+            throw new UncheckedIOException("failed to scan test sources under " + repoRoot, e);
-+        }
-+        return new TestModuleIndex(byClassName);
-+    }
-+
-+    private static boolean isTestSource(Path file) {
-+        String path = file.toString().replace('\\', '/');
-+        if (path.contains("/target/") || path.contains("/build/")) {
-+            return false;
-+        }
-+        boolean underTestRoot = path.contains("/src/test/java/") || path.contains("/src/test/kotlin/");
-+        return underTestRoot && (path.endsWith(".java") || path.endsWith(".kt"));
-+    }
-+
-+    /** Derive the FQN from a test-source path by stripping the {@code src/test/{java,kotlin}/} root. */
-+    private static String classNameOf(String relativePath) {
-+        int javaRoot = relativePath.indexOf("src/test/java/");
-+        int kotlinRoot = relativePath.indexOf("src/test/kotlin/");
-+        int start;
-+        int rootLength;
-+        if (javaRoot >= 0) {
-+            start = javaRoot;
-+            rootLength = "src/test/java/".length();
-+        } else if (kotlinRoot >= 0) {
-+            start = kotlinRoot;
-+            rootLength = "src/test/kotlin/".length();
-+        } else {
-+            return null;
-+        }
-+        String packagePath = relativePath.substring(start + rootLength);
-+        int dot = packagePath.lastIndexOf('.');
-+        String withoutExtension = dot >= 0 ? packagePath.substring(0, dot) : packagePath;
-+        return withoutExtension.replace('/', '.');
-+    }
-+}
-diff --git a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/selection/SelectionDecision.java b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/selection/SelectionDecision.java
-index 129a109..3eb9149 100644
---- a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/selection/SelectionDecision.java
-+++ b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/selection/SelectionDecision.java
-@@ -40,6 +40,10 @@ public record SelectionDecision(
-         return new SelectionDecision(test, true, SelectionReason.FALLBACK_AMBIENT_DEPENDENCY, null);
-     }
+@@ -2,8 +2,11 @@ package io.github.baokhang83.blastradius.core.reactor;
  
-+    public static SelectionDecision fallbackNonSourceDependentModule(TestIdentity test) {
-+        return new SelectionDecision(test, true, SelectionReason.FALLBACK_NON_SOURCE_DEPENDENT_MODULE, null);
-+    }
-+
-     public static SelectionDecision newOrModifiedTest(TestIdentity test) {
-         return new SelectionDecision(test, true, SelectionReason.NEW_OR_MODIFIED_TEST, null);
-     }
-diff --git a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/selection/SelectionEngine.java b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/selection/SelectionEngine.java
-index 41866c5..f7743de 100644
---- a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/selection/SelectionEngine.java
-+++ b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/selection/SelectionEngine.java
-@@ -1,6 +1,7 @@
- package io.github.baokhang83.blastradius.core.selection;
- 
- import io.github.baokhang83.blastradius.core.git.ChangedFile;
-+import io.github.baokhang83.blastradius.core.reactor.ReactorScope;
- import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+ import java.io.IOException;
+ import java.io.UncheckedIOException;
++import java.nio.file.FileVisitResult;
+ import java.nio.file.Files;
+ import java.nio.file.Path;
++import java.nio.file.SimpleFileVisitor;
++import java.nio.file.attribute.BasicFileAttributes;
  import java.util.ArrayList;
+ import java.util.Comparator;
+ import java.util.HashMap;
+@@ -11,7 +14,6 @@ import java.util.HashSet;
  import java.util.List;
-@@ -38,8 +39,29 @@ public final class SelectionEngine {
-             Set<TestIdentity> newOrModifiedTests,
-             List<ChangedFile> changedFiles,
-             Set<String> ambientDependencies) {
-+        return selectAll(allTests, testDependencies, newOrModifiedTests, changedFiles, ambientDependencies, null);
-+    }
+ import java.util.Map;
+ import java.util.Set;
+-import java.util.stream.Stream;
+ import javax.xml.XMLConstants;
+ import javax.xml.parsers.DocumentBuilder;
+ import javax.xml.parsers.DocumentBuilderFactory;
+@@ -71,20 +73,40 @@ public final class ReactorModuleGraphBuilder {
  
--        if (fallbackSelector.shouldFallback(changedFiles)) {
-+    /**
-+     * As {@link #selectAll(Set, Map, Set, List, Set)}, but with an optional {@code reactorScope}.
-+     * When present and the NON_SOURCE change is not reactor-wide, the fallback is scoped to the
-+     * changed modules and their transitive dependents instead of the whole suite. When
-+     * {@code null} (no reactor graph available), behavior is identical to the whole-suite fallback.
-+     */
-+    public List<SelectionDecision> selectAll(
-+            Set<TestIdentity> allTests,
-+            Map<TestIdentity, Set<String>> testDependencies,
-+            Set<TestIdentity> newOrModifiedTests,
-+            List<ChangedFile> changedFiles,
-+            Set<String> ambientDependencies,
-+            ReactorScope reactorScope) {
+     private static List<PomInfo> parseAllPoms(Path repoRoot) {
+         DocumentBuilder documentBuilder = newDocumentBuilder();
+-        try (Stream<Path> tree = Files.walk(repoRoot)) {
+-            List<Path> pomFiles = tree
+-                    .filter(p -> p.getFileName() != null && p.getFileName().toString().equals("pom.xml"))
+-                    .filter(Files::isRegularFile)
+-                    .filter(p -> !isUnderBuildOutput(repoRoot, p))
+-                    .toList();
+-            List<PomInfo> result = new ArrayList<>();
+-            for (Path pomFile : pomFiles) {
+-                result.add(parsePom(documentBuilder, repoRoot, pomFile));
+-            }
+-            return result;
++        List<Path> pomFiles = new ArrayList<>();
++        try {
++            // walkFileTree, not Files.walk: pruning .git / target / build whole-subtree here
++            // (SKIP_SUBTREE) avoids descending the repo's largest directories — on a big repo
++            // the .git object store alone dwarfs the source tree — instead of walking every
++            // file and post-filtering. build/target are skipped for the same reason the old
++            // isUnderBuildOutput filter excluded them: a pom.xml copied into build output is
++            // not a reactor module.
++            Files.walkFileTree(repoRoot, new SimpleFileVisitor<>() {
++                @Override
++                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
++                    String name = dir.getFileName() == null ? "" : dir.getFileName().toString();
++                    if (".git".equals(name) || "target".equals(name) || "build".equals(name)) {
++                        return FileVisitResult.SKIP_SUBTREE;
++                    }
++                    return FileVisitResult.CONTINUE;
++                }
 +
-+        boolean scopedFallback =
-+                fallbackSelector.shouldFallback(changedFiles)
-+                        && reactorScope != null
-+                        && !reactorScope.isReactorWide(changedFiles);
-+
-+        if (fallbackSelector.shouldFallback(changedFiles) && !scopedFallback) {
-             return allTests.stream().map(fallbackSelector::select).toList();
++                @Override
++                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
++                    if (file.getFileName() != null && file.getFileName().toString().equals("pom.xml")) {
++                        pomFiles.add(file);
++                    }
++                    return FileVisitResult.CONTINUE;
++                }
++            });
+         } catch (IOException e) {
+             throw new UncheckedIOException("failed to walk repository tree at " + repoRoot, e);
          }
++        List<PomInfo> result = new ArrayList<>();
++        for (Path pomFile : pomFiles) {
++            result.add(parsePom(documentBuilder, repoRoot, pomFile));
++        }
++        return result;
+     }
  
-@@ -47,12 +69,21 @@ public final class SelectionEngine {
-                 .flatMap(file -> file.candidateClassNames().stream())
-                 .collect(Collectors.toUnmodifiableSet());
+     private static PomInfo parsePom(DocumentBuilder documentBuilder, Path repoRoot, Path pomFile) {
+@@ -162,11 +184,6 @@ public final class ReactorModuleGraphBuilder {
+         return moduleRelativePath.isEmpty() ? "pom.xml" : moduleRelativePath + "/pom.xml";
+     }
  
-+        // The ambient-dependency fallback is a whole-suite escape hatch and outranks reactor
-+        // scoping: a class loaded before any tracking window has no trustworthy per-test data,
-+        // so no module can be soundly ruled out for it.
-         if (ambientDependencySelector.shouldFallback(changedClassNames, ambientDependencies)) {
-             return allTests.stream().map(ambientDependencySelector::select).toList();
-         }
+-    private static boolean isUnderBuildOutput(Path repoRoot, Path pomFile) {
+-        String relative = repoRoot.relativize(pomFile).toString().replace('\\', '/');
+-        return relative.contains("/target/") || relative.contains("/build/");
+-    }
+-
+     private static DocumentBuilder newDocumentBuilder() {
+         try {
+             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+diff --git a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/TestModuleIndex.java b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/TestModuleIndex.java
+index b86a104..a935c6b 100644
+--- a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/TestModuleIndex.java
++++ b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/reactor/TestModuleIndex.java
+@@ -3,12 +3,14 @@ package io.github.baokhang83.blastradius.core.reactor;
+ import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+ import java.io.IOException;
+ import java.io.UncheckedIOException;
++import java.nio.file.FileVisitResult;
+ import java.nio.file.Files;
+ import java.nio.file.Path;
++import java.nio.file.SimpleFileVisitor;
++import java.nio.file.attribute.BasicFileAttributes;
+ import java.util.HashMap;
+ import java.util.Map;
+ import java.util.Optional;
+-import java.util.stream.Stream;
  
-+        ReactorScope affectedScope = scopedFallback ? reactorScope.forChanges(changedFiles) : null;
+ /**
+  * Maps a {@link TestIdentity} (a class FQN with no path) to its owning reactor module, by
+@@ -40,17 +42,34 @@ public final class TestModuleIndex {
+ 
+     public static TestModuleIndex fromRepoTree(Path repoRoot, ReactorModuleGraph graph) {
+         Map<String, ModuleId> byClassName = new HashMap<>();
+-        try (Stream<Path> tree = Files.walk(repoRoot)) {
+-            tree.filter(Files::isRegularFile)
+-                    .filter(TestModuleIndex::isTestSource)
+-                    .forEach(sourceFile -> {
+-                        String relative = repoRoot.relativize(sourceFile).toString().replace('\\', '/');
+-                        String className = classNameOf(relative);
+-                        if (className == null) {
+-                            return;
+-                        }
++        try {
++            // walkFileTree, not Files.walk: prune .git / target / build whole-subtree rather
++            // than walking every file and post-filtering (isTestSource still excludes any
++            // build output that slips through). On a big repo the .git object store alone
++            // dwarfs the source tree, so not descending it is the win.
++            Files.walkFileTree(repoRoot, new SimpleFileVisitor<>() {
++                @Override
++                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
++                    String name = dir.getFileName() == null ? "" : dir.getFileName().toString();
++                    if (".git".equals(name) || "target".equals(name) || "build".equals(name)) {
++                        return FileVisitResult.SKIP_SUBTREE;
++                    }
++                    return FileVisitResult.CONTINUE;
++                }
 +
-         List<SelectionDecision> decisions = new ArrayList<>();
-         for (TestIdentity test : allTests) {
-+            if (affectedScope != null && affectedScope.affects(test)) {
-+                decisions.add(SelectionDecision.fallbackNonSourceDependentModule(test));
-+                continue;
-+            }
-             if (newOrModifiedTests.contains(test)) {
-                 decisions.add(newOrModifiedTestSelector.select(test));
-                 continue;
-diff --git a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/selection/SelectionReason.java b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/selection/SelectionReason.java
-index 8d57c4d..e69b346 100644
---- a/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/selection/SelectionReason.java
-+++ b/blastradius-core/src/main/java/io/github/baokhang83/blastradius/core/selection/SelectionReason.java
-@@ -6,6 +6,14 @@ public enum SelectionReason {
-     DEPENDENCY_MATCH,
-     /** A non-Java-source change forced selection of every test (FR-006). */
-     FALLBACK_NON_SOURCE_CHANGE,
-+    /**
-+     * A non-Java-source change was scoped to the reactor: this test lives in a module that
-+     * changed, or in one that (transitively) depends on a changed module, so it was
-+     * selected — while tests in unaffected modules were spared. The safe narrowing of
-+     * {@link #FALLBACK_NON_SOURCE_CHANGE} when a reactor graph is available and the change
-+     * is not reactor-wide (root/parent pom).
-+     */
-+    FALLBACK_NON_SOURCE_DEPENDENT_MODULE,
-     /**
-      * A changed class was loaded before any test's tracking window opened in some fork
-      * (an "ambient" dependency), so no per-test dependency data can be trusted for it —
++                @Override
++                public FileVisitResult visitFile(Path sourceFile, BasicFileAttributes attrs) {
++                    if (!isTestSource(sourceFile)) {
++                        return FileVisitResult.CONTINUE;
++                    }
++                    String relative = repoRoot.relativize(sourceFile).toString().replace('\\', '/');
++                    String className = classNameOf(relative);
++                    if (className != null) {
+                         graph.moduleOf(relative).ifPresent(module -> byClassName.put(className, module));
+-                    });
++                    }
++                    return FileVisitResult.CONTINUE;
++                }
++            });
+         } catch (IOException e) {
+             throw new UncheckedIOException("failed to scan test sources under " + repoRoot, e);
+         }
 diff --git a/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/reactor/ReactorModuleGraphTest.java b/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/reactor/ReactorModuleGraphTest.java
-new file mode 100644
-index 0000000..5d78c2b
---- /dev/null
+index 5d78c2b..7649592 100644
+--- a/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/reactor/ReactorModuleGraphTest.java
 +++ b/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/reactor/ReactorModuleGraphTest.java
-@@ -0,0 +1,69 @@
-+package io.github.baokhang83.blastradius.core.reactor;
-+
-+import static org.junit.jupiter.api.Assertions.assertEquals;
-+import static org.junit.jupiter.api.Assertions.assertFalse;
-+import static org.junit.jupiter.api.Assertions.assertTrue;
-+
-+import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
-+import java.nio.file.Path;
-+import java.util.Optional;
-+import java.util.Set;
-+import org.junit.jupiter.api.Test;
-+import org.junit.jupiter.api.io.TempDir;
-+
-+class ReactorModuleGraphTest {
-+
-+    private final ReactorModuleGraphBuilder builder = new ReactorModuleGraphBuilder();
+@@ -66,4 +66,25 @@ class ReactorModuleGraphTest {
+         assertTrue(graph.isReactorWide("pom.xml"), "root aggregator pom affects every module");
+         assertFalse(graph.isReactorWide("moduleA/pom.xml"), "a leaf module pom is not reactor-wide");
+     }
 +
 +    @Test
-+    void moduleOfAttributesAPathToItsOwningModule(@TempDir Path tempDir) {
-+        FixtureProjectBuilder.twoModuleReactor(tempDir).commit("initial");
-+
-+        ReactorModuleGraph graph = builder.fromRepoTree(tempDir);
-+
-+        assertEquals(
-+                Optional.of("moduleA"),
-+                graph.moduleOf("moduleA/src/main/resources/app.yml").map(ModuleId::artifactId));
-+        assertEquals(
-+                Optional.of("moduleB"),
-+                graph.moduleOf("moduleB/pom.xml").map(ModuleId::artifactId));
-+    }
-+
-+    @Test
-+    void moduleOfPrefersTheDeepestOwningModule(@TempDir Path tempDir) {
-+        FixtureProjectBuilder.twoModuleReactor(tempDir).commit("initial");
-+
-+        ReactorModuleGraph graph = builder.fromRepoTree(tempDir);
-+
-+        // A file under moduleA belongs to moduleA, not the reactor-root aggregator.
-+        Optional<ModuleId> owner = graph.moduleOf("moduleA/src/test/java/com/example/FooTest.java");
-+        assertEquals(Optional.of("moduleA"), owner.map(ModuleId::artifactId));
-+    }
-+
-+    @Test
-+    void dependentsOfIncludesTheModuleItselfAndItsTransitiveDependents(@TempDir Path tempDir) {
-+        // moduleB depends on moduleA (see FixtureProjectBuilder.twoModuleReactor).
-+        FixtureProjectBuilder.twoModuleReactor(tempDir).commit("initial");
-+
-+        ReactorModuleGraph graph = builder.fromRepoTree(tempDir);
-+        ModuleId moduleA = graph.moduleOf("moduleA/pom.xml").orElseThrow();
-+        ModuleId moduleB = graph.moduleOf("moduleB/pom.xml").orElseThrow();
-+
-+        Set<ModuleId> dependentsOfA = graph.dependentsOf(moduleA);
-+        assertTrue(dependentsOfA.contains(moduleA), "a module is its own dependent");
-+        assertTrue(dependentsOfA.contains(moduleB), "moduleB depends on moduleA");
-+
-+        // moduleB has no dependents, so only itself.
-+        assertEquals(Set.of(moduleB), graph.dependentsOf(moduleB));
-+    }
-+
-+    @Test
-+    void reactorRootPomIsReactorWide(@TempDir Path tempDir) {
-+        FixtureProjectBuilder.twoModuleReactor(tempDir).commit("initial");
-+
-+        ReactorModuleGraph graph = builder.fromRepoTree(tempDir);
-+
-+        assertTrue(graph.isReactorWide("pom.xml"), "root aggregator pom affects every module");
-+        assertFalse(graph.isReactorWide("moduleA/pom.xml"), "a leaf module pom is not reactor-wide");
-+    }
-+}
-diff --git a/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/reactor/TestModuleIndexTest.java b/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/reactor/TestModuleIndexTest.java
-new file mode 100644
-index 0000000..1b55882
---- /dev/null
-+++ b/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/reactor/TestModuleIndexTest.java
-@@ -0,0 +1,58 @@
-+package io.github.baokhang83.blastradius.core.reactor;
-+
-+import static org.junit.jupiter.api.Assertions.assertEquals;
-+import static org.junit.jupiter.api.Assertions.assertTrue;
-+
-+import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
-+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
-+import java.nio.file.Path;
-+import java.util.Optional;
-+import org.junit.jupiter.api.Test;
-+import org.junit.jupiter.api.io.TempDir;
-+
-+class TestModuleIndexTest {
-+
-+    private final ReactorModuleGraphBuilder graphBuilder = new ReactorModuleGraphBuilder();
-+
-+    @Test
-+    void attributesAJavaTestClassToItsOwningModule(@TempDir Path tempDir) {
++    void ignoresPomsCopiedIntoBuildOutputDirectories(@TempDir Path tempDir) {
++        // A real reactor build leaves a copy of each module's pom.xml under target/ (e.g.
++        // maven-archiver's pom.properties siblings, or a shaded/effective pom). The walk
++        // prunes target/ and build/ wholesale, so such a copy must never register as a
++        // phantom module that would corrupt the artifactId -> module map.
 +        FixtureProjectBuilder.twoModuleReactor(tempDir)
-+                .writeTestInModule("moduleA", "com.example.a.FooTest", "package com.example.a; class FooTest {}")
-+                .writeTestInModule("moduleB", "com.example.b.BarTest", "package com.example.b; class BarTest {}")
-+                .commit("tests in both modules");
++                .writeResource("moduleA/target/classes/META-INF/maven/fixture/moduleA/pom.xml", "<project/>")
++                .writeResource("moduleB/build/tmp/pom.xml", "<project/>")
++                .commit("initial with build output");
 +
-+        ReactorModuleGraph graph = graphBuilder.fromRepoTree(tempDir);
-+        TestModuleIndex index = TestModuleIndex.fromRepoTree(tempDir, graph);
++        ReactorModuleGraph graph = builder.fromRepoTree(tempDir);
 +
++        // The build-output pom under moduleA/target must not be attributed as its own module:
++        // a file under moduleA still resolves to moduleA (the deepest real module), not to some
++        // phantom rooted at moduleA/target/classes/...
 +        assertEquals(
 +                Optional.of("moduleA"),
-+                index.moduleOf(new TestIdentity("com.example.a.FooTest", "foo")).map(ModuleId::artifactId));
-+        assertEquals(
-+                Optional.of("moduleB"),
-+                index.moduleOf(new TestIdentity("com.example.b.BarTest", "bar")).map(ModuleId::artifactId));
++                graph.moduleOf("moduleA/src/main/java/com/example/Foo.java").map(ModuleId::artifactId));
 +    }
-+
-+    @Test
-+    void attributesAKotlinTestClassToItsOwningModule(@TempDir Path tempDir) {
-+        FixtureProjectBuilder.twoModuleReactor(tempDir)
-+                .writeKotlinTestInModule("moduleA", "com.example.a.KotlinTest", "package com.example.a\nclass KotlinTest")
-+                .commit("kotlin test in moduleA");
-+
-+        ReactorModuleGraph graph = graphBuilder.fromRepoTree(tempDir);
-+        TestModuleIndex index = TestModuleIndex.fromRepoTree(tempDir, graph);
-+
-+        assertEquals(
-+                Optional.of("moduleA"),
-+                index.moduleOf(new TestIdentity("com.example.a.KotlinTest", null)).map(ModuleId::artifactId));
-+    }
-+
-+    @Test
-+    void unknownTestClassResolvesToEmptySoCallerFallsBackToWholeSuite(@TempDir Path tempDir) {
-+        FixtureProjectBuilder.twoModuleReactor(tempDir).commit("no tests");
-+
-+        ReactorModuleGraph graph = graphBuilder.fromRepoTree(tempDir);
-+        TestModuleIndex index = TestModuleIndex.fromRepoTree(tempDir, graph);
-+
-+        assertTrue(index.moduleOf(new TestIdentity("com.example.Unknown", "t")).isEmpty());
-+    }
-+}
-diff --git a/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/selection/SelectionEngineReactorScopingTest.java b/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/selection/SelectionEngineReactorScopingTest.java
-new file mode 100644
-index 0000000..b9febb0
---- /dev/null
-+++ b/blastradius-core/src/test/java/io/github/baokhang83/blastradius/core/selection/SelectionEngineReactorScopingTest.java
-@@ -0,0 +1,105 @@
-+package io.github.baokhang83.blastradius.core.selection;
-+
-+import static org.junit.jupiter.api.Assertions.assertEquals;
-+import static org.junit.jupiter.api.Assertions.assertTrue;
-+
-+import io.github.baokhang83.blastradius.core.git.ChangedFile;
-+import io.github.baokhang83.blastradius.core.git.FileKind;
-+import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraph;
-+import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraphBuilder;
-+import io.github.baokhang83.blastradius.core.reactor.ReactorScope;
-+import io.github.baokhang83.blastradius.core.reactor.TestModuleIndex;
-+import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
-+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
-+import java.nio.file.Path;
-+import java.util.List;
-+import java.util.Map;
-+import java.util.Set;
-+import org.junit.jupiter.api.Test;
-+import org.junit.jupiter.api.io.TempDir;
-+
-+/** Reactor-scoped NON_SOURCE fallback: a resource change in module X selects X + its dependents only. */
-+class SelectionEngineReactorScopingTest {
-+
-+    private final SelectionEngine engine = new SelectionEngine();
-+    private final ReactorModuleGraphBuilder graphBuilder = new ReactorModuleGraphBuilder();
-+
-+    private static final TestIdentity TEST_A = new TestIdentity("com.example.a.ATest", "a");
-+    private static final TestIdentity TEST_B = new TestIdentity("com.example.b.BTest", "b");
-+
-+    private ReactorScope scopeFor(Path repoRoot) {
-+        ReactorModuleGraph graph = graphBuilder.fromRepoTree(repoRoot);
-+        return new ReactorScope(graph, TestModuleIndex.fromRepoTree(repoRoot, graph));
-+    }
-+
-+    private Path reactorWithTests(Path root) {
-+        FixtureProjectBuilder.twoModuleReactor(root)
-+                .writeTestInModule("moduleA", "com.example.a.ATest", "package com.example.a; class ATest {}")
-+                .writeTestInModule("moduleB", "com.example.b.BTest", "package com.example.b; class BTest {}")
-+                .commit("tests in both modules");
-+        return root;
-+    }
-+
-+    private SelectionDecision decisionFor(List<SelectionDecision> decisions, TestIdentity test) {
-+        return decisions.stream().filter(d -> d.test().equals(test)).findFirst().orElseThrow();
-+    }
-+
-+    @Test
-+    void nonSourceChangeInALeafSelectsOnlyThatModuleAndItsDependents(@TempDir Path tempDir) {
-+        // moduleB depends on moduleA. A resource change in moduleA affects A and B.
-+        Path root = reactorWithTests(tempDir);
-+        List<ChangedFile> changed = List.of(
-+                new ChangedFile("moduleA/src/main/resources/app.yml", FileKind.NON_SOURCE, null));
-+
-+        List<SelectionDecision> decisions = engine.selectAll(
-+                Set.of(TEST_A, TEST_B), Map.of(), Set.of(), changed, Set.of(), scopeFor(root));
-+
-+        assertTrue(decisionFor(decisions, TEST_A).selected());
-+        assertTrue(decisionFor(decisions, TEST_B).selected(), "moduleB depends on moduleA");
-+        assertEquals(
-+                SelectionReason.FALLBACK_NON_SOURCE_DEPENDENT_MODULE, decisionFor(decisions, TEST_A).reason());
-+    }
-+
-+    @Test
-+    void nonSourceChangeInADependedUponLeafDoesNotSelectIndependentModules(@TempDir Path tempDir) {
-+        // A resource change in moduleB: moduleA does NOT depend on moduleB, so ATest is spared.
-+        Path root = reactorWithTests(tempDir);
-+        List<ChangedFile> changed = List.of(
-+                new ChangedFile("moduleB/src/main/resources/app.yml", FileKind.NON_SOURCE, null));
-+
-+        List<SelectionDecision> decisions = engine.selectAll(
-+                Set.of(TEST_A, TEST_B), Map.of(), Set.of(), changed, Set.of(), scopeFor(root));
-+
-+        assertTrue(decisionFor(decisions, TEST_B).selected());
-+        assertEquals(
-+                SelectionReason.FALLBACK_NON_SOURCE_DEPENDENT_MODULE, decisionFor(decisions, TEST_B).reason());
-+        assertTrue(!decisionFor(decisions, TEST_A).selected(), "moduleA does not depend on moduleB");
-+        assertEquals(SelectionReason.NO_MATCH, decisionFor(decisions, TEST_A).reason());
-+    }
-+
-+    @Test
-+    void rootPomChangeStillSelectsEveryTest(@TempDir Path tempDir) {
-+        Path root = reactorWithTests(tempDir);
-+        List<ChangedFile> changed = List.of(new ChangedFile("pom.xml", FileKind.NON_SOURCE, null));
-+
-+        List<SelectionDecision> decisions = engine.selectAll(
-+                Set.of(TEST_A, TEST_B), Map.of(), Set.of(), changed, Set.of(), scopeFor(root));
-+
-+        assertTrue(decisions.stream().allMatch(SelectionDecision::selected));
-+        assertTrue(decisions.stream()
-+                .allMatch(d -> d.reason() == SelectionReason.FALLBACK_NON_SOURCE_CHANGE));
-+    }
-+
-+    @Test
-+    void nullReactorScopePreservesWholeSuiteFallback(@TempDir Path tempDir) {
-+        List<ChangedFile> changed = List.of(
-+                new ChangedFile("moduleB/src/main/resources/app.yml", FileKind.NON_SOURCE, null));
-+
-+        List<SelectionDecision> decisions = engine.selectAll(
-+                Set.of(TEST_A, TEST_B), Map.of(), Set.of(), changed, Set.of(), null);
-+
-+        assertTrue(decisions.stream().allMatch(SelectionDecision::selected));
-+        assertTrue(decisions.stream()
-+                .allMatch(d -> d.reason() == SelectionReason.FALLBACK_NON_SOURCE_CHANGE));
-+    }
-+}
+ }
+diff --git a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/build/GroundTruthResolver.java b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/build/GroundTruthResolver.java
+index c124177..a2e8e81 100644
+--- a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/build/GroundTruthResolver.java
++++ b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/build/GroundTruthResolver.java
+@@ -3,13 +3,15 @@ package io.github.baokhang83.blastradius.validator.build;
+ import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+ import java.io.IOException;
+ import java.io.UncheckedIOException;
++import java.nio.file.FileVisitResult;
+ import java.nio.file.Files;
+ import java.nio.file.Path;
++import java.nio.file.SimpleFileVisitor;
++import java.nio.file.attribute.BasicFileAttributes;
+ import java.util.ArrayList;
+ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+-import java.util.stream.Stream;
+ 
+ /**
+  * Runs a target project's full suite once (optionally with the tracking agent attached),
+@@ -82,16 +84,31 @@ public final class GroundTruthResolver {
+     }
+ 
+     private static List<Path> findReportsDirectories(Path projectDir) {
+-        try (Stream<Path> stream = Files.walk(projectDir)) {
+-            return stream
+-                    .filter(Files::isDirectory)
+-                    .filter(p -> {
+-                        String name = p.getFileName().toString();
+-                        return name.equals("surefire-reports") || name.equals("failsafe-reports");
+-                    })
+-                    .toList();
++        List<Path> reportDirs = new ArrayList<>();
++        try {
++            // walkFileTree pruning .git: reports live under target/, so that can't be skipped,
++            // but .git holds no reports and (on a big repo) is the largest tree — not descending
++            // it is the win. This scan runs after every build AND every confirmFailure rerun,
++            // so its cost is paid many times per pair.
++            Files.walkFileTree(projectDir, new SimpleFileVisitor<>() {
++                @Override
++                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
++                    String name = dir.getFileName() == null ? "" : dir.getFileName().toString();
++                    if (".git".equals(name)) {
++                        return FileVisitResult.SKIP_SUBTREE;
++                    }
++                    if (name.equals("surefire-reports") || name.equals("failsafe-reports")) {
++                        reportDirs.add(dir);
++                        // A reports dir contains only report files — no nested reports dir — so
++                        // there's nothing to gain from descending into it.
++                        return FileVisitResult.SKIP_SUBTREE;
++                    }
++                    return FileVisitResult.CONTINUE;
++                }
++            });
+         } catch (IOException e) {
+             throw new UncheckedIOException("failed to scan for test reports under " + projectDir, e);
+         }
++        return reportDirs;
+     }
+ }
 diff --git a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/RunCommand.java b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/RunCommand.java
-index 570faa7..92c0f18 100644
+index eeebc0c..0506ec4 100644
 --- a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/RunCommand.java
 +++ b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/cli/RunCommand.java
-@@ -10,6 +10,10 @@ import io.github.baokhang83.blastradius.validator.build.MavenBuildRunner;
- import io.github.baokhang83.blastradius.validator.build.Outcome;
- import io.github.baokhang83.blastradius.core.git.ChangedFile;
- import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
-+import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraph;
-+import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraphBuilder;
-+import io.github.baokhang83.blastradius.core.reactor.ReactorScope;
-+import io.github.baokhang83.blastradius.core.reactor.TestModuleIndex;
- import io.github.baokhang83.blastradius.validator.git.CommitCheckout;
- import io.github.baokhang83.blastradius.validator.git.CommitPair;
- import io.github.baokhang83.blastradius.validator.git.CommitWindowResolver;
-@@ -57,6 +61,7 @@ public final class RunCommand {
- 
+@@ -22,6 +22,7 @@ import io.github.baokhang83.blastradius.validator.report.AnalysisReport;
+ import io.github.baokhang83.blastradius.validator.report.ReportWriter;
+ import io.github.baokhang83.blastradius.validator.report.SavingsSummary;
+ import io.github.baokhang83.blastradius.validator.report.SavingsSummaryAggregator;
++import io.github.baokhang83.blastradius.core.selection.FallbackSelector;
+ import io.github.baokhang83.blastradius.core.selection.NewOrModifiedTestSelector;
+ import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
+ import io.github.baokhang83.blastradius.core.selection.SelectionEngine;
+@@ -62,6 +63,7 @@ public final class RunCommand {
      private final CommitWindowResolver commitWindowResolver = new CommitWindowResolver();
      private final ChangedFileClassifier changedFileClassifier = new ChangedFileClassifier();
-+    private final ReactorModuleGraphBuilder reactorModuleGraphBuilder = new ReactorModuleGraphBuilder();
+     private final ReactorModuleGraphBuilder reactorModuleGraphBuilder = new ReactorModuleGraphBuilder();
++    private final FallbackSelector fallbackSelector = new FallbackSelector();
      private final SelectionEngine selectionEngine = new SelectionEngine();
      private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();
      private final WouldMissComparator wouldMissComparator = new WouldMissComparator();
-@@ -226,8 +231,17 @@ public final class RunCommand {
-                         test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))
-                 .collect(Collectors.toSet());
- 
-+        // Reactor scope for the NON_SOURCE fallback: built from the HEAD tree so module layout
-+        // and inter-module edges reflect the commit selection runs against. Explicitly re-check
-+        // out head — in --fast-ground-truth mode the scratch clone may still reflect base (a
-+        // cached head build skips its checkout), and building the graph from the wrong tree
-+        // could silently mis-scope. The build results are already extracted, so wiping target/
-+        // here is harmless; a git checkout is negligible next to a Maven build.
-+        ReactorScope reactorScope = buildReactorScope(checkout, pair.headCommit());
-+
-         List<SelectionDecision> decisions = selectionEngine.selectAll(
--                allTests, testDependencies, newOrModifiedTests, changedFiles, baseRecordSet.ambientDependencies());
-+                allTests, testDependencies, newOrModifiedTests, changedFiles,
-+                baseRecordSet.ambientDependencies(), reactorScope);
- 
-         CommitPair enrichedPair = CommitPair.analyzed(pair.baseCommit(), pair.headCommit(), changedFiles);
-         List<WouldMissCase> misses = wouldMissComparator.compare(enrichedPair, decisions, groundTruth, baseGroundTruth);
-@@ -266,6 +280,22 @@ public final class RunCommand {
-         });
-     }
- 
-+    /**
-+     * Builds the reactor scope from {@code headCommit}'s tree. Best-effort: if the tree can't
-+     * be parsed into a graph (a malformed or unusual POM in some historical commit), returns
-+     * {@code null} so selection falls back to the safe whole-suite behavior rather than
-+     * aborting the pair — never a narrower scope on uncertainty (Constitution §III).
-+     */
-+    private ReactorScope buildReactorScope(CommitCheckout checkout, String headCommit) {
-+        try {
-+            Path headTree = checkout.checkoutCommit(headCommit);
-+            ReactorModuleGraph graph = reactorModuleGraphBuilder.fromRepoTree(headTree);
-+            return new ReactorScope(graph, TestModuleIndex.fromRepoTree(headTree, graph));
-+        } catch (RuntimeException e) {
-+            return null;
+@@ -250,10 +252,18 @@ public final class RunCommand {
+         // the scope is built straight from it — no redundant checkout. Only in --fast-ground-truth
+         // mode, where a cached head build may have skipped its checkout and left the tree on base,
+         // is head re-materialized (and the resulting scope memoized per commit).
+-        ReactorScope reactorScope = headWorkDirForScope != null
+-                ? buildReactorScope(headWorkDirForScope)
+-                : reactorScopeCache.computeIfAbsent(
+-                        pair.headCommit(), sha -> buildReactorScope(checkout.checkoutCommit(sha)));
++        //
++        // Only built when this pair actually has a NON_SOURCE change: SelectionEngine consults
++        // the scope solely inside its fallback branch, so on a source-only pair (the common case)
++        // the two full-tree scans would be pure waste — a null scope is behaviorally identical
++        // there (see SelectionEngine#selectAll).
++        ReactorScope reactorScope = null;
++        if (fallbackSelector.shouldFallback(changedFiles)) {
++            reactorScope = headWorkDirForScope != null
++                    ? buildReactorScope(headWorkDirForScope)
++                    : reactorScopeCache.computeIfAbsent(
++                            pair.headCommit(), sha -> buildReactorScope(checkout.checkoutCommit(sha)));
 +        }
-+    }
-+
-     private static PairAnalysis excluded(CommitPair pair, String reason) {
-         CommitPair excludedPair = CommitPair.excluded(pair.baseCommit(), pair.headCommit(), reason);
-         return new PairAnalysis(excludedPair, List.of(), List.of(), List.of());
-diff --git a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/report/SavingsSummary.java b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/report/SavingsSummary.java
-index 01d0841..6fb2f9d 100644
---- a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/report/SavingsSummary.java
-+++ b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/report/SavingsSummary.java
-@@ -4,19 +4,24 @@ package io.github.baokhang83.blastradius.validator.report;
-  * Aggregate execution-savings evidence across a completed run (FR-008 / SC-003).
-  *
-  * <p>Invariant: {@code dependencyMatchedSelections + fallbackDrivenSelections +
-- * newOrModifiedTestSelections == totalSelected}.
-+ * moduleScopedFallbackSelections + newOrModifiedTestSelections == totalSelected}.
-  *
-- * @param totalTestExecutions          total test executions across all analyzed pairs
-- * @param totalSelected                the count that would have been selected
-- * @param proportionSkipped            {@code 1 - (totalSelected / totalTestExecutions)}
-- * @param fallbackDrivenSelections     subset attributable to the conservative fallback rule
-- * @param dependencyMatchedSelections  subset attributable to ordinary dependency matching
-- * @param newOrModifiedTestSelections  subset attributable to new/modified tests
-+ * @param totalTestExecutions           total test executions across all analyzed pairs
-+ * @param totalSelected                 the count that would have been selected
-+ * @param proportionSkipped             {@code 1 - (totalSelected / totalTestExecutions)}
-+ * @param fallbackDrivenSelections      subset attributable to the whole-suite fallback rule
-+ * @param moduleScopedFallbackSelections subset attributable to the reactor-scoped fallback
-+ *                                      (a NON_SOURCE change scoped to a changed module and its
-+ *                                      dependents) — the savings this narrowing recovers over
-+ *                                      the whole-suite fallback
-+ * @param dependencyMatchedSelections   subset attributable to ordinary dependency matching
-+ * @param newOrModifiedTestSelections   subset attributable to new/modified tests
-  */
- public record SavingsSummary(
-         int totalTestExecutions,
-         int totalSelected,
-         double proportionSkipped,
-         int fallbackDrivenSelections,
-+        int moduleScopedFallbackSelections,
-         int dependencyMatchedSelections,
-         int newOrModifiedTestSelections) {}
-diff --git a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/report/SavingsSummaryAggregator.java b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/report/SavingsSummaryAggregator.java
-index 7edd36f..783f407 100644
---- a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/report/SavingsSummaryAggregator.java
-+++ b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/report/SavingsSummaryAggregator.java
-@@ -11,11 +11,14 @@ public final class SavingsSummaryAggregator {
-         int total = allDecisions.size();
-         int selected = (int) allDecisions.stream().filter(SelectionDecision::selected).count();
-         int fallback = countByReason(allDecisions, SelectionReason.FALLBACK_NON_SOURCE_CHANGE);
-+        int moduleScopedFallback =
-+                countByReason(allDecisions, SelectionReason.FALLBACK_NON_SOURCE_DEPENDENT_MODULE);
-         int dependencyMatched = countByReason(allDecisions, SelectionReason.DEPENDENCY_MATCH);
-         int newOrModified = countByReason(allDecisions, SelectionReason.NEW_OR_MODIFIED_TEST);
-         double proportionSkipped = total == 0 ? 0.0 : 1.0 - ((double) selected / total);
  
--        return new SavingsSummary(total, selected, proportionSkipped, fallback, dependencyMatched, newOrModified);
-+        return new SavingsSummary(
-+                total, selected, proportionSkipped, fallback, moduleScopedFallback, dependencyMatched, newOrModified);
-     }
- 
-     private static int countByReason(List<SelectionDecision> decisions, SelectionReason reason) {
-diff --git a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/report/TextSummaryRenderer.java b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/report/TextSummaryRenderer.java
-index 124db99..7dcfdee 100644
---- a/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/report/TextSummaryRenderer.java
-+++ b/blastradius-validator/src/main/java/io/github/baokhang83/blastradius/validator/report/TextSummaryRenderer.java
-@@ -37,6 +37,7 @@ public final class TextSummaryRenderer {
-                 .append(String.format(" (%.1f%% skipped)%n", savings.proportionSkipped() * 100));
-         sb.append("  - dependency-matched: ").append(savings.dependencyMatchedSelections()).append('\n');
-         sb.append("  - fallback-driven: ").append(savings.fallbackDrivenSelections()).append('\n');
-+        sb.append("  - module-scoped fallback: ").append(savings.moduleScopedFallbackSelections()).append('\n');
-         sb.append("  - new-or-modified: ").append(savings.newOrModifiedTestSelections()).append('\n');
- 
-         if (!report.flakyFailures().isEmpty()) {
-diff --git a/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/report/AnalysisReportContractTest.java b/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/report/AnalysisReportContractTest.java
-index 88dedd1..1622adb 100644
---- a/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/report/AnalysisReportContractTest.java
-+++ b/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/report/AnalysisReportContractTest.java
-@@ -55,6 +55,7 @@ class AnalysisReportContractTest {
-         SavingsSummary savings = parsed.savingsSummary();
-         assertEquals(savings.totalSelected(),
-                 savings.dependencyMatchedSelections() + savings.fallbackDrivenSelections()
-+                        + savings.moduleScopedFallbackSelections()
-                         + savings.newOrModifiedTestSelections());
-     }
- 
-diff --git a/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/report/SavingsSummaryAggregatorTest.java b/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/report/SavingsSummaryAggregatorTest.java
-index 0ade58b..f0cb36b 100644
---- a/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/report/SavingsSummaryAggregatorTest.java
-+++ b/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/report/SavingsSummaryAggregatorTest.java
-@@ -41,15 +41,31 @@ class SavingsSummaryAggregatorTest {
-                 SelectionDecision.dependencyMatch(test("A"), "com.example.Dep"),
-                 SelectionDecision.fallback(test("B")),
-                 SelectionDecision.newOrModifiedTest(test("C")),
--                SelectionDecision.noMatch(test("D")));
-+                SelectionDecision.fallbackNonSourceDependentModule(test("D")),
-+                SelectionDecision.noMatch(test("E")));
- 
-         SavingsSummary summary = aggregator.aggregate(decisions);
- 
-         assertEquals(summary.totalSelected(),
-                 summary.dependencyMatchedSelections() + summary.fallbackDrivenSelections()
-+                        + summary.moduleScopedFallbackSelections()
-                         + summary.newOrModifiedTestSelections());
-     }
- 
-+    @Test
-+    void countsModuleScopedFallbackSeparatelyFromWholeSuiteFallback() {
-+        List<SelectionDecision> decisions = List.of(
-+                SelectionDecision.fallback(test("A")),
-+                SelectionDecision.fallbackNonSourceDependentModule(test("B")),
-+                SelectionDecision.fallbackNonSourceDependentModule(test("C")),
-+                SelectionDecision.noMatch(test("D")));
-+
-+        SavingsSummary summary = aggregator.aggregate(decisions);
-+
-+        assertEquals(1, summary.fallbackDrivenSelections());
-+        assertEquals(2, summary.moduleScopedFallbackSelections());
-+    }
-+
-     @Test
-     void emptyDecisionsYieldsZeroedSummaryWithoutDivideByZero() {
-         SavingsSummary summary = aggregator.aggregate(List.of());
-diff --git a/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/report/TextSummaryRendererTest.java b/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/report/TextSummaryRendererTest.java
-index 69f781a..40a097c 100644
---- a/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/report/TextSummaryRendererTest.java
-+++ b/blastradius-validator/src/test/java/io/github/baokhang83/blastradius/validator/report/TextSummaryRendererTest.java
-@@ -15,7 +15,7 @@ class TextSummaryRendererTest {
- 
-     @Test
-     void rendersAPassVerdictWithSavingsFigures() {
--        SavingsSummary savings = new SavingsSummary(10, 4, 0.6, 1, 2, 1);
-+        SavingsSummary savings = new SavingsSummary(10, 4, 0.6, 1, 0, 2, 1);
-         AnalysisReport report = new AnalysisReport(Verdict.PASS, List.of(), List.of(), List.of(), List.of(), savings);
- 
-         String text = renderer.render(report);
-@@ -33,7 +33,7 @@ class TextSummaryRendererTest {
-         CommitPair pair = CommitPair.analyzed("base123", "head456", List.of());
-         WouldMissCase miss = new WouldMissCase(pair, new TestIdentity("com.example.FooTest", "checksAdd"),
-                 List.of("com.example.Foo"), "NO_MATCH");
--        SavingsSummary savings = new SavingsSummary(1, 0, 1.0, 0, 0, 0);
-+        SavingsSummary savings = new SavingsSummary(1, 0, 1.0, 0, 0, 0, 0);
-         AnalysisReport report = new AnalysisReport(Verdict.FAIL, List.of(pair), List.of(), List.of(miss), List.of(), savings);
- 
-         String text = renderer.render(report);
-@@ -55,7 +55,7 @@ class TextSummaryRendererTest {
-                 new WouldMissCase(pair, new TestIdentity("com.example.BTest", "b"), List.of("com.example.B"), "NO_MATCH"),
-                 new WouldMissCase(pair, new TestIdentity("com.example.CTest", "c"), List.of("com.example.C"), "NO_MATCH"));
-         AnalysisReport report = new AnalysisReport(Verdict.FAIL, List.of(pair), List.of(), misses, List.of(),
--                new SavingsSummary(3, 0, 1.0, 0, 0, 0));
-+                new SavingsSummary(3, 0, 1.0, 0, 0, 0, 0));
- 
-         String text = renderer.render(report);
- 
-diff --git a/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/design.md b/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/design.md
-new file mode 100644
-index 0000000..fec0d23
---- /dev/null
-+++ b/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/design.md
-@@ -0,0 +1,132 @@
-+# Design: scope the NON_SOURCE fallback to the changed module + its reactor dependents
-+
-+started: 2026-07-29
-+
-+## Motivation
-+
-+A validator run over apache/shenyu (30 commit pairs) selected 9933 / 27090 test executions
-+(63.3% skipped) with **zero** dependency-matched selections — every selected test came from
-+fallback. Breaking it down by pair: 11 of 30 pairs hit the `NON_SOURCE` fallback and selected
-+the *entire* suite; 19 selected nothing (no changes, inert-only, or Java changes that matched
-+no test). All the lost savings live in those 11 fallback pairs. And 9 of the 11 touched only
-+1&ndash;4 top-level modules &mdash; only **one** pair (root `pom.xml` + 292 files across 22
-+modules) was genuinely reactor-wide. The fallback is needlessly whole-reactor.
-+
-+Today `FallbackSelector.shouldFallback` is a single global boolean: *any* `NON_SOURCE` file
-+anywhere in the diff selects *every* test (`FallbackSelector.java:14-15`,
-+`SelectionEngine.java:42-44`). This feature makes it module-aware: a `NON_SOURCE` change in
-+module X selects tests in X and every module that (transitively) depends on X, while a
-+root/parent-POM or reactor-root config change still selects everything.
-+
-+## The load-bearing constraint
-+
-+Selection runs in `blastradius-core`, shared by both the Maven plugin **and** the shadow-mode
-+validator. The validator has **no live `MavenProject`** &mdash; it works from a git diff plus
-+tracked dependencies. The selection layer knows a test only as a `TestIdentity`
-+(class + method); neither it nor the tracked dependency data records a module. So module
-+attribution and the reactor graph must be derived from the **git tree** (POM files + source
-+paths), computed once per commit pair and passed into the engine &mdash; never read from Maven's
-+runtime reactor, or the validator (the very tool that measures soundness) couldn't use it.
-+
-+## Soundness (Constitution &sect;III)
-+
-+The fallback exists because a `NON_SOURCE` change (pom, yaml, sql, resource) can affect a test
-+in a way class-load tracking cannot see. Narrowing it must not drop a test that change could
-+break. The reactor dependency graph is the conservative unit: if module X's build inputs
-+changed, only X and modules that depend on X could be affected &mdash; a module that does *not*
-+depend on X cannot see X's classes, resources, or built jar. Two escape hatches keep it safe:
-+
-+- **Reactor-root / parent-POM change &rarr; whole suite** (unchanged behavior). A file not inside
-+  any single leaf module, or the parent POM every module inherits, can affect everything.
-+- **Unresolvable module &rarr; whole suite.** If a changed file can't be attributed to a module,
-+  or a test's module can't be determined, fall back to selecting it. Never guess narrower.
-+
-+## Class diagram
-+
-+```mermaid
-+classDiagram
-+  class SelectionEngine {
-+    +selectAll(...) List~SelectionDecision~
-+  }
-+  class FallbackSelector {
-+    +shouldFallback(changedFiles) boolean
-+    +scopedFallback(test, affectedModules, testModule) SelectionDecision
-+  }
-+  class ReactorModuleGraph {
-+    +moduleOf(path) Optional~ModuleId~
-+    +dependentsOf(moduleId) Set~ModuleId~
-+    +isReactorWide(changedFile) boolean
-+  }
-+  class ReactorModuleGraphBuilder {
-+    +fromRepoTree(repoRoot) ReactorModuleGraph
-+  }
-+  class ModuleId {
-+    +artifactId
-+    +relativePath
-+  }
-+  class ChangedFile {
-+    +path
-+    +kind
-+  }
-+  class TestIdentity {
-+    +className
-+    +methodName
-+  }
-+  SelectionEngine --> FallbackSelector : delegates fallback scoping
-+  SelectionEngine --> ReactorModuleGraph : resolves affected + test modules
-+  ReactorModuleGraphBuilder --> ReactorModuleGraph : parses POMs once per pair
-+  ReactorModuleGraph --> ModuleId
-+  FallbackSelector ..> ChangedFile : triggers on NON_SOURCE
-+  FallbackSelector ..> TestIdentity : selects if test module in affected set
-+```
-+
-+## Sequence: a leaf-module resource change scopes fallback
-+
-+```mermaid
-+sequenceDiagram
-+  participant Eng as SelectionEngine
-+  participant Graph as ReactorModuleGraph
-+  participant Fb as FallbackSelector
-+
-+  Eng->>Fb: shouldFallback(changedFiles)? (any NON_SOURCE)
-+  Fb-->>Eng: true
-+  Eng->>Graph: any reactor-wide change? (root/parent pom)
-+  Graph-->>Eng: no
-+  loop each NON_SOURCE changed file
-+    Eng->>Graph: moduleOf(path)
-+    Graph-->>Eng: module X
-+    Eng->>Graph: dependentsOf(X)
-+    Graph-->>Eng: {X, A, B}
-+  end
-+  Note over Eng: affectedModules = union over changed files
-+  loop each test
-+    Eng->>Graph: moduleOf(test source)
-+    Graph-->>Eng: module M
-+    alt M in affectedModules
-+      Eng->>Fb: scopedFallback(test) -> SELECT (reason: NON_SOURCE in dependency module)
-+    else
-+      Eng->>Eng: fall through to dependency-match / new-or-modified
-+    end
-+  end
-+```
-+
-+## Open decision (to resolve at the first slice)
-+
-+**How does a `TestIdentity` (class FQN, no path) map to a module?** The engine is handed
-+`Set<TestIdentity>`; the reactor graph maps *paths* to modules. Candidate resolutions, all
-+git-tree-derivable:
-+
-+1. **Package-root scan** &mdash; scan each module's `src/test/java` once, build `class FQN -> module`.
-+   Exact, but assumes standard layout.
-+2. **Record module at tracking time** &mdash; extend the tracked data with each test's module.
-+   Most robust, but changes the on-disk index format (versioning cost).
-+3. **Reuse the existing per-test code-source path** the agent already sees at load time.
-+
-+Leaning toward (1) for this feature (no format change, works for the validator's historical
-+replay); (2) is a possible follow-up if layout assumptions bite.
-+
-+## What this does *not* fix
-+
-+Classifier tightening (making more files `INERT`) is a separate, smaller lever and does not
-+move these numbers &mdash; every one of the 11 fallback pairs also carries a legitimately
-+`NON_SOURCE` pom/yaml, so it would still fall back. This feature is the actual savings lever.
-diff --git a/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/sessions/reactor-module-graph-from-the-git-tree.md b/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/sessions/reactor-module-graph-from-the-git-tree.md
-new file mode 100644
-index 0000000..7f5b473
---- /dev/null
-+++ b/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/sessions/reactor-module-graph-from-the-git-tree.md
-@@ -0,0 +1,45 @@
-+# Session: reactor-module-graph-from-the-git-tree
-+
-+- **intent:** reactor module graph from the git tree
-+- **started:** 2026-07-29
-+
-+---
-+
-+## Knowledge transfer
-+
-+_The ground this slice makes understandable — components, roles, and conditions explained,
-+persisted so the fluency doesn't evaporate with the conversation. About the work, never a person._
-+
-+### Components (role, conditions)
-+
-+- **`ModuleId`** — value identity for one reactor module: `(artifactId, relativePath)`. The `relativePath` is what attributes a changed file or a test source to the module (path containment); the `artifactId` is what inter-module dependency edges reference. Repo-relative, forward-slashed, no trailing slash; `""` denotes a module rooted at the repo root. · status: documented
-+- **`ReactorModuleGraph`** — the immutable inter-module graph queried during selection. Three operations: `moduleOf(path)` returns the deepest owning module (or empty), `dependentsOf(module)` returns the module plus its transitive reverse-dependency closure (the full set a change could affect), `isReactorWide(path)` is true for the root aggregator pom or any file attributable to no leaf module. One graph per commit pair. · status: documented
-+- **`ReactorModuleGraphBuilder.fromRepoTree(repoRoot)`** — constructs the graph purely from disk: walks the tree for `pom.xml`, parses coordinates/dependencies/parent, builds reverse edges. Works identically for the Maven plugin (working tree) and the validator (checked-out scratch copy) because it never consults Maven's runtime model. · status: documented
-+
-+### Hard-won conditions (gotchas, root causes, limitations)
-+
-+- **Git-tree parsing, not Maven runtime** — the shadow-mode validator has no live `MavenProject`, so the graph MUST be derived from POM files on disk. This is the load-bearing constraint of the whole feature; a runtime-reactor approach would compile but be unusable in the validator. · status: documented
-+- **`<parent>` counts as a dependency edge** — a child inheriting from a parent POM is affected by changes to that parent's coordinates/config, so parent artifactId refs are treated as edges alongside `<dependency>`. Missing this would under-scope the fallback and silently skip tests (violates §III soundness). · status: documented
-+- **Deepest-match wins** — `moduleOf` sorts modules by `relativePath` length descending so a file under `moduleA/...` attributes to `moduleA`, never to the reactor-root aggregator that also "contains" it by prefix. · status: documented
-+- **Unattributable path ⇒ reactor-wide** — `isReactorWide` is true when `moduleOf` is empty, never a narrower guess. A file under no known module is treated as affecting everything; narrowing on uncertainty would be unsound. · status: documented
-+- **XML parser hardened + build-output skipped** — `DocumentBuilderFactory` uses `FEATURE_SECURE_PROCESSING` and disables external-DTD loading; the tree walk skips `target/`/`build/` so stale generated POMs don't pollute the graph. · status: documented
-+
-+---
-+
-+## Decision: derive the reactor graph from the git tree, not Maven's runtime reactor
-+
-+- **where:** `blastradius-core/.../core/reactor/ReactorModuleGraphBuilder.java`
-+- **why:** the shadow-mode validator runs against a checked-out scratch copy with no live MavenProject, so the graph must be reconstructable from POM files on disk; this also makes the Maven plugin and validator share one code path
-+- **alternative:** read Maven's runtime reactor (MavenProject.getProjectReferences) — rejected: unavailable in the validator, which is the primary consumer
-+- **design:** ../design.md
-+- **constitution:** §III
-+- **trust:** ✓ verified
-+
-+## Decision: treat <parent> refs as dependency edges and default unattributable paths to reactor-wide
-+
-+- **where:** `blastradius-core/.../core/reactor/ReactorModuleGraph.java`
-+- **why:** soundness: a child is affected by its parent POM, so parent edges must be in the closure; and any path we cannot attribute to a leaf module must be treated as affecting everything, never guessed narrower — a missed edge silently skips tests that should run
-+- **alternative:** only follow <dependency> edges and drop unrecognized paths — rejected: both under-scope the fallback and reintroduce the exact false-skip §III forbids
-+- **design:** ../design.md
-+- **constitution:** §III
-+- **trust:** ✓ verified
-diff --git a/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/sessions/scope-the-fallback-in-the-selection-engine.md b/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/sessions/scope-the-fallback-in-the-selection-engine.md
-new file mode 100644
-index 0000000..33ddca4
---- /dev/null
-+++ b/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/sessions/scope-the-fallback-in-the-selection-engine.md
-@@ -0,0 +1,86 @@
-+# Session: scope the fallback in the selection engine
-+
-+- **intent:** scope the fallback in the selection engine
-+- **started:** 2026-07-29
-+
-+<!--
-+FluencyLoop Stage 3 — a session is a slice of the build. It holds two persistent records:
-+  1. Knowledge transfer — what the developer was made fluent in this slice (you write it).
-+  2. Decisions — the genuine forks, appended by `fluencyloop decision` (the script formats them).
-+
-+Everything below is scaffolding in comments — nothing to delete. Write knowledge transfer under
-+its headings; add each decision with
-+  fluencyloop decision --where <file/area> --why <rationale> [--alternative <rejected + why>] \
-+                       [--title <chose X over Y>] [--constitution §N] [--trust verified|unverified]
-+so the block is formatted deterministically and you never hand-write the bullet schema. No
-+`commits:` field: the feature is a branch, so the PR view derives commits live from git.
-+
-+KNOWLEDGE-TRANSFER — one bullet per component/role/mechanism explained:
-+  **<subject>** — <what it does, under what conditions> · status: documented | follow-up
-+  Make it RICH: cover the inventory AND the non-obvious, hard-won lessons (a bug's root cause,
-+  why something is done an odd way, a documented limitation). Describe the WORK, never a person
-+  (no competence, no "who knew what") — these files are committed and name an author via git.
-+
-+DECISION fields (assembled by `fluencyloop decision`):
-+  where        — file/area (NOT a line number — survives refactoring)
-+  why          — the rationale, taught live before it was written
-+  alternative  — the rejected option and why (what makes it rationale, not description)
-+  design       — (optional) ../design.md#anchor
-+  constitution — (optional) §N
-+  trust        — ✓ verified | ⚠ not independently verified (about the DECISION, never the person)
-+-->
-+
-+---
-+
-+## Knowledge transfer
-+
-+_The ground this slice makes understandable — components, roles, and conditions explained,
-+persisted so the fluency doesn't evaporate with the conversation. About the work, never a person._
-+
-+### Components (role, conditions)
-+
-+- **`TestModuleIndex`** — resolves the design's open decision (option 1, package-root scan): maps a `TestIdentity` (class FQN, no path) to its owning `ModuleId` by walking each module's `src/test/{java,kotlin}` root once per commit pair and attributing every source file through the same `ReactorModuleGraph.moduleOf(path)` the changed-file side uses. One source of truth for path→module. Handles Java and Kotlin; skips `target/`/`build/`. · status: documented
-+- **`ReactorScope`** — the engine's collaborator answering "which tests can this NON_SOURCE change set affect?" Bundles the graph + `TestModuleIndex`. `isReactorWide(changed)` gates the whole-suite escape; `forChanges(changed)` computes the affected-module set (union of each changed file's module + transitive dependents); `affects(test)` tests membership, conservatively true when a test's module can't be resolved. · status: documented
-+- **`SelectionEngine.selectAll` (6-arg overload)** — added alongside the original 5-arg signature (which now delegates with `reactorScope = null`), so existing Maven/Gradle plugin callers compile unchanged. When a scope is present and the change isn't reactor-wide, tests in affected modules get `FALLBACK_NON_SOURCE_DEPENDENT_MODULE`; everything else flows through the normal per-test pipeline (dependency-match / new-or-modified) — so a pair mixing a resource change with code changes still gets precise selection for the unaffected modules. · status: documented
-+- **`SelectionReason.FALLBACK_NON_SOURCE_DEPENDENT_MODULE`** — new explainable reason distinguishing a *scoped* fallback selection from the whole-suite `FALLBACK_NON_SOURCE_CHANGE`, so reports show why a test ran (its module changed or depends on a changed module). · status: documented
-+
-+### Hard-won conditions (gotchas, root causes, limitations)
-+
-+- **Ambient fallback outranks reactor scoping** — the ambient-dependency whole-suite escape is checked *before* applying the scoped-fallback branch: a class loaded before any tracking window opened has no trustworthy per-test data, so no module can be soundly ruled out for it. Scoping a pair that also tripped ambient fallback would be unsound. · status: documented
-+- **Null scope ≡ old behavior** — passing `reactorScope = null` reproduces the exact whole-suite fallback, byte for byte. This is what lets the two plugin callers keep working before slice 3 wires a real scope, and is asserted by `nullReactorScopePreservesWholeSuiteFallback`. · status: documented
-+- **Two soundness escape hatches, both widen never narrow** — a reactor-wide change (root/parent pom, or a file under no leaf module) selects everything; a test whose own module is unresolvable is treated as affected. Both bias toward over-selection, satisfying §III. · status: documented
-+
-+---
-+
-+<!-- Decisions are appended below by `fluencyloop decision`. For reference, a block looks like:
-+## Decision: chose X over Y
-+- **where:** `path/to/File.ext`
-+- **why:** the one-line why, engaged with — not post-hoc narration
-+- **alternative:** the rejected option — rejected: why
-+- **trust:** ⚠ not independently verified
-+-->
-+
-+## Decision: add a 6-arg selectAll overload with a nullable ReactorScope rather than change the signature
-+
-+- **where:** `blastradius-core/.../selection/SelectionEngine.java`
-+- **why:** keeps the existing 5-arg callers (Maven plugin, Gradle plugin, current validator) compiling unchanged while opting the validator into scoping via the new overload; null scope reproduces whole-suite fallback exactly
-+- **alternative:** change the single selectAll signature to require a ReactorScope — rejected: forces every caller to build a graph immediately and couples unrelated plugin work to this feature
-+- **design:** ../design.md
-+- **trust:** ✓ verified
-+
-+## Decision: check the ambient-dependency fallback before applying reactor scoping
-+
-+- **where:** `blastradius-core/.../selection/SelectionEngine.java`
-+- **why:** an ambient class has no trustworthy per-test dependency data, so no module can be soundly ruled out for it; scoping a pair that also tripped ambient fallback would silently skip tests
-+- **alternative:** apply reactor scoping first / independently — rejected: unsound, reintroduces the false-skip §III forbids
-+- **design:** ../design.md
-+- **constitution:** §III
-+- **trust:** ✓ verified
-+
-+## Decision: resolve TestIdentity to a module by scanning test-source roots through graph.moduleOf
-+
-+- **where:** `blastradius-core/.../reactor/TestModuleIndex.java`
-+- **why:** the design's chosen option (package-root scan); reusing graph.moduleOf keeps one path→module source of truth (deepest-match + reactor-wide safety) and needs no on-disk index format change, so it works for the validator's historical replay
-+- **alternative:** record each test's module at tracking time — rejected here: changes the index format (versioning cost); kept as a possible follow-up if layout assumptions bite
-+- **design:** ../design.md#open-decision
-+- **trust:** ✓ verified
-diff --git a/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/sessions/surface-module-scoped-fallback-in-the-savings-summary.md b/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/sessions/surface-module-scoped-fallback-in-the-savings-summary.md
-new file mode 100644
-index 0000000..b7e1997
---- /dev/null
-+++ b/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/sessions/surface-module-scoped-fallback-in-the-savings-summary.md
-@@ -0,0 +1,67 @@
-+# Session: surface module-scoped fallback in the savings summary
-+
-+- **intent:** surface module-scoped fallback in the savings summary
-+- **started:** 2026-07-29
-+
-+<!--
-+FluencyLoop Stage 3 — a session is a slice of the build. It holds two persistent records:
-+  1. Knowledge transfer — what the developer was made fluent in this slice (you write it).
-+  2. Decisions — the genuine forks, appended by `fluencyloop decision` (the script formats them).
-+
-+Everything below is scaffolding in comments — nothing to delete. Write knowledge transfer under
-+its headings; add each decision with
-+  fluencyloop decision --where <file/area> --why <rationale> [--alternative <rejected + why>] \
-+                       [--title <chose X over Y>] [--constitution §N] [--trust verified|unverified]
-+so the block is formatted deterministically and you never hand-write the bullet schema. No
-+`commits:` field: the feature is a branch, so the PR view derives commits live from git.
-+
-+KNOWLEDGE-TRANSFER — one bullet per component/role/mechanism explained:
-+  **<subject>** — <what it does, under what conditions> · status: documented | follow-up
-+  Make it RICH: cover the inventory AND the non-obvious, hard-won lessons (a bug's root cause,
-+  why something is done an odd way, a documented limitation). Describe the WORK, never a person
-+  (no competence, no "who knew what") — these files are committed and name an author via git.
-+
-+DECISION fields (assembled by `fluencyloop decision`):
-+  where        — file/area (NOT a line number — survives refactoring)
-+  why          — the rationale, taught live before it was written
-+  alternative  — the rejected option and why (what makes it rationale, not description)
-+  design       — (optional) ../design.md#anchor
-+  constitution — (optional) §N
-+  trust        — ✓ verified | ⚠ not independently verified (about the DECISION, never the person)
-+-->
-+
-+---
-+
-+## Knowledge transfer
-+
-+_The ground this slice makes understandable — components, roles, and conditions explained,
-+persisted so the fluency doesn't evaporate with the conversation. About the work, never a person._
-+
-+### Components (role, conditions)
-+
-+- **`SavingsSummary.moduleScopedFallbackSelections`** — new record component isolating reactor-scoped fallback selections from whole-suite `fallbackDrivenSelections`. This is the feature's headline metric: on the shenyu run, everything that used to be counted as whole-suite `fallbackDrivenSelections` can now split into "still whole-suite" vs "scoped to a changed module + dependents" — the second is the savings this feature recovers. · status: documented
-+- **`SavingsSummaryAggregator`** — now counts `FALLBACK_NON_SOURCE_DEPENDENT_MODULE` into the new bucket. `proportionSkipped` was always derived from `selected/total`, so the headline skip rate was already correct; this restores the per-reason breakdown. · status: documented
-+- **`TextSummaryRenderer`** — adds a "module-scoped fallback" line to the human-readable summary. JSON serialization is Jackson-reflective over the record, so the new field appears in the report automatically. · status: documented
-+
-+### Hard-won conditions (gotchas, root causes, limitations)
-+
-+- **Invariant restored, not just extended** — `SavingsSummary` documents `dependencyMatched + fallbackDriven + newOrModified == totalSelected`, asserted in two tests. Introducing the scoped-fallback reason in slice 2/3 silently broke it (those selections are `selected` but in no bucket); adding a class-load agent could regress it the same way. The fix adds `moduleScopedFallback` as a fourth term. **Note:** `FALLBACK_AMBIENT_DEPENDENCY` is still uncounted here — a pre-existing gap left untouched (out of this feature's scope), so the invariant holds only because the validator's ambient path is rare; worth a follow-up. · status: follow-up
-+- **Environmental test failures are broad on this machine** — every validator/core test that shells out to `mvn` via `ProcessBuilder` errors with `Cannot run program "mvn"` (Windows resolves `mvn.cmd`, not `mvn`, and ProcessBuilder doesn't). ~20 tests across `MavenBuildRunnerTest`, `GroundTruthResolverTest`, `BuildFailureDetectionTest`, `AgentOverheadMeasurementTest`, `DependencyTrackingIntegrationTest`. None touch selection/reactor/report code; all report + reason-referencing unit tests pass. · status: documented
-+
-+---
-+
-+<!-- Decisions are appended below by `fluencyloop decision`. For reference, a block looks like:
-+## Decision: chose X over Y
-+- **where:** `path/to/File.ext`
-+- **why:** the one-line why, engaged with — not post-hoc narration
-+- **alternative:** the rejected option — rejected: why
-+- **trust:** ⚠ not independently verified
-+-->
-+
-+## Decision: add a fourth moduleScopedFallback bucket to SavingsSummary rather than fold it into fallbackDriven
-+
-+- **where:** `blastradius-validator/.../report/SavingsSummary.java`
-+- **why:** the scoped-fallback reason broke the documented bucket-sum invariant, and folding it into fallbackDriven would hide the feature's whole point — how much of the old whole-suite fallback is now narrowed; a separate bucket both restores the invariant and surfaces the headline metric
-+- **alternative:** reuse the existing fallbackDriven bucket — rejected: makes the savings this feature recovers invisible in the report, defeating the reason for building it
-+- **design:** ../design.md
-+- **trust:** ✓ verified
-diff --git a/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/sessions/wire-the-reactor-scope-into-the-validator-run.md b/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/sessions/wire-the-reactor-scope-into-the-validator-run.md
-new file mode 100644
-index 0000000..88bee51
---- /dev/null
-+++ b/docs/fluencyloop/features/scope-the-non-source-fallback-to-the-changed-module-plus-its/sessions/wire-the-reactor-scope-into-the-validator-run.md
-@@ -0,0 +1,77 @@
-+# Session: wire the reactor scope into the validator run
-+
-+- **intent:** wire the reactor scope into the validator run
-+- **started:** 2026-07-29
-+
-+<!--
-+FluencyLoop Stage 3 — a session is a slice of the build. It holds two persistent records:
-+  1. Knowledge transfer — what the developer was made fluent in this slice (you write it).
-+  2. Decisions — the genuine forks, appended by `fluencyloop decision` (the script formats them).
-+
-+Everything below is scaffolding in comments — nothing to delete. Write knowledge transfer under
-+its headings; add each decision with
-+  fluencyloop decision --where <file/area> --why <rationale> [--alternative <rejected + why>] \
-+                       [--title <chose X over Y>] [--constitution §N] [--trust verified|unverified]
-+so the block is formatted deterministically and you never hand-write the bullet schema. No
-+`commits:` field: the feature is a branch, so the PR view derives commits live from git.
-+
-+KNOWLEDGE-TRANSFER — one bullet per component/role/mechanism explained:
-+  **<subject>** — <what it does, under what conditions> · status: documented | follow-up
-+  Make it RICH: cover the inventory AND the non-obvious, hard-won lessons (a bug's root cause,
-+  why something is done an odd way, a documented limitation). Describe the WORK, never a person
-+  (no competence, no "who knew what") — these files are committed and name an author via git.
-+
-+DECISION fields (assembled by `fluencyloop decision`):
-+  where        — file/area (NOT a line number — survives refactoring)
-+  why          — the rationale, taught live before it was written
-+  alternative  — the rejected option and why (what makes it rationale, not description)
-+  design       — (optional) ../design.md#anchor
-+  constitution — (optional) §N
-+  trust        — ✓ verified | ⚠ not independently verified (about the DECISION, never the person)
-+-->
-+
-+---
-+
-+## Knowledge transfer
-+
-+_The ground this slice makes understandable — components, roles, and conditions explained,
-+persisted so the fluency doesn't evaporate with the conversation. About the work, never a person._
-+
-+### Components (role, conditions)
-+
-+- **`RunCommand.buildReactorScope(checkout, headCommit)`** — the validator-side wiring that turns the engine capability into real savings: checks out the head commit, builds the `ReactorModuleGraph` + `TestModuleIndex` from that tree, and hands the resulting `ReactorScope` to the new 6-arg `selectAll`. One scope per pair. · status: documented
-+- **`RunCommand.analyzePair` selection call** — now passes the reactor scope as the 6th arg. Everything upstream (ground truth, dependency baseline, changed-file classification) is unchanged; only the fallback breadth narrows. · status: documented
-+
-+### Hard-won conditions (gotchas, root causes, limitations)
-+
-+- **Explicit head re-checkout before building the graph** — in `--fast-ground-truth` mode, `buildCommit` memoizes per-commit results and *skips* the checkout on a cache hit, so the scratch clone can be left reflecting the *base* tree when head was cached first. Building the graph from the scratch dir as-is would silently use base's module layout/edges. `buildReactorScope` therefore re-checks-out head explicitly. Safe because build results are already extracted into memory by that point (so `CommitCheckout` wiping `target/` is harmless), and a git checkout is negligible next to a Maven build (so fast mode's caching win survives). · status: documented
-+- **Graph-build failure → null scope → whole suite** — `buildReactorScope` catches any `RuntimeException` (a malformed/unusual POM in some historical commit) and returns `null`, so `selectAll` falls back to the exact whole-suite behavior instead of aborting the pair or guessing a narrower scope. Widen-never-narrow on uncertainty (§III). · status: documented
-+- **Integration-test failures are environmental** — `DependencyTrackingIntegrationTest` (5 cases) fails with `Cannot run program "mvn"`: it shells out via `ProcessBuilder`, which needs `mvn.cmd` on the raw PATH on Windows. Pre-existing, unrelated to this feature (which touches selection/reactor, not the tracking-agent subprocess path). The other 106 core tests pass. · status: documented
-+
-+---
-+
-+<!-- Decisions are appended below by `fluencyloop decision`. For reference, a block looks like:
-+## Decision: chose X over Y
-+- **where:** `path/to/File.ext`
-+- **why:** the one-line why, engaged with — not post-hoc narration
-+- **alternative:** the rejected option — rejected: why
-+- **trust:** ⚠ not independently verified
-+-->
-+
-+## Decision: re-check-out head before building the reactor graph rather than reuse the scratch working dir
-+
-+- **where:** `blastradius-validator/.../cli/RunCommand.java (buildReactorScope)`
-+- **why:** in --fast-ground-truth mode a cached head build skips its checkout, so the scratch clone may still reflect base; building the graph from the wrong tree could silently mis-scope the fallback. build results are already extracted, so wiping target/ is harmless and a checkout is cheap next to a build
-+- **alternative:** build the graph from whatever the scratch dir currently holds — rejected: base/head POM layout can differ, an unsound assumption in the tool that measures soundness
-+- **design:** ../design.md
-+- **constitution:** §III
-+- **trust:** ✓ verified
-+
-+## Decision: catch graph-build failures and fall back to a null scope (whole suite)
-+
-+- **where:** `blastradius-validator/.../cli/RunCommand.java (buildReactorScope)`
-+- **why:** a malformed or unusual POM in some historical commit must not abort the pair or narrow selection; returning null makes selectAll reproduce the safe whole-suite fallback
-+- **alternative:** let the exception propagate / exclude the pair — rejected: loses a measurable pair over a recoverable parse issue, and any narrower guess would be unsound
-+- **design:** ../design.md
-+- **constitution:** §III
-+- **trust:** ✓ verified
+         List<SelectionDecision> decisions = selectionEngine.selectAll(
+                 allTests, testDependencies, newOrModifiedTests, changedFiles,

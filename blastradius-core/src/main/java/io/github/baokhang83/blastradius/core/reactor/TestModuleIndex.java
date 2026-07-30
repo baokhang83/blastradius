@@ -3,12 +3,14 @@ package io.github.baokhang83.blastradius.core.reactor;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 /**
  * Maps a {@link TestIdentity} (a class FQN with no path) to its owning reactor module, by
@@ -40,17 +42,34 @@ public final class TestModuleIndex {
 
     public static TestModuleIndex fromRepoTree(Path repoRoot, ReactorModuleGraph graph) {
         Map<String, ModuleId> byClassName = new HashMap<>();
-        try (Stream<Path> tree = Files.walk(repoRoot)) {
-            tree.filter(Files::isRegularFile)
-                    .filter(TestModuleIndex::isTestSource)
-                    .forEach(sourceFile -> {
-                        String relative = repoRoot.relativize(sourceFile).toString().replace('\\', '/');
-                        String className = classNameOf(relative);
-                        if (className == null) {
-                            return;
-                        }
+        try {
+            // walkFileTree, not Files.walk: prune .git / target / build whole-subtree rather
+            // than walking every file and post-filtering (isTestSource still excludes any
+            // build output that slips through). On a big repo the .git object store alone
+            // dwarfs the source tree, so not descending it is the win.
+            Files.walkFileTree(repoRoot, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                    String name = dir.getFileName() == null ? "" : dir.getFileName().toString();
+                    if (".git".equals(name) || "target".equals(name) || "build".equals(name)) {
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path sourceFile, BasicFileAttributes attrs) {
+                    if (!isTestSource(sourceFile)) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                    String relative = repoRoot.relativize(sourceFile).toString().replace('\\', '/');
+                    String className = classNameOf(relative);
+                    if (className != null) {
                         graph.moduleOf(relative).ifPresent(module -> byClassName.put(className, module));
-                    });
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
         } catch (IOException e) {
             throw new UncheckedIOException("failed to scan test sources under " + repoRoot, e);
         }

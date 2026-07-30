@@ -66,4 +66,25 @@ class ReactorModuleGraphTest {
         assertTrue(graph.isReactorWide("pom.xml"), "root aggregator pom affects every module");
         assertFalse(graph.isReactorWide("moduleA/pom.xml"), "a leaf module pom is not reactor-wide");
     }
+
+    @Test
+    void ignoresPomsCopiedIntoBuildOutputDirectories(@TempDir Path tempDir) {
+        // A real reactor build leaves a copy of each module's pom.xml under target/ (e.g.
+        // maven-archiver's pom.properties siblings, or a shaded/effective pom). The walk
+        // prunes target/ and build/ wholesale, so such a copy must never register as a
+        // phantom module that would corrupt the artifactId -> module map.
+        FixtureProjectBuilder.twoModuleReactor(tempDir)
+                .writeResource("moduleA/target/classes/META-INF/maven/fixture/moduleA/pom.xml", "<project/>")
+                .writeResource("moduleB/build/tmp/pom.xml", "<project/>")
+                .commit("initial with build output");
+
+        ReactorModuleGraph graph = builder.fromRepoTree(tempDir);
+
+        // The build-output pom under moduleA/target must not be attributed as its own module:
+        // a file under moduleA still resolves to moduleA (the deepest real module), not to some
+        // phantom rooted at moduleA/target/classes/...
+        assertEquals(
+                Optional.of("moduleA"),
+                graph.moduleOf("moduleA/src/main/java/com/example/Foo.java").map(ModuleId::artifactId));
+    }
 }
