@@ -2,6 +2,7 @@ package io.github.baokhang83.blastradius.validator.build;
 
 import io.github.baokhang83.blastradius.core.process.MavenLauncher;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import io.github.baokhang83.blastradius.validator.git.CommitCheckout;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -9,6 +10,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -31,6 +33,7 @@ public final class MavenBuildRunner {
 
     private final Integer parallelThreads;
     private final long timeoutMinutes;
+    private final boolean isolatedRepo;
 
     /** No {@code -T} flag: the target project's reactor builds serially, as it always has. */
     public MavenBuildRunner() {
@@ -39,6 +42,10 @@ public final class MavenBuildRunner {
 
     public MavenBuildRunner(Integer parallelThreads) {
         this(parallelThreads, DEFAULT_TIMEOUT_MINUTES);
+    }
+
+    public MavenBuildRunner(Integer parallelThreads, long timeoutMinutes) {
+        this(parallelThreads, timeoutMinutes, false);
     }
 
     /**
@@ -52,8 +59,16 @@ public final class MavenBuildRunner {
      *                        reported as timed out. Must be positive. A large reactor legitimately
      *                        exceeds the {@value #DEFAULT_TIMEOUT_MINUTES}-minute default, so this
      *                        is operator-tunable rather than fixed.
+     * @param isolatedRepo    when {@code true}, each build runs against a private
+     *                        {@code -Dmaven.repo.local} derived from its working copy
+     *                        ({@link CommitCheckout#isolatedMavenRepoFor}) instead of the shared
+     *                        {@code ~/.m2}. Set only for concurrent runs (build-concurrency &gt; 1):
+     *                        it removes the local-repo <em>file-lock</em> contention that plugins
+     *                        like {@code maven-remote-resources-plugin} suffer under parallel
+     *                        builds (apache/shenyu's documented "Could not acquire lock(s)"), at
+     *                        the cost of a one-time dependency download per distinct working copy.
      */
-    public MavenBuildRunner(Integer parallelThreads, long timeoutMinutes) {
+    public MavenBuildRunner(Integer parallelThreads, long timeoutMinutes, boolean isolatedRepo) {
         if (parallelThreads != null && parallelThreads < 1) {
             throw new IllegalArgumentException("parallelThreads must be positive, got: " + parallelThreads);
         }
@@ -62,6 +77,7 @@ public final class MavenBuildRunner {
         }
         this.parallelThreads = parallelThreads;
         this.timeoutMinutes = timeoutMinutes;
+        this.isolatedRepo = isolatedRepo;
     }
 
     /**
@@ -133,9 +149,26 @@ public final class MavenBuildRunner {
         return relative.isEmpty() ? null : relative;
     }
 
+    /**
+     * Appends {@code -Dmaven.repo.local=<clone-scoped repo>} to {@code command} when this runner
+     * was built with {@code isolatedRepo}, so the build resolves and locks dependencies inside a
+     * private repo tied to {@code projectDir} (the clone) rather than the shared {@code ~/.m2}.
+     * Left untouched otherwise, so single-build runs and every existing test keep the exact
+     * argument list {@link #command} composes.
+     */
+    String[] withIsolatedRepo(String[] command, Path projectDir) {
+        if (!isolatedRepo) {
+            return command;
+        }
+        Path repo = CommitCheckout.isolatedMavenRepoFor(projectDir);
+        String[] augmented = Arrays.copyOf(command, command.length + 1);
+        augmented[command.length] = "-Dmaven.repo.local=" + repo;
+        return augmented;
+    }
+
     private BuildResult execute(Path projectDir, String[] command, Path agentJar, Path dependencyRecordOutputFile) {
         try {
-            ProcessBuilder pb = new ProcessBuilder(command)
+            ProcessBuilder pb = new ProcessBuilder(withIsolatedRepo(command, projectDir))
                     .directory(projectDir.toFile())
                     .redirectErrorStream(true);
             if (agentJar != null) {
