@@ -59,8 +59,8 @@ public final class TestModuleIndex {
 
     private static boolean isTestSource(Path file) {
 <span class="fc" id="L61">        String path = file.toString().replace('\\', '/');</span>
-<span class="pc bpc" id="L62" title="2 of 4 branches missed.">        if (path.contains(&quot;/target/&quot;) || path.contains(&quot;/build/&quot;)) {</span>
-<span class="nc" id="L63">            return false;</span>
+<span class="pc bpc" id="L62" title="1 of 4 branches missed.">        if (path.contains(&quot;/target/&quot;) || path.contains(&quot;/build/&quot;)) {</span>
+<span class="fc" id="L63">            return false;</span>
         }
 <span class="fc bfc" id="L65" title="All 4 branches covered.">        boolean underTestRoot = path.contains(&quot;/src/test/java/&quot;) || path.contains(&quot;/src/test/kotlin/&quot;);</span>
 <span class="pc bpc" id="L66" title="1 of 6 branches missed.">        return underTestRoot &amp;&amp; (path.endsWith(&quot;.java&quot;) || path.endsWith(&quot;.kt&quot;));</span>

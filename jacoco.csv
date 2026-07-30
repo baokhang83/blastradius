@@ -14,7 +14,7 @@ coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestIde
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,ModuleId,0,17,0,0,0,4,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,ReactorModuleGraph,7,121,5,15,2,26,5,12,0,7
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,ReactorModuleGraphBuilder,40,414,13,37,7,79,13,30,0,18
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,TestModuleIndex,15,159,6,16,5,32,6,13,0,8
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,TestModuleIndex,13,161,5,17,4,33,5,14,0,8
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,ReactorScope,1,111,2,6,0,22,2,9,0,7
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,ReactorModuleGraphBuilder.PomInfo,0,15,0,0,0,1,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,FallbackSelector,0,19,0,2,0,3,0,5,0,4
@@ -46,7 +46,7 @@ coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,Ma
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand.PairAnalysis,0,15,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunConfig,8,92,1,11,2,16,2,7,1,2
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand.CommitBuild,0,15,0,0,0,1,0,1,0,1
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand,71,550,5,17,15,107,9,18,4,12
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand,71,570,5,19,15,112,9,20,4,13
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,SurefireReportParser,18,151,0,18,4,36,0,15,0,6
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResult,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,Outcome,0,21,0,0,0,4,0,1,0,1
