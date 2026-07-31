@@ -18,14 +18,14 @@ no heuristics, no opaque score.
 
 ## Early validation: Apache ShenYu
 
-The validator replayed 300 sequential Apache ShenYu commit pairs in shadow mode, from [`ce3719d4d68cb51df0704a154fb1da8b2a1778ed`](https://github.com/apache/shenyu/commit/ce3719d4d68cb51df0704a154fb1da8b2a1778ed) to [`3a411e017acfc47636e2bbfeb2958108d1f15a05`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05). All 300 pairs built and were analyzed; comparison with the corresponding full-test outcomes found no would-miss cases. The full [machine-readable report](analyses/report_shenyu_300.json) and [human-readable summary](analyses/summary_shenyu_300.txt) are included in this repository.
+The validator replayed 300 sequential Apache ShenYu commit pairs in shadow mode, from [`ce3719d4d68cb51df0704a154fb1da8b2a1778ed`](https://github.com/apache/shenyu/commit/ce3719d4d68cb51df0704a154fb1da8b2a1778ed) to [`3a411e017acfc47636e2bbfeb2958108d1f15a05`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05). All 300 pairs built and were analyzed; comparison with the corresponding full-test outcomes found no would-miss cases. 
 
 | Metric | Result |
 | --- | --- |
 | Commit pairs analyzed | 300 / 300 |
 | Build exclusions | 0 |
 | Would-miss cases | 0 |
-| Test executions skipped | 514,077 / 747,680 (68.8%) |
+| Test executions skipped | 514,077 / 747,680 **(68.8%)** |
 | Tests selected | 233,603 |
 | Flaky test observations | 42 (excluded from the verdict) |
 
