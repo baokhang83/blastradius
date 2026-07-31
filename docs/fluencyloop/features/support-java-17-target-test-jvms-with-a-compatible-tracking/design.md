@@ -151,3 +151,33 @@ sequenceDiagram
 Bundling a fixed JUnit Platform version is rejected because the agent JAR is on the parent system
 classpath and can shadow a target's newer Platform classes, producing the alignment failure seen
 with Commons Lang.
+
+## Test discovery without re-entrant class definition
+
+JUnit discovery defines test classes before the first test boundary opens. Instrumenting one of
+those classes at definition time can make ASM resolve a nested test class through the same loader;
+on Java 17, Commons Lang's `ThreadUtilsTest$TestThread` then fails when JUnit later defines it
+normally. Test classes therefore stay unmodified during discovery and are retransformed only at
+the first test boundary, when they are already defined. Production classes remain instrumented on
+their first load. Frame computation reads target class metadata as resources instead of defining
+target classes; JDK hierarchy metadata may use the bootstrap loader safely.
+
+```mermaid
+sequenceDiagram
+  participant J as JUnit discovery
+  participant L as Target class loader
+  participant A as Tracking agent
+  participant B as First test boundary
+
+  J->>L: define test class and nested members
+  L->>A: transform test class
+  A-->>L: leave test bytecode unchanged
+  B->>A: snapshot loaded project classes
+  A->>L: retransform already-defined test classes
+  A->>A: read target hierarchy metadata without class definition
+  B->>A: record test and application dependencies
+```
+
+Rejecting all test-class instrumentation would avoid the linkage error but loses attribution for
+application classes first loaded in `@BeforeAll`. Retransformation after discovery preserves that
+attribution without violating the classloader's definition lifecycle.

@@ -319,7 +319,7 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
                 ambientDependencies.remove(className);
                 continue;
             }
-            if (!isAmbientInstrumentationCandidate(loadedClass, projectRoot)
+            if (!isProjectClassForRetransformation(loadedClass, projectRoot)
                     || !currentInstrumentation.isModifiableClass(loadedClass)) {
                 continue;
             }
@@ -349,6 +349,22 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
             return false;
         }
         Path codeSource = codeSourceOf(loadedClass);
+        return codeSource != null && isTrackableProjectCodeSource(codeSource, projectRoot);
+    }
+
+    /**
+     * Retransformation happens only after JUnit has finished discovery and the class is already
+     * defined. At that point test classes are safe to instrument too: their method callbacks are
+     * needed to attribute application classes first loaded in {@code @BeforeAll}.
+     */
+    private static boolean isProjectClassForRetransformation(Class<?> loadedClass, Path projectRoot) {
+        if (loadedClass.getName().startsWith(TRACKING_PACKAGE_PREFIX)
+                || loadedClass.getName().startsWith(INSTRUMENTATION_LIBRARY_PACKAGE_PREFIX)
+                || loadedClass.isArray()
+                || loadedClass.isPrimitive()) {
+            return false;
+        }
+        Path codeSource = codeSourceOf(loadedClass);
         return codeSource != null && isProjectCodeSource(codeSource, projectRoot);
     }
 
@@ -365,15 +381,15 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
             return false;
         }
         Path codeSource = codeSourceOf(protectionDomain);
-        return codeSource != null && isProjectCodeSource(codeSource, CONFIGURED_PROJECT_ROOT);
+        return codeSource != null && isTrackableProjectCodeSource(codeSource, CONFIGURED_PROJECT_ROOT);
     }
 
     /**
-     * A class belongs to the build under test when its code source lives under the reactor root —
-     * whether that is a module's {@code target/classes} directory or another module's built jar,
-     * which is how every downstream module sees its reactor dependencies. Without the reactor root
-     * the only safe answer is the class-output directory shape: a jar cannot then be told apart
-     * from a third-party one, so it stays ambient and selection keeps its conservative fallback.
+     * A code source belongs to the build under test when it lives under the reactor root — whether
+     * that is a module's class-output directory or another module's built jar, which is how every
+     * downstream module sees its reactor dependencies. Without the reactor root the only safe
+     * answer is the class-output directory shape: a jar cannot then be told apart from a
+     * third-party one, so it stays ambient and selection keeps its conservative fallback.
      */
     static boolean isProjectCodeSource(Path codeSource, Path projectRoot) {
         if (projectRoot != null && codeSource.startsWith(projectRoot)) {
@@ -384,6 +400,19 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
                 || path.endsWith("/target/test-classes")
                 || path.endsWith("/build/classes/java/main")
                 || path.endsWith("/build/classes/java/test");
+    }
+
+    /**
+     * Test output is excluded only from initial class-definition instrumentation. JUnit discovery
+     * can trigger nested-class resolution while a test class is being defined; those classes are
+     * instead picked up by {@link #isProjectClassForRetransformation(Class, Path)} after discovery.
+     */
+    private static boolean isTrackableProjectCodeSource(Path codeSource, Path projectRoot) {
+        if (!isProjectCodeSource(codeSource, projectRoot)) {
+            return false;
+        }
+        String path = codeSource.toString().replace('\\', '/');
+        return !path.endsWith("/target/test-classes") && !path.endsWith("/build/classes/java/test");
     }
 
     private static Path configuredProjectRoot() {

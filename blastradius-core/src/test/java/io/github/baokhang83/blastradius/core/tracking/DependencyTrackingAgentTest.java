@@ -13,9 +13,11 @@ import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.CodeSource;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.ProtectionDomain;
+import java.security.cert.Certificate;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -127,7 +129,7 @@ class DependencyTrackingAgentTest {
         currentTest.set(null);
 
         byte[] instrumented = agent.transform(
-                null, "com/example/SpringBean", null, ownProtectionDomain(), ownClassBytes());
+                null, "com/example/SpringBean", null, productionProtectionDomain(), ownClassBytes());
 
         assertTrue(instrumented != null,
                 "a project class must be instrumented on its very first load, whether or not a "
@@ -146,7 +148,7 @@ class DependencyTrackingAgentTest {
         TestIdentity testB = new TestIdentity("com.example.BeanReusingTest", "reusesCachedContext");
 
         currentTest.set(testA);
-        agent.transform(null, "com/example/SpringBean", null, ownProtectionDomain(), ownClassBytes());
+        agent.transform(null, "com/example/SpringBean", null, productionProtectionDomain(), ownClassBytes());
 
         Field installedAgentField = DependencyTrackingAgent.class.getDeclaredField("installedAgent");
         installedAgentField.setAccessible(true);
@@ -307,9 +309,10 @@ class DependencyTrackingAgentTest {
         }
     }
 
-    /** Compiled to {@code target/test-classes}: a real project code source for the tests below. */
-    private static ProtectionDomain ownProtectionDomain() {
-        return DependencyTrackingAgentTest.class.getProtectionDomain();
+    private static ProtectionDomain productionProtectionDomain() throws Exception {
+        CodeSource codeSource = new CodeSource(
+                Path.of("/build/repo/module/target/classes").toUri().toURL(), (Certificate[]) null);
+        return new ProtectionDomain(codeSource, null);
     }
 
     private static String sha256Hex(byte[] bytes) throws NoSuchAlgorithmException {

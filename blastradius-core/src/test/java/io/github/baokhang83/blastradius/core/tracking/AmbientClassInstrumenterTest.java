@@ -1,6 +1,7 @@
 package io.github.baokhang83.blastradius.core.tracking;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import java.io.InputStream;
 import java.lang.invoke.MethodHandles;
@@ -40,6 +41,29 @@ class AmbientClassInstrumenterTest {
         assertNotNull(MethodHandles.lookup().defineHiddenClass(instrumented, false).lookupClass());
     }
 
+    @Test
+    void instrumentingANestedClassReferenceDoesNotReenterItsDefiningLoader() throws Exception {
+        byte[] original;
+        try (InputStream stream = FrameMergingNestedType.class
+                .getResourceAsStream("AmbientClassInstrumenterTest$FrameMergingNestedType.class")) {
+            assertNotNull(stream, "fixture class bytes must be available as a resource");
+            original = stream.readAllBytes();
+        }
+
+        ClassLoader rejectingLoader = new ClassLoader(FrameMergingNestedType.class.getClassLoader()) {
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                if (name.equals(FrameMergingNestedType.Child.class.getName())) {
+                    throw new AssertionError("frame computation must not load a nested project class");
+                }
+                return super.loadClass(name, resolve);
+            }
+        };
+
+        assertDoesNotThrow(() -> instrumenter.instrument(
+                FrameMergingNestedType.class.getName(), original, rejectingLoader));
+    }
+
     static final class Wrapper {
         final Object value;
 
@@ -51,6 +75,14 @@ class AmbientClassInstrumenterTest {
     static final class NestedConstructorArgConstruction {
         static Object make(boolean flag, Object existing) {
             return new Wrapper(flag ? new ArrayList<>() : existing);
+        }
+    }
+
+    static final class FrameMergingNestedType {
+        static final class Child extends Thread {}
+
+        static Thread choose(boolean child) {
+            return child ? new Child() : new Thread();
         }
     }
 }

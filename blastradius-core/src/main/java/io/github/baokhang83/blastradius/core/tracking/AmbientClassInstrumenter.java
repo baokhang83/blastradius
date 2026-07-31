@@ -1,5 +1,12 @@
 package io.github.baokhang83.blastradius.core.tracking;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayDeque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
@@ -31,16 +38,7 @@ final class AmbientClassInstrumenter {
         // see AmbientClassInstrumenterTest for a minimal repro of this exact shape). COMPUTE_FRAMES
         // recomputes the whole table from the rewritten bytecode instead of patching stale
         // offsets, at the cost of needing loader to resolve common superclasses below.
-        ClassWriter writer = new ClassWriter(reader, ClassWriter.COMPUTE_FRAMES) {
-            @Override
-            protected ClassLoader getClassLoader() {
-                // Defaults to this ClassWriter's own (agent/ASM) loader, which can't see a
-                // target project's classes when the agent jar and the instrumented class live
-                // in different classloader realms (e.g. a Maven plugin realm during self-host)
-                // — resolving common superclasses would then throw ClassNotFoundException.
-                return loader != null ? loader : super.getClassLoader();
-            }
-        };
+        ClassWriter writer = new MetadataClassWriter(reader, loader);
         AtomicBoolean changed = new AtomicBoolean();
         reader.accept(new ClassVisitor(Opcodes.ASM9, writer) {
             @Override
@@ -98,5 +96,127 @@ final class AmbientClassInstrumenter {
             }
         }, 0);
         return changed.get() ? writer.toByteArray() : null;
+    }
+
+    /**
+     * Computes target-project stack-map-frame hierarchy relationships from class-file resources
+     * rather than {@link Class#forName(String, boolean, ClassLoader)}. A transformer runs while
+     * the target loader is defining the class, so defining a referenced nested class here can
+     * re-enter that loader and make its later normal definition fail with {@link LinkageError}.
+     */
+    private static final class MetadataClassWriter extends ClassWriter {
+
+        private final ClassLoader loader;
+        private final Map<String, ClassInfo> classes = new HashMap<>();
+
+        MetadataClassWriter(ClassReader reader, ClassLoader loader) {
+            super(reader, ClassWriter.COMPUTE_FRAMES);
+            this.loader = loader;
+        }
+
+        @Override
+        protected String getCommonSuperClass(String first, String second) {
+            if (first.startsWith("[") || second.startsWith("[")) {
+                return "java/lang/Object";
+            }
+            try {
+                if (first.equals(second) || isAssignableFrom(first, second)) {
+                    return first;
+                }
+                if (isAssignableFrom(second, first)) {
+                    return second;
+                }
+                if (classInfo(first).isInterface || classInfo(second).isInterface) {
+                    return "java/lang/Object";
+                }
+                String candidate = first;
+                do {
+                    candidate = classInfo(candidate).superName;
+                } while (!isAssignableFrom(candidate, second));
+                return candidate;
+            } catch (IOException e) {
+                // DependencyTrackingAgent treats an instrumentation failure as an ambient class,
+                // preserving the conservative selection fallback. Returning an invented frame
+                // type here could instead make the target class fail JVM verification.
+                throw new IllegalStateException("could not resolve frame hierarchy from class resources", e);
+            }
+        }
+
+        private boolean isAssignableFrom(String expectedSupertype, String candidate) throws IOException {
+            ArrayDeque<String> pending = new ArrayDeque<>();
+            Set<String> seen = new HashSet<>();
+            pending.add(candidate);
+            while (!pending.isEmpty()) {
+                String current = pending.removeFirst();
+                if (!seen.add(current)) {
+                    continue;
+                }
+                if (expectedSupertype.equals(current)) {
+                    return true;
+                }
+                ClassInfo info = classInfo(current);
+                if (info.superName != null) {
+                    pending.addLast(info.superName);
+                }
+                for (String implementedInterface : info.interfaces) {
+                    pending.addLast(implementedInterface);
+                }
+            }
+            return false;
+        }
+
+        private ClassInfo classInfo(String internalName) throws IOException {
+            ClassInfo known = classes.get(internalName);
+            if (known != null) {
+                return known;
+            }
+            if (internalName.startsWith("java/")) {
+                try {
+                    Class<?> type = Class.forName(internalName.replace('/', '.'), false, loader);
+                    Class<?> superclass = type.getSuperclass();
+                    Class<?>[] implementedInterfaces = type.getInterfaces();
+                    String[] interfaceNames = new String[implementedInterfaces.length];
+                    for (int index = 0; index < implementedInterfaces.length; index++) {
+                        interfaceNames[index] = implementedInterfaces[index].getName().replace('.', '/');
+                    }
+                    ClassInfo info = new ClassInfo(
+                            type.isInterface(),
+                            superclass == null ? null : superclass.getName().replace('.', '/'),
+                            interfaceNames);
+                    classes.put(internalName, info);
+                    return info;
+                } catch (ClassNotFoundException e) {
+                    throw new IOException("JDK class not found: " + internalName, e);
+                }
+            }
+            String resourceName = internalName + ".class";
+            InputStream stream = loader == null
+                    ? ClassLoader.getSystemResourceAsStream(resourceName)
+                    : loader.getResourceAsStream(resourceName);
+            if (stream == null) {
+                throw new IOException("class resource not found: " + resourceName);
+            }
+            try (stream) {
+                ClassReader reader = new ClassReader(stream);
+                ClassInfo info = new ClassInfo(
+                        (reader.getAccess() & Opcodes.ACC_INTERFACE) != 0,
+                        reader.getSuperName(),
+                        reader.getInterfaces());
+                classes.put(internalName, info);
+                return info;
+            }
+        }
+    }
+
+    private static final class ClassInfo {
+        private final boolean isInterface;
+        private final String superName;
+        private final String[] interfaces;
+
+        private ClassInfo(boolean isInterface, String superName, String[] interfaces) {
+            this.isInterface = isInterface;
+            this.superName = superName;
+            this.interfaces = interfaces;
+        }
     }
 }
