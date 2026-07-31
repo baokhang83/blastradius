@@ -167,6 +167,37 @@ class DependencyTrackingIntegrationTest {
     }
 
     @Test
+    void discoveryOfATestWithANestedClassDoesNotDefineItTwice(@TempDir Path projectDir, @TempDir Path outDir)
+            throws Exception {
+        Path agentJar = findOwnAgentJar();
+        Path recordFile = outDir.resolve("deps.json");
+
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        fixture.addSystemDependency(null, agentJar);
+        fixture.writeTest("com.example.NestedWorkerTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class NestedWorkerTest {
+                    private static final class Worker extends Thread {
+                        @Override public void run() {}
+                    }
+                    @Test void startsNestedWorker() {
+                        Thread worker = System.nanoTime() > 0 ? new Worker() : new Thread();
+                        assertEquals(Thread.State.NEW, worker.getState());
+                    }
+                }
+                """);
+        fixture.commit("initial");
+
+        runMvnTest(projectDir, agentJar, recordFile);
+
+        Map<TestIdentity, Map<String, String>> recorded = new DependencyRecordReader().readAll(recordFile).tests();
+        assertTrue(recorded.containsKey(new TestIdentity("com.example.NestedWorkerTest", "startsNestedWorker")),
+                "the nested test class must be discoverable and execute: " + recorded.keySet());
+    }
+
+    @Test
     void virtualThreadAttributionIncludesSealedAndHiddenClassLoadsOnJdk25(
             @TempDir Path projectDir, @TempDir Path outDir) throws Exception {
         Path agentJar = findOwnAgentJar();

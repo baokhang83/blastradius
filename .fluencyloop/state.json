@@ -2,7 +2,7 @@
   "feature": "support-java-17-target-test-jvms-with-a-compatible-tracking",
   "branch": "feature/support-java-17-target-test-jvms-with-a-compatible-tracking",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/support-java-17-target-test-jvms-with-a-compatible-tracking/sessions/keep-junit-platform-out-of-the-shaded-tracking-agent-while-r.md",
+  "last_session": "docs/fluencyloop/features/support-java-17-target-test-jvms-with-a-compatible-tracking/sessions/avoid-re-entrant-class-definition-while-tracking-junit-test.md",
   "base_ref": "main",
   "updated": "2026-07-31"
 }
