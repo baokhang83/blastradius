@@ -17,12 +17,11 @@ import org.junit.platform.launcher.TestIdentifier;
  */
 public final class TestBoundaryListener implements TestExecutionListener {
 
-    private static final InheritableThreadLocal<TestIdentity> CURRENT_TEST = new InheritableThreadLocal<>();
     private static final ThreadLocal<Set<Class<?>>> CLASSES_AT_TEST_START = new ThreadLocal<>();
 
     /** The test currently executing on this thread, or {@code null} if none. */
     public static TestIdentity currentTest() {
-        return CURRENT_TEST.get();
+        return TestExecutionContext.currentTest();
     }
 
     @Override
@@ -38,7 +37,7 @@ public final class TestBoundaryListener implements TestExecutionListener {
             // generated hash code may load JVM support classes; while no test is current those
             // loads are intentionally ignored instead of recursively recording themselves.
             DependencyTrackingAgent.recordTestStarted(test);
-            CURRENT_TEST.set(test);
+            TestExecutionContext.start(test);
             CLASSES_AT_TEST_START.set(DependencyTrackingAgent.loadedClasses());
         }
     }
@@ -46,12 +45,12 @@ public final class TestBoundaryListener implements TestExecutionListener {
     @Override
     public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult testExecutionResult) {
         if (testIdentifier.isTest()) {
-            TestIdentity currentTest = CURRENT_TEST.get();
+            TestIdentity currentTest = TestExecutionContext.currentTest();
             if (currentTest != null) {
                 DependencyTrackingAgent.recordHiddenClassesLoadedSince(
                         currentTest, CLASSES_AT_TEST_START.get());
             }
-            CURRENT_TEST.remove();
+            TestExecutionContext.finish();
             CLASSES_AT_TEST_START.remove();
         }
     }
