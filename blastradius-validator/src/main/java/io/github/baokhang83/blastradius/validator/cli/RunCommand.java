@@ -1,6 +1,8 @@
 package io.github.baokhang83.blastradius.validator.cli;
 
+import io.github.baokhang83.blastradius.validator.build.BuildCache;
 import io.github.baokhang83.blastradius.validator.build.BuildFailureDetector;
+import io.github.baokhang83.blastradius.validator.build.BuildOutcome;
 import io.github.baokhang83.blastradius.validator.build.CheckoutPool;
 import io.github.baokhang83.blastradius.validator.build.CommitBuild;
 import io.github.baokhang83.blastradius.validator.build.CommitBuildService;
@@ -126,14 +128,21 @@ public final class RunCommand {
             int concurrency = config.buildConcurrency();
             Path scratchParent = Files.createTempDirectory("blastradius-scratch-");
             ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+            // The build cache lives beside the report so it is stable across re-runs (its whole
+            // point is resume): a run that dies partway leaves its successful builds on disk, and
+            // the next invocation with the same --report-out skips straight past them. It also
+            // bounds phase 1's heap — each build is written here and evicted from memory rather
+            // than accumulated for the whole window (the OOM this fixes).
+            BuildCache cache = new BuildCache(buildCacheDirectory(config.reportOutputPath()));
             try (CheckoutPool pool = CheckoutPool.of(config.projectPath(), scratchParent, concurrency)) {
-                // Phase 1 (expensive, now core-saturated): build every commit the window
-                // needs, concurrently across the pool of isolated clones.
-                Map<BuildKey, CommitBuild> builds =
-                        buildAllCommits(window, config.fastGroundTruth(), agentJar, pool, executor);
+                // Phase 1 (expensive, now core-saturated): build every commit the window needs,
+                // concurrently across the pool of isolated clones, persisting each to the cache.
+                Map<BuildKey, BuildOutcome> outcomes =
+                        buildAllCommits(window, config.fastGroundTruth(), agentJar, pool, executor, cache);
 
-                // Phase 2 (cheap, serial): select + compare per pair over the cached builds.
-                AnalysisReport report = analyzeWindow(window, config, builds, pool);
+                // Phase 2 (cheap, serial): select + compare per pair, loading each build from the
+                // cache on demand so the full payloads are never all resident at once.
+                AnalysisReport report = analyzeWindow(window, config, outcomes, cache, pool);
                 reportWriter.write(config.reportOutputPath(), report);
 
                 progress.summary(report.verdict().name(), System.currentTimeMillis() - runStart);
@@ -158,16 +167,16 @@ public final class RunCommand {
      * (as a base) and once without (as a head) — which distinct {@link BuildKey}s capture,
      * while fast mode collapses them to a single agent-attached build.
      */
-    private Map<BuildKey, CommitBuild> buildAllCommits(
+    private Map<BuildKey, BuildOutcome> buildAllCommits(
             List<CommitPair> window, boolean fastGroundTruth, Path agentJar,
-            CheckoutPool pool, ExecutorService executor) throws InterruptedException {
+            CheckoutPool pool, ExecutorService executor, BuildCache cache) throws InterruptedException {
         List<BuildKey> keys = new ArrayList<>();
         for (CommitPair pair : window) {
             keys.add(new BuildKey(pair.baseCommit(), true));
             keys.add(new BuildKey(pair.headCommit(), fastGroundTruth));
         }
         CommitBuildService service = new CommitBuildService(
-                pool, executor, progress,
+                pool, executor, progress, cache,
                 (checkout, sha, agentAttached) -> buildCommit(checkout, sha, agentAttached, agentJar));
         return service.buildAll(keys);
     }
@@ -179,7 +188,8 @@ public final class RunCommand {
      * has finished, every clone is idle, so this borrow never blocks.
      */
     private AnalysisReport analyzeWindow(
-            List<CommitPair> window, RunConfig config, Map<BuildKey, CommitBuild> builds, CheckoutPool pool)
+            List<CommitPair> window, RunConfig config, Map<BuildKey, BuildOutcome> outcomes,
+            BuildCache cache, CheckoutPool pool)
             throws InterruptedException {
         List<CommitPair> analyzedPairs = new ArrayList<>();
         List<CommitPair> excludedPairs = new ArrayList<>();
@@ -199,7 +209,7 @@ public final class RunCommand {
                 PairAnalysis analysis;
                 try {
                     analysis = analyzePair(
-                            pair, config.projectPath(), builds, config.fastGroundTruth(),
+                            pair, config.projectPath(), outcomes, cache, config.fastGroundTruth(),
                             scopeCheckout, reactorScopeCache);
                 } catch (Exception e) {
                     analysis = excluded(pair, "analysis failed: " + e.getMessage());
@@ -232,18 +242,27 @@ public final class RunCommand {
             List<FlakyFailure> flakyFailures) {}
 
     private PairAnalysis analyzePair(
-            CommitPair pair, Path targetRepo, Map<BuildKey, CommitBuild> builds, boolean fastGroundTruth,
+            CommitPair pair, Path targetRepo, Map<BuildKey, BuildOutcome> outcomes, BuildCache cache,
+            boolean fastGroundTruth,
             CommitCheckout scopeCheckout, Map<String, ReactorScope> reactorScopeCache) throws Exception {
         // The base commit is always the agent-attached build; the head build's agent flag
         // matches how phase 1 enumerated its key (with in fast mode, without in safe mode).
-        CommitBuild base = builds.get(new BuildKey(pair.baseCommit(), true));
-        if (base.failed()) {
-            return excluded(pair, base.failureReason());
+        // Phase 1 returned only a pass/fail marker per key; the heavy payload is loaded from the
+        // cache here, on demand, so the whole window's builds are never all resident at once.
+        BuildKey baseKey = new BuildKey(pair.baseCommit(), true);
+        if (outcomes.get(baseKey).failed()) {
+            return excluded(pair, outcomes.get(baseKey).failureReason());
         }
-        CommitBuild head = builds.get(new BuildKey(pair.headCommit(), fastGroundTruth));
-        if (head.failed()) {
-            return excluded(pair, head.failureReason());
+        BuildKey headKey = new BuildKey(pair.headCommit(), fastGroundTruth);
+        if (outcomes.get(headKey).failed()) {
+            return excluded(pair, outcomes.get(headKey).failureReason());
         }
+        CommitBuild base = cache.load(baseKey)
+                .orElseThrow(() -> new IllegalStateException(
+                        "build cache miss for " + pair.baseCommit() + " despite a successful build outcome"));
+        CommitBuild head = cache.load(headKey)
+                .orElseThrow(() -> new IllegalStateException(
+                        "build cache miss for " + pair.headCommit() + " despite a successful build outcome"));
         DependencyRecordSet baseRecordSet = base.dependencyRecordSet();
         List<GroundTruthResult> baseGroundTruth = base.groundTruth();
         List<GroundTruthResult> groundTruth = head.groundTruth();
@@ -373,6 +392,20 @@ public final class RunCommand {
     private static PairAnalysis excluded(CommitPair pair, String reason) {
         CommitPair excludedPair = CommitPair.excluded(pair.baseCommit(), pair.headCommit(), reason);
         return new PairAnalysis(excludedPair, List.of(), List.of(), List.of());
+    }
+
+    /**
+     * The build cache lives at {@code <report>.blastradius-build-cache/} — derived from the
+     * report path, not a temp dir, so it survives a crashed run and lets the next invocation with
+     * the same {@code --report-out} resume. Deriving it from the report (rather than a fixed
+     * location) also keeps two runs writing to different reports from sharing — and possibly
+     * cross-contaminating — a cache.
+     */
+    private static Path buildCacheDirectory(Path reportOutputPath) {
+        Path report = reportOutputPath.toAbsolutePath();
+        Path parent = report.getParent();
+        String name = report.getFileName().toString() + ".blastradius-build-cache";
+        return parent == null ? Path.of(name) : parent.resolve(name);
     }
 
     private static Path locateOwnJar() {

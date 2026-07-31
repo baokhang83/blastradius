@@ -26,8 +26,14 @@ import java.util.concurrent.Future;
  * <p>The pool — not the executor — is the concurrency throttle: a worker blocks on
  * {@link CheckoutPool#borrow()} until a clone is free, so at most {@code pool size} builds
  * ever run at once regardless of how many jobs or executor threads exist. A build that
- * fails, or a builder that throws, becomes a {@linkplain CommitBuild#failed(String) failed}
- * result for that one key rather than sinking the whole phase (FR-009).
+ * fails, or a builder that throws, becomes a {@linkplain BuildOutcome#failed(String) failed}
+ * outcome for that one key rather than sinking the whole phase (FR-009).
+ *
+ * <p><b>Results are not returned in memory.</b> Each successful build is written to the
+ * {@link BuildCache} and this returns only a lightweight {@link BuildOutcome} per key — so
+ * phase 1's heap stays bounded by the builds in flight rather than growing with the whole
+ * window. The cache is also consulted <em>before</em> a clone is borrowed: a key already on
+ * disk (from a prior run that died partway) is skipped entirely — no checkout, no {@code mvn}.
  */
 public final class CommitBuildService {
 
@@ -47,45 +53,55 @@ public final class CommitBuildService {
     private final CheckoutPool pool;
     private final ExecutorService executor;
     private final ProgressLogger progress;
+    private final BuildCache cache;
     private final CommitBuilder builder;
 
     public CommitBuildService(
-            CheckoutPool pool, ExecutorService executor, ProgressLogger progress, CommitBuilder builder) {
+            CheckoutPool pool, ExecutorService executor, ProgressLogger progress,
+            BuildCache cache, CommitBuilder builder) {
         this.pool = pool;
         this.executor = executor;
         this.progress = progress;
+        this.cache = cache;
         this.builder = builder;
     }
 
     /**
-     * Builds every distinct key concurrently and returns a map from key to its outcome.
-     * Duplicate keys are collapsed, so each {@code (sha, agentAttached)} is built exactly
-     * once even if several pairs reference it. Blocks until all builds have completed.
+     * Builds every distinct key concurrently and returns a map from key to its lightweight
+     * outcome; each success's full result is in the {@link BuildCache}. Duplicate keys are
+     * collapsed, so each {@code (sha, agentAttached)} is built (or found cached) exactly once
+     * even if several pairs reference it. Blocks until all builds have completed.
      */
-    public Map<BuildKey, CommitBuild> buildAll(List<BuildKey> keys) throws InterruptedException {
+    public Map<BuildKey, BuildOutcome> buildAll(List<BuildKey> keys) throws InterruptedException {
         // LinkedHashMap keyed by BuildKey both deduplicates (a repeated key maps to the same
         // future) and preserves the caller's ordering for deterministic submission.
-        Map<BuildKey, Future<CommitBuild>> futures = new LinkedHashMap<>();
+        Map<BuildKey, Future<BuildOutcome>> futures = new LinkedHashMap<>();
         for (BuildKey key : keys) {
             futures.computeIfAbsent(key, k -> executor.submit(() -> buildOne(k)));
         }
 
-        Map<BuildKey, CommitBuild> results = new ConcurrentHashMap<>();
+        Map<BuildKey, BuildOutcome> results = new ConcurrentHashMap<>();
         try {
-            for (Map.Entry<BuildKey, Future<CommitBuild>> entry : futures.entrySet()) {
+            for (Map.Entry<BuildKey, Future<BuildOutcome>> entry : futures.entrySet()) {
                 results.put(entry.getKey(), entry.getValue().get());
             }
         } catch (ExecutionException e) {
             // buildOne never throws — it converts every builder failure into a failed
-            // CommitBuild — so an ExecutionException here can only be an unchecked error in
+            // BuildOutcome — so an ExecutionException here can only be an unchecked error in
             // the orchestration itself, which should abort the phase rather than be masked.
             throw new IllegalStateException("unexpected failure while building commits", e.getCause());
         }
         return results;
     }
 
-    private CommitBuild buildOne(BuildKey key) throws InterruptedException {
+    private BuildOutcome buildOne(BuildKey key) throws InterruptedException {
         String role = key.agentAttached() ? "with agent" : "no agent";
+        // Resume: a build already cached from a prior run is reused without borrowing a clone
+        // or running mvn — the "if a pair result is found, skip it" path.
+        if (cache.contains(key)) {
+            progress.buildCached(key.sha(), role);
+            return BuildOutcome.ok();
+        }
         progress.buildStarted(key.sha(), role);
         long start = System.currentTimeMillis();
         CommitCheckout checkout = pool.borrow();
@@ -93,18 +109,23 @@ public final class CommitBuildService {
             CommitBuild build = builder.build(checkout, key.sha(), key.agentAttached());
             long millis = System.currentTimeMillis() - start;
             if (build.failed()) {
+                // Failures are intentionally not cached (transient, cheap to recompute); the
+                // referencing pair is excluded, and a re-run rebuilds this commit.
                 progress.buildFailed(key.sha(), role, build.failureReason());
-            } else {
-                progress.buildFinished(key.sha(), role, millis);
+                return BuildOutcome.failed(build.failureReason());
             }
-            return build;
+            // Persist the heavy payload to disk, then let it become garbage: phase 1 keeps only
+            // the lightweight outcome, so heap no longer grows with the window.
+            cache.store(key, build);
+            progress.buildFinished(key.sha(), role, millis);
+            return BuildOutcome.ok();
         } catch (RuntimeException e) {
             // A builder that throws (e.g. an I/O error materializing the checkout) must not
-            // lose the job or crash the phase: record it as a failed build so the referencing
+            // lose the job or crash the phase: record it as a failed outcome so the referencing
             // pair is excluded, and let every other commit finish (FR-009).
             String reason = "commit " + key.sha() + " build error: " + e.getMessage();
             progress.buildFailed(key.sha(), role, reason);
-            return CommitBuild.failed(reason);
+            return BuildOutcome.failed(reason);
         } finally {
             pool.release(checkout);
         }

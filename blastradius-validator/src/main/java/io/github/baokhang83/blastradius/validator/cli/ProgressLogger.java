@@ -55,6 +55,10 @@ public final class ProgressLogger {
         line("built " + shortSha(sha) + " [" + role + "] in " + duration(millis));
     }
 
+    public void buildCached(String sha, String role) {
+        line("cached " + shortSha(sha) + " [" + role + "] — reused from a prior run");
+    }
+
     public void buildFailed(String sha, String role, String reason) {
         line("build FAILED " + shortSha(sha) + " [" + role + "]: " + reason);
     }
