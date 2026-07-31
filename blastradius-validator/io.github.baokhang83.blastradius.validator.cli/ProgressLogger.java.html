@@ -55,36 +55,40 @@ public final class ProgressLogger {
 <span class="fc" id="L55">        line(&quot;built &quot; + shortSha(sha) + &quot; [&quot; + role + &quot;] in &quot; + duration(millis));</span>
 <span class="fc" id="L56">    }</span>
 
-    public void buildFailed(String sha, String role, String reason) {
-<span class="fc" id="L59">        line(&quot;build FAILED &quot; + shortSha(sha) + &quot; [&quot; + role + &quot;]: &quot; + reason);</span>
+    public void buildCached(String sha, String role) {
+<span class="fc" id="L59">        line(&quot;cached &quot; + shortSha(sha) + &quot; [&quot; + role + &quot;] — reused from a prior run&quot;);</span>
 <span class="fc" id="L60">    }</span>
 
-    public void pairCompleted(int index, int total, int wouldMissCount, long millis) {
-<span class="fc" id="L63">        line(&quot;pair &quot; + index + &quot;/&quot; + total + &quot; done in &quot; + duration(millis)</span>
-                + &quot; — &quot; + wouldMissCount + &quot; would-miss case(s)&quot;);
-<span class="fc" id="L65">    }</span>
+    public void buildFailed(String sha, String role, String reason) {
+<span class="fc" id="L63">        line(&quot;build FAILED &quot; + shortSha(sha) + &quot; [&quot; + role + &quot;]: &quot; + reason);</span>
+<span class="fc" id="L64">    }</span>
 
-    public void pairExcluded(int index, int total, String reason) {
-<span class="fc" id="L68">        line(&quot;pair &quot; + index + &quot;/&quot; + total + &quot; excluded: &quot; + reason);</span>
+    public void pairCompleted(int index, int total, int wouldMissCount, long millis) {
+<span class="fc" id="L67">        line(&quot;pair &quot; + index + &quot;/&quot; + total + &quot; done in &quot; + duration(millis)</span>
+                + &quot; — &quot; + wouldMissCount + &quot; would-miss case(s)&quot;);
 <span class="fc" id="L69">    }</span>
 
-    public void summary(String verdict, long totalMillis) {
-<span class="fc" id="L72">        line(&quot;run complete: &quot; + verdict + &quot; in &quot; + duration(totalMillis));</span>
+    public void pairExcluded(int index, int total, String reason) {
+<span class="fc" id="L72">        line(&quot;pair &quot; + index + &quot;/&quot; + total + &quot; excluded: &quot; + reason);</span>
 <span class="fc" id="L73">    }</span>
 
+    public void summary(String verdict, long totalMillis) {
+<span class="fc" id="L76">        line(&quot;run complete: &quot; + verdict + &quot; in &quot; + duration(totalMillis));</span>
+<span class="fc" id="L77">    }</span>
+
     private synchronized void line(String message) {
-<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (!enabled) {</span>
-<span class="fc" id="L77">            return;</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (!enabled) {</span>
+<span class="fc" id="L81">            return;</span>
         }
-<span class="fc" id="L79">        out.println(&quot;[&quot; + Instant.ofEpochMilli(epochMillis.getAsLong()) + &quot;] &quot; + message);</span>
-<span class="fc" id="L80">    }</span>
+<span class="fc" id="L83">        out.println(&quot;[&quot; + Instant.ofEpochMilli(epochMillis.getAsLong()) + &quot;] &quot; + message);</span>
+<span class="fc" id="L84">    }</span>
 
     /** First 7 chars of a git sha, or the whole thing if shorter — enough to scan by eye. */
     private static String shortSha(String sha) {
-<span class="pc bpc" id="L84" title="1 of 2 branches missed.">        if (sha == null) {</span>
-<span class="nc" id="L85">            return &quot;?&quot;;</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        if (sha == null) {</span>
+<span class="nc" id="L89">            return &quot;?&quot;;</span>
         }
-<span class="fc bfc" id="L87" title="All 2 branches covered.">        return sha.length() &lt;= 7 ? sha : sha.substring(0, 7);</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">        return sha.length() &lt;= 7 ? sha : sha.substring(0, 7);</span>
     }
 
     /**
@@ -93,23 +97,23 @@ public final class ProgressLogger {
      * fast step doesn't collapse to a bare {@code 0s}.
      */
     static String duration(long millis) {
-<span class="fc bfc" id="L96" title="All 2 branches covered.">        if (millis &lt; 1000) {</span>
-<span class="fc" id="L97">            double seconds = millis / 1000.0;</span>
-<span class="fc" id="L98">            return (Math.round(seconds * 10.0) / 10.0) + &quot;s&quot;;</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        if (millis &lt; 1000) {</span>
+<span class="fc" id="L101">            double seconds = millis / 1000.0;</span>
+<span class="fc" id="L102">            return (Math.round(seconds * 10.0) / 10.0) + &quot;s&quot;;</span>
         }
-<span class="fc" id="L100">        long totalSeconds = millis / 1000;</span>
-<span class="fc" id="L101">        long hours = totalSeconds / 3600;</span>
-<span class="fc" id="L102">        long minutes = (totalSeconds % 3600) / 60;</span>
-<span class="fc" id="L103">        long seconds = totalSeconds % 60;</span>
-<span class="fc" id="L104">        StringBuilder sb = new StringBuilder();</span>
-<span class="fc bfc" id="L105" title="All 2 branches covered.">        if (hours &gt; 0) {</span>
-<span class="fc" id="L106">            sb.append(hours).append(&quot;h &quot;);</span>
+<span class="fc" id="L104">        long totalSeconds = millis / 1000;</span>
+<span class="fc" id="L105">        long hours = totalSeconds / 3600;</span>
+<span class="fc" id="L106">        long minutes = (totalSeconds % 3600) / 60;</span>
+<span class="fc" id="L107">        long seconds = totalSeconds % 60;</span>
+<span class="fc" id="L108">        StringBuilder sb = new StringBuilder();</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        if (hours &gt; 0) {</span>
+<span class="fc" id="L110">            sb.append(hours).append(&quot;h &quot;);</span>
         }
-<span class="fc bfc" id="L108" title="All 4 branches covered.">        if (hours &gt; 0 || minutes &gt; 0) {</span>
-<span class="fc" id="L109">            sb.append(minutes).append(&quot;m &quot;);</span>
+<span class="fc bfc" id="L112" title="All 4 branches covered.">        if (hours &gt; 0 || minutes &gt; 0) {</span>
+<span class="fc" id="L113">            sb.append(minutes).append(&quot;m &quot;);</span>
         }
-<span class="fc" id="L111">        sb.append(seconds).append('s');</span>
-<span class="fc" id="L112">        return sb.toString();</span>
+<span class="fc" id="L115">        sb.append(seconds).append('s');</span>
+<span class="fc" id="L116">        return sb.toString();</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

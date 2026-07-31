@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>BuildOutcome.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.build</a> &gt; <span class="el_source">BuildOutcome.java</span></div><h1>BuildOutcome.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.build;
+
+/**
+ * The lightweight result of a phase-1 build: whether it succeeded, and if not, why. It carries
+ * &lt;em&gt;no&lt;/em&gt; dependency records or ground-truth results — those live in the {@link BuildCache} on
+ * disk and are loaded on demand during phase 2. This is the type {@link CommitBuildService} returns
+ * so that phase 1's in-memory footprint stays bounded by the number of builds in flight rather than
+ * growing with the whole commit window (the linear-heap growth that OOM'd a 300-commit run).
+ *
+ * &lt;p&gt;A successful outcome is only a marker: its full {@link CommitBuild} was written to the cache
+ * under the same {@link CommitBuildService.BuildKey}. A failed outcome carries its reason and is
+ * &lt;em&gt;not&lt;/em&gt; cached — the referencing pair is excluded (FR-009), and a re-run rebuilds it.
+ */
+<span class="fc" id="L14">public record BuildOutcome(boolean failed, String failureReason) {</span>
+
+<span class="fc" id="L16">    private static final BuildOutcome OK = new BuildOutcome(false, null);</span>
+
+    public static BuildOutcome ok() {
+<span class="fc" id="L19">        return OK;</span>
+    }
+
+    public static BuildOutcome failed(String reason) {
+<span class="fc" id="L23">        return new BuildOutcome(true, reason);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

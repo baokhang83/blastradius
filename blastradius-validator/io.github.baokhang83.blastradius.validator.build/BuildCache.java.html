@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>BuildCache.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.build</a> &gt; <span class="el_source">BuildCache.java</span></div><h1>BuildCache.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.build;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.baokhang83.blastradius.core.tracking.DependencyRecord;
+import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
+import io.github.baokhang83.blastradius.validator.build.CommitBuildService.BuildKey;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * A disk-backed cache of {@linkplain CommitBuild successful commit builds}, keyed by
+ * {@link BuildKey} ({@code sha} + {@code agentAttached}). It serves two ends at once:
+ *
+ * &lt;ul&gt;
+ *   &lt;li&gt;&lt;b&gt;Bounds memory.&lt;/b&gt; A commit's build carries a {@link DependencyRecordSet} (every
+ *       test's full class-dependency set) plus its ground-truth results — MBs per commit. Phase 1
+ *       used to hold every one of them in a single map for the whole run, so heap grew linearly
+ *       with the window and a large {@code --commits} exhausted it mid-build. Writing each build
+ *       here and evicting it from memory bounds the live set to what is actually in flight.&lt;/li&gt;
+ *   &lt;li&gt;&lt;b&gt;Enables recovery.&lt;/b&gt; A build already on disk is skipped on a re-run — &quot;if a pair
+ *       result is found, skip it&quot; — so a run that dies partway (an OOM, a killed terminal) resumes
+ *       from where it stopped instead of rebuilding hundreds of commits.&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;&lt;b&gt;Only successful builds are cached&lt;/b&gt; (see {@link #store}). A failure carries only a
+ * reason string — no memory pressure — recomputes fast (a compile failure fails in seconds), and
+ * caching a &lt;em&gt;transient&lt;/em&gt; failure (e.g. an executor-shutdown interruption) would poison every
+ * later resume by permanently excluding a pair that would build fine. Successes are the expensive,
+ * deterministic thing worth persisting.
+ *
+ * &lt;p&gt;&lt;b&gt;Cache validity is the operator's responsibility.&lt;/b&gt; The key is only (sha, agentAttached);
+ * it does not fingerprint the target repository or this tool's version. A build is deterministic
+ * given its sha (same source) and {@code --skip-build-extras} is soundness-neutral, so within one
+ * target these entries are sound — but if you point the run at a different repository or upgrade
+ * the tracking agent, clear the cache directory first.
+ */
+public final class BuildCache {
+
+    private final Path directory;
+<span class="fc" id="L49">    private final ObjectMapper mapper = new ObjectMapper();</span>
+
+<span class="fc" id="L51">    public BuildCache(Path directory) {</span>
+<span class="fc" id="L52">        this.directory = directory;</span>
+<span class="fc" id="L53">    }</span>
+
+    /** True when a successful build for this key is already on disk and can be reused. */
+    public boolean contains(BuildKey key) {
+<span class="fc" id="L57">        return Files.isRegularFile(fileFor(key));</span>
+    }
+
+    /**
+     * Reads back a previously {@linkplain #store stored} build, or {@link Optional#empty()} if
+     * none is cached — or if the cached file is unreadable/corrupt (a crash could, absent the
+     * atomic write below, have left a truncated file). Treating a corrupt entry as a miss lets
+     * the caller rebuild it rather than crash the run on a bad cache.
+     */
+    public Optional&lt;CommitBuild&gt; load(BuildKey key) {
+<span class="fc" id="L67">        Path file = fileFor(key);</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        if (!Files.isRegularFile(file)) {</span>
+<span class="fc" id="L69">            return Optional.empty();</span>
+        }
+        try {
+<span class="fc" id="L72">            CachedBuild dto = mapper.readValue(file.toFile(), CachedBuild.class);</span>
+<span class="fc" id="L73">            return Optional.of(fromDto(dto));</span>
+<span class="fc" id="L74">        } catch (IOException | RuntimeException e) {</span>
+<span class="fc" id="L75">            return Optional.empty();</span>
+        }
+    }
+
+    /**
+     * Persists a successful build under its key. Written atomically — to a temp file, then moved
+     * into place — so a crash mid-write can never leave a half-written file that a later resume
+     * would read as valid ground truth. Rejects a failed build: failures are intentionally not
+     * cached (see the class note).
+     */
+    public void store(BuildKey key, CommitBuild build) {
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        if (build.failed()) {</span>
+<span class="fc" id="L87">            throw new IllegalArgumentException(&quot;only successful builds are cached; refusing to cache a failed build&quot;);</span>
+        }
+        try {
+<span class="fc" id="L90">            Files.createDirectories(directory);</span>
+<span class="fc" id="L91">            Path tmp = Files.createTempFile(directory, &quot;build-&quot;, &quot;.json.tmp&quot;);</span>
+<span class="fc" id="L92">            mapper.writeValue(tmp.toFile(), toDto(build));</span>
+<span class="fc" id="L93">            moveIntoPlace(tmp, fileFor(key));</span>
+<span class="nc" id="L94">        } catch (IOException e) {</span>
+<span class="nc" id="L95">            throw new UncheckedIOException(&quot;failed to write build cache entry for &quot; + key.sha(), e);</span>
+<span class="fc" id="L96">        }</span>
+<span class="fc" id="L97">    }</span>
+
+    private static void moveIntoPlace(Path tmp, Path target) throws IOException {
+        try {
+<span class="fc" id="L101">            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);</span>
+<span class="nc" id="L102">        } catch (AtomicMoveNotSupportedException e) {</span>
+            // Some filesystems can't do an atomic move; a plain replace is the best available.
+<span class="nc" id="L104">            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);</span>
+<span class="fc" id="L105">        }</span>
+<span class="fc" id="L106">    }</span>
+
+    private Path fileFor(BuildKey key) {
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        return directory.resolve(key.sha() + (key.agentAttached() ? &quot;-agent&quot; : &quot;-noagent&quot;) + &quot;.json&quot;);</span>
+    }
+
+    private static CachedBuild toDto(CommitBuild build) {
+<span class="fc" id="L113">        DependencyRecordSet set = build.dependencyRecordSet();</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        boolean hasDependencies = set != null;</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        List&lt;DependencyRecord&gt; dependencies = hasDependencies</span>
+<span class="fc" id="L116">                ? set.tests().entrySet().stream()</span>
+<span class="fc" id="L117">                        .map(e -&gt; new DependencyRecord(e.getKey(), e.getValue()))</span>
+<span class="fc" id="L118">                        .toList()</span>
+<span class="fc" id="L119">                : null;</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        Set&lt;String&gt; ambient = hasDependencies ? set.ambientDependencies() : null;</span>
+<span class="fc" id="L121">        return new CachedBuild(</span>
+<span class="fc" id="L122">                build.failed(), build.failureReason(), hasDependencies, dependencies, ambient, build.groundTruth());</span>
+    }
+
+    private static CommitBuild fromDto(CachedBuild dto) {
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        DependencyRecordSet set = dto.hasDependencies()</span>
+<span class="fc" id="L127">                ? new DependencyRecordSet(</span>
+<span class="fc" id="L128">                        dto.dependencies().stream()</span>
+<span class="fc" id="L129">                                .collect(Collectors.toUnmodifiableMap(</span>
+                                        DependencyRecord::test, DependencyRecord::dependencies)),
+<span class="fc" id="L131">                        dto.ambientDependencies())</span>
+<span class="fc" id="L132">                : null;</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">        List&lt;GroundTruthResult&gt; groundTruth = dto.groundTruth() == null ? List.of() : dto.groundTruth();</span>
+<span class="fc" id="L134">        return new CommitBuild(dto.failed(), dto.failureReason(), set, groundTruth);</span>
+    }
+
+    /**
+     * On-disk shape of a cached build. The per-test dependency map is flattened to a
+     * {@code List&lt;DependencyRecord&gt;} — as {@link io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader}
+     * does — because its {@link io.github.baokhang83.blastradius.core.tracking.TestIdentity} key can't be a JSON
+     * object key without a custom Jackson key serializer. {@code hasDependencies} distinguishes an
+     * agent-free ground-truth build (null {@link DependencyRecordSet}) from an agent build that
+     * merely recorded no tests (empty set).
+     */
+<span class="fc" id="L145">    record CachedBuild(</span>
+            boolean failed,
+            String failureReason,
+            boolean hasDependencies,
+            List&lt;DependencyRecord&gt; dependencies,
+            Set&lt;String&gt; ambientDependencies,
+            List&lt;GroundTruthResult&gt; groundTruth) {}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
