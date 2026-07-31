@@ -1,0 +1,52 @@
+Verdict: PASS
+Analyzed: 300 commit pair(s)
+Would-miss cases: 0
+
+Savings: 233603 / 747680 test executions selected (68.8% skipped)
+  - dependency-matched: 7043
+  - fallback-driven: 158976
+  - module-scoped fallback: 27811
+  - new-or-modified: 33341
+Flaky failures observed: 42 (excluded from verdict)
+  - commit c37b4854633efdf019c01805dd9a7e050a7a4e55..3854267989135ed7941e0d38df221c953cde3c07: org.apache.shenyu.client.core.disruptor.subcriber.ShenyuClientURIExecutorSubscriberTest#testExecutorValidData
+  - commit 4a75fec871c57c6f4411af49afbb24db65888448..b9444302397e04e24124e74f6258f98f5908c34e: org.apache.shenyu.client.core.disruptor.subcriber.ShenyuClientURIExecutorSubscriberTest#testExecutorValidData
+  - commit f3fd88d6fc44ada465598efeca0a48943f078201..5be0bf6d7422bfc478ce122800f5c21960681352: org.apache.shenyu.client.core.disruptor.subcriber.ShenyuClientURIExecutorSubscriberTest#testExecutorValidData
+  - commit 9ac8659040e83a4b7c85d3c3aab632b3a380e275..cf7915992b6939523ede8a51f10ce7b79d4b1c55: org.apache.shenyu.client.core.disruptor.subcriber.ShenyuClientURIExecutorSubscriberTest#testExecutorValidData
+  - commit 8f65ce09475dd41315b95428febc3baf4e927fad..0eaec1e63adef81d0bd5d8797f0e907778abcfea: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 0eaec1e63adef81d0bd5d8797f0e907778abcfea..9c8b78f782f95efb646bf3ad231d745b112fd7cd: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 9c8b78f782f95efb646bf3ad231d745b112fd7cd..d782a64e874d2ac1737d4509db4bffdc91844f28: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit d782a64e874d2ac1737d4509db4bffdc91844f28..319ca4fd9f824625ec609284d390f0236cdb3722: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 319ca4fd9f824625ec609284d390f0236cdb3722..d0745961538abbcad9e60547f5aed181e00f29bb: org.apache.shenyu.client.core.disruptor.subcriber.ShenyuClientURIExecutorSubscriberTest#testExecutorValidData
+  - commit d0745961538abbcad9e60547f5aed181e00f29bb..4f9e69c54f1f2abf67bb87d4abd8f612dad342b8: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 4f9e69c54f1f2abf67bb87d4abd8f612dad342b8..7c1e43bf6fb8477352e7fb7f236255545f33e362: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 7c1e43bf6fb8477352e7fb7f236255545f33e362..85307386b9f3412a5afc6c504fc10bf64c859892: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 85307386b9f3412a5afc6c504fc10bf64c859892..15278cf6e66ec2b42023af21ba85538dbdeb64d0: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 15278cf6e66ec2b42023af21ba85538dbdeb64d0..0933a2c450b4ad3c5d17284417ac026d8f0d6c27: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 0933a2c450b4ad3c5d17284417ac026d8f0d6c27..1b245d325d3edb20bad33c3ae901eb46947b7183: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 9e8576a2aec00317076a18bb04933b4bfe42a366..eaa2f9503d4f213402f0ca8e1c3b9e9aef015a5d: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit eaa2f9503d4f213402f0ca8e1c3b9e9aef015a5d..0184d4b658729ac5e57fe74217461635f4295e41: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 0184d4b658729ac5e57fe74217461635f4295e41..cde3f548f7284fafd23ac8bb3c91ed716d4d9c51: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit cde3f548f7284fafd23ac8bb3c91ed716d4d9c51..1f595adefabc529623c58565acafd7d7e9cbe74f: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 1f595adefabc529623c58565acafd7d7e9cbe74f..c25dc204c33f229ccc82cd23f4232f834ba0ba68: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit c25dc204c33f229ccc82cd23f4232f834ba0ba68..07453a26d20cd12a8997a331de2ffba5fe78d850: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 07453a26d20cd12a8997a331de2ffba5fe78d850..e624a19aae027361f309cb3e236d6345962ac811: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit e624a19aae027361f309cb3e236d6345962ac811..e4177b6c0e3e592a06f980b9025b90c5d1f909e8: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit e4177b6c0e3e592a06f980b9025b90c5d1f909e8..d2705ef19d14630955e869e4f0479156a65a6e10: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit d2705ef19d14630955e869e4f0479156a65a6e10..161625cd7e4f4fba15267a0d943e6420f858031e: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 161625cd7e4f4fba15267a0d943e6420f858031e..7a36aab29e87f20652f2085e2ae8641b51827b67: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 7a36aab29e87f20652f2085e2ae8641b51827b67..f6a09ec9fb8c22d78eb2d3de0bec1e974f26bfaf: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit f6a09ec9fb8c22d78eb2d3de0bec1e974f26bfaf..fce9c8f01423eeed62f26f7ae4b1510577a95eb6: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit fce9c8f01423eeed62f26f7ae4b1510577a95eb6..cf0bbba7d6e7937a48dd9d4745bfa742f4468658: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit cf0bbba7d6e7937a48dd9d4745bfa742f4468658..da78f467d99d710bd2f4f529f3765e623a511b1c: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit da78f467d99d710bd2f4f529f3765e623a511b1c..1f913296a7a2bbbdce4f7331c6b20d8b49fe72d2: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 1f913296a7a2bbbdce4f7331c6b20d8b49fe72d2..1b9492bf266b84d320e339b41461223d7014374f: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 1b9492bf266b84d320e339b41461223d7014374f..5e90930a33ffc0644aa7d822bd1460df7a928cec: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 5e90930a33ffc0644aa7d822bd1460df7a928cec..9234be312b213803bff9a1691ddf5afb82f41588: org.apache.shenyu.plugin.ai.proxy.handler.AiProxyPluginHandlerTest#testHandlerPluginWithNullData
+  - commit 3c6bb7be162044e379d38b6687a2870991ae7040..6b42718a6ee9027b003b76170a2cb02a269cf26b: org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest#testHttpConfig
+  - commit 3c6bb7be162044e379d38b6687a2870991ae7040..6b42718a6ee9027b003b76170a2cb02a269cf26b: org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest#testHttpSyncDataService
+  - commit ddefc04a05581b567a8cb6466248b2ab358d5172..0f2f7acce28824e56472607be3804407c636b357: org.apache.shenyu.admin.config.PolarisSyncConfigurationTest#polarisConfigServiceTest
+  - commit b984ad2c6d62a269e6628da62954cc4d761beb28..47c958fa8108b75174723e50560a7b0678d1119c: org.apache.shenyu.client.core.disruptor.subcriber.ShenyuClientURIExecutorSubscriberTest#testExecutorValidData
+  - commit 1de8abb44639b68ac93b9d7e386df671ab1ec098..d8fbb5257efa53540e6410bec9f5fe65ba215399: org.apache.shenyu.client.core.disruptor.subcriber.ShenyuClientURIExecutorSubscriberTest#testExecutorValidData
+  - commit c39506e97ceef9490a97c736fd5098ce97d6f3a0..5c2c3ed612e5bc7b6c87f45c8ceef65321f7948c: org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest#testHttpConfig
+  - commit c39506e97ceef9490a97c736fd5098ce97d6f3a0..5c2c3ed612e5bc7b6c87f45c8ceef65321f7948c: org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest#testHttpSyncDataService
+  - commit b94a6997b697f7272fdf18cf7c9b080195e3fc75..79885c1bbbd8a0625e0fcffe251f7675d1cd2e0b: org.apache.shenyu.admin.listener.http.HttpLongPollingDataChangedListenerTest#testDataChangeTaskBatchNotify
