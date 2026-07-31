@@ -1,10 +1,11 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.2.new MethodVisitor() {...},14,69,3,3,3,18,3,7,1,6
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestBoundaryListener,7,80,0,6,0,24,1,10,1,7
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestBoundaryListener,7,70,0,6,0,23,1,10,1,7
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordSet,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.new ClassVisitor() {...},2,37,1,1,1,5,1,2,0,2
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.new ClassWriter() {...},2,18,1,1,0,2,1,2,0,2
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordFile,0,9,0,0,0,1,0,1,0,1
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestExecutionContext,0,16,0,0,0,6,0,4,0,4
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordReader,36,167,0,10,9,34,1,11,1,6
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter,1,38,1,1,0,6,1,2,0,2
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyTrackingAgent,224,532,56,66,56,138,48,51,4,34

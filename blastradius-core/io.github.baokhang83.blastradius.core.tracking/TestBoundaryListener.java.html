@@ -17,51 +17,50 @@ import org.junit.platform.launcher.TestIdentifier;
  */
 <span class="fc" id="L18">public final class TestBoundaryListener implements TestExecutionListener {</span>
 
-<span class="fc" id="L20">    private static final InheritableThreadLocal&lt;TestIdentity&gt; CURRENT_TEST = new InheritableThreadLocal&lt;&gt;();</span>
-<span class="fc" id="L21">    private static final ThreadLocal&lt;Set&lt;Class&lt;?&gt;&gt;&gt; CLASSES_AT_TEST_START = new ThreadLocal&lt;&gt;();</span>
+<span class="fc" id="L20">    private static final ThreadLocal&lt;Set&lt;Class&lt;?&gt;&gt;&gt; CLASSES_AT_TEST_START = new ThreadLocal&lt;&gt;();</span>
 
     /** The test currently executing on this thread, or {@code null} if none. */
     public static TestIdentity currentTest() {
-<span class="fc" id="L25">        return CURRENT_TEST.get();</span>
+<span class="fc" id="L24">        return TestExecutionContext.currentTest();</span>
     }
 
     @Override
     public void executionStarted(TestIdentifier testIdentifier) {
-<span class="fc bfc" id="L30" title="All 2 branches covered.">        if (testIdentifier.isTest()) {</span>
+<span class="fc bfc" id="L29" title="All 2 branches covered.">        if (testIdentifier.isTest()) {</span>
             // First call in this fork snapshots everything already loaded — JVM/Surefire
             // bootstrap plus JUnit Platform's discovery pass, which runs before any test's
             // window opens and can force-load classes the tracker can never re-observe.
             // No-op on every call after the first.
-<span class="fc" id="L35">            DependencyTrackingAgent.recordAmbientSnapshot();</span>
-<span class="fc" id="L36">            TestIdentity test = toTestIdentity(testIdentifier);</span>
+<span class="fc" id="L34">            DependencyTrackingAgent.recordAmbientSnapshot();</span>
+<span class="fc" id="L35">            TestIdentity test = toTestIdentity(testIdentifier);</span>
             // Register before publishing this identity to the agent. Computing the record's
             // generated hash code may load JVM support classes; while no test is current those
             // loads are intentionally ignored instead of recursively recording themselves.
-<span class="fc" id="L40">            DependencyTrackingAgent.recordTestStarted(test);</span>
-<span class="fc" id="L41">            CURRENT_TEST.set(test);</span>
-<span class="fc" id="L42">            CLASSES_AT_TEST_START.set(DependencyTrackingAgent.loadedClasses());</span>
+<span class="fc" id="L39">            DependencyTrackingAgent.recordTestStarted(test);</span>
+<span class="fc" id="L40">            TestExecutionContext.start(test);</span>
+<span class="fc" id="L41">            CLASSES_AT_TEST_START.set(DependencyTrackingAgent.loadedClasses());</span>
         }
-<span class="fc" id="L44">    }</span>
+<span class="fc" id="L43">    }</span>
 
     @Override
     public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult testExecutionResult) {
-<span class="fc bfc" id="L48" title="All 2 branches covered.">        if (testIdentifier.isTest()) {</span>
-<span class="fc" id="L49">            TestIdentity currentTest = CURRENT_TEST.get();</span>
-<span class="fc bfc" id="L50" title="All 2 branches covered.">            if (currentTest != null) {</span>
-<span class="fc" id="L51">                DependencyTrackingAgent.recordHiddenClassesLoadedSince(</span>
-<span class="fc" id="L52">                        currentTest, CLASSES_AT_TEST_START.get());</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        if (testIdentifier.isTest()) {</span>
+<span class="fc" id="L48">            TestIdentity currentTest = TestExecutionContext.currentTest();</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">            if (currentTest != null) {</span>
+<span class="fc" id="L50">                DependencyTrackingAgent.recordHiddenClassesLoadedSince(</span>
+<span class="fc" id="L51">                        currentTest, CLASSES_AT_TEST_START.get());</span>
             }
-<span class="fc" id="L54">            CURRENT_TEST.remove();</span>
-<span class="fc" id="L55">            CLASSES_AT_TEST_START.remove();</span>
+<span class="fc" id="L53">            TestExecutionContext.finish();</span>
+<span class="fc" id="L54">            CLASSES_AT_TEST_START.remove();</span>
         }
-<span class="fc" id="L57">    }</span>
+<span class="fc" id="L56">    }</span>
 
     private static TestIdentity toTestIdentity(TestIdentifier testIdentifier) {
-<span class="fc" id="L60">        return testIdentifier.getSource()</span>
-<span class="fc" id="L61">                .filter(MethodSource.class::isInstance)</span>
-<span class="fc" id="L62">                .map(MethodSource.class::cast)</span>
-<span class="fc" id="L63">                .map(source -&gt; new TestIdentity(source.getClassName(), source.getMethodName()))</span>
-<span class="pc" id="L64">                .orElseGet(() -&gt; new TestIdentity(testIdentifier.getLegacyReportingName(), null));</span>
+<span class="fc" id="L59">        return testIdentifier.getSource()</span>
+<span class="fc" id="L60">                .filter(MethodSource.class::isInstance)</span>
+<span class="fc" id="L61">                .map(MethodSource.class::cast)</span>
+<span class="fc" id="L62">                .map(source -&gt; new TestIdentity(source.getClassName(), source.getMethodName()))</span>
+<span class="pc" id="L63">                .orElseGet(() -&gt; new TestIdentity(testIdentifier.getLegacyReportingName(), null));</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
