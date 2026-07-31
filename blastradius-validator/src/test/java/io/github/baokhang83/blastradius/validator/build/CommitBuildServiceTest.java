@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import io.github.baokhang83.blastradius.validator.cli.ProgressLogger;
 import io.github.baokhang83.blastradius.validator.build.CommitBuildService.BuildKey;
@@ -28,6 +29,10 @@ class CommitBuildServiceTest {
         return CheckoutPool.of(project, tempDir.resolve("scratch"), size);
     }
 
+    private static BuildCache cacheIn(Path tempDir) {
+        return new BuildCache(tempDir.resolve("build-cache"));
+    }
+
     private static CommitBuild ok(String sha) {
         return new CommitBuild(false, null, null, List.of());
     }
@@ -37,9 +42,9 @@ class CommitBuildServiceTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try (CheckoutPool pool = poolOf(tempDir, 2)) {
             CommitBuildService service = new CommitBuildService(
-                    pool, executor, silent, (checkout, sha, agent) -> ok(sha));
+                    pool, executor, silent, cacheIn(tempDir), (checkout, sha, agent) -> ok(sha));
 
-            Map<BuildKey, CommitBuild> built = service.buildAll(List.of(
+            Map<BuildKey, BuildOutcome> built = service.buildAll(List.of(
                     new BuildKey("aaa", true),
                     new BuildKey("bbb", false)));
 
@@ -57,7 +62,7 @@ class CommitBuildServiceTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try (CheckoutPool pool = poolOf(tempDir, 2)) {
             CommitBuildService service = new CommitBuildService(
-                    pool, executor, silent, (checkout, sha, agent) -> {
+                    pool, executor, silent, cacheIn(tempDir), (checkout, sha, agent) -> {
                         buildCount.incrementAndGet();
                         return ok(sha);
                     });
@@ -81,7 +86,7 @@ class CommitBuildServiceTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try (CheckoutPool pool = poolOf(tempDir, 2)) {
             CommitBuildService service = new CommitBuildService(
-                    pool, executor, silent, (checkout, sha, agent) -> {
+                    pool, executor, silent, cacheIn(tempDir), (checkout, sha, agent) -> {
                         buildCount.incrementAndGet();
                         return ok(sha);
                     });
@@ -106,7 +111,7 @@ class CommitBuildServiceTest {
         ExecutorService executor = Executors.newFixedThreadPool(8);
         try (CheckoutPool pool = poolOf(tempDir, poolSize)) {
             CommitBuildService service = new CommitBuildService(
-                    pool, executor, silent, (checkout, sha, agent) -> {
+                    pool, executor, silent, cacheIn(tempDir), (checkout, sha, agent) -> {
                         int now = inFlight.incrementAndGet();
                         maxObserved.accumulateAndGet(now, Math::max);
                         try {
@@ -140,14 +145,14 @@ class CommitBuildServiceTest {
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try (CheckoutPool pool = poolOf(tempDir, 1)) {
             CommitBuildService service = new CommitBuildService(
-                    pool, executor, silent, (checkout, sha, agent) -> {
+                    pool, executor, silent, cacheIn(tempDir), (checkout, sha, agent) -> {
                         distinctCheckouts.add(checkout);
                         return ok(sha);
                     });
 
             // Pool of 1, three jobs: each must borrow+release the single clone in turn.
             // If release were broken, the 2nd job would block forever and the test would hang.
-            Map<BuildKey, CommitBuild> built = service.buildAll(List.of(
+            Map<BuildKey, BuildOutcome> built = service.buildAll(List.of(
                     new BuildKey("a", true), new BuildKey("b", true), new BuildKey("c", true)));
 
             assertEquals(3, built.size());
@@ -162,12 +167,12 @@ class CommitBuildServiceTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try (CheckoutPool pool = poolOf(tempDir, 2)) {
             CommitBuildService service = new CommitBuildService(
-                    pool, executor, silent, (checkout, sha, agent) ->
+                    pool, executor, silent, cacheIn(tempDir), (checkout, sha, agent) ->
                             sha.equals("broken")
                                     ? new CommitBuild(true, "commit broken failed to build", null, List.of())
                                     : ok(sha));
 
-            Map<BuildKey, CommitBuild> built = service.buildAll(List.of(
+            Map<BuildKey, BuildOutcome> built = service.buildAll(List.of(
                     new BuildKey("broken", true), new BuildKey("fine", true)));
 
             assertTrue(built.get(new BuildKey("broken", true)).failed());
@@ -178,18 +183,69 @@ class CommitBuildServiceTest {
     }
 
     @Test
+    void aSuccessfulBuildIsWrittenToTheCacheWhileAFailedOneIsNot(@TempDir Path tempDir) throws Exception {
+        BuildCache cache = cacheIn(tempDir);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try (CheckoutPool pool = poolOf(tempDir, 2)) {
+            CommitBuildService service = new CommitBuildService(
+                    pool, executor, silent, cache, (checkout, sha, agent) ->
+                            sha.equals("bad")
+                                    ? new CommitBuild(true, "commit bad failed to build", null, List.of())
+                                    : ok(sha));
+
+            service.buildAll(List.of(new BuildKey("good", true), new BuildKey("bad", true)));
+
+            // The success is persisted so a later run can resume from it; the failure is not
+            // (it is transient and cheap to recompute — caching it would poison every resume).
+            assertTrue(cache.contains(new BuildKey("good", true)), "successful build should be cached");
+            assertFalse(cache.contains(new BuildKey("bad", true)), "failed build must not be cached");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void aCommitAlreadyInTheCacheIsSkippedWithoutRebuilding(@TempDir Path tempDir) throws Exception {
+        BuildCache cache = cacheIn(tempDir);
+        // Pre-seed the cache as a prior, since-crashed run would have left it.
+        cache.store(new BuildKey("resumed", true),
+                CommitBuild.succeeded(new DependencyRecordSet(Map.of(), Set.of()), List.of()));
+
+        AtomicInteger buildCount = new AtomicInteger();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try (CheckoutPool pool = poolOf(tempDir, 2)) {
+            CommitBuildService service = new CommitBuildService(
+                    pool, executor, silent, cache, (checkout, sha, agent) -> {
+                        buildCount.incrementAndGet();
+                        return ok(sha);
+                    });
+
+            Map<BuildKey, BuildOutcome> built = service.buildAll(List.of(
+                    new BuildKey("resumed", true), new BuildKey("fresh", true)));
+
+            // "resumed" is served from disk (no build); only "fresh" actually runs — the core
+            // of resume-after-crash. Both still report a successful outcome to the caller.
+            assertEquals(1, buildCount.get(), "the cached commit must not be rebuilt");
+            assertFalse(built.get(new BuildKey("resumed", true)).failed());
+            assertFalse(built.get(new BuildKey("fresh", true)).failed());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void aBuilderThatThrowsBecomesAFailedResultNotALostJob(@TempDir Path tempDir) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try (CheckoutPool pool = poolOf(tempDir, 2)) {
             CommitBuildService service = new CommitBuildService(
-                    pool, executor, silent, (checkout, sha, agent) -> {
+                    pool, executor, silent, cacheIn(tempDir), (checkout, sha, agent) -> {
                         if (sha.equals("boom")) {
                             throw new RuntimeException("kaboom");
                         }
                         return ok(sha);
                     });
 
-            Map<BuildKey, CommitBuild> built = service.buildAll(List.of(
+            Map<BuildKey, BuildOutcome> built = service.buildAll(List.of(
                     new BuildKey("boom", true), new BuildKey("fine", true)));
 
             // An unexpected exception in one build must not sink the whole run: it is
