@@ -123,6 +123,17 @@
                     <shadedArtifactAttached>true</shadedArtifactAttached>
                     <shadedClassifierName>agent</shadedClassifierName>
                     <createDependencyReducedPom>false</createDependencyReducedPom>
+                    <artifactSet>
+                        <!-- The target Surefire/Failsafe fork owns this SPI. Keeping our compile
+                             dependency out of the agent prevents its older Platform classes from
+                             shadowing a target project's newer ones on the system classpath. -->
+                        <excludes>
+                            <exclude>org.junit.platform:*</exclude>
+                            <exclude>org.junit.jupiter:*</exclude>
+                            <exclude>org.opentest4j:*</exclude>
+                            <exclude>org.apiguardian:*</exclude>
+                        </excludes>
+                    </artifactSet>
                     <filters>
                         <!-- Strip signature files from shaded dependencies — a merged
                              uber-jar no longer matches their original signatures,

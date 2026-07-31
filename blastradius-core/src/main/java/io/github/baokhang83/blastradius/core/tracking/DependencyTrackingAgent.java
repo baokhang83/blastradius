@@ -112,7 +112,10 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
     private final AtomicBoolean ambientSnapshotTaken = new AtomicBoolean(false);
 
     public DependencyTrackingAgent() {
-        this(TestBoundaryListener::currentTest);
+        // Maven's outer JVM receives JAVA_TOOL_OPTIONS too, but has no JUnit Platform on its
+        // classpath. Keep premain JUnit-free; the target fork's SPI listener publishes into this
+        // context only once JUnit has started there.
+        this(TestExecutionContext::currentTest);
     }
 
     /** Visible for testing: inject a fake "current test" source instead of the real listener. */

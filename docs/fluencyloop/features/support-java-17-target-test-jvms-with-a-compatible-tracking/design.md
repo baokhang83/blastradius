@@ -98,3 +98,56 @@ Lowering the entire reactor and validator to Java 17 would make the immediate er
 but it would weaken the established Java-21 build/runtime boundary and force unrelated validator
 code to give up its current baseline. A separate agent compatibility boundary is smaller,
 preserves Shenyu behavior, and makes the reason for supporting Java 17 explicit.
+
+## JUnit Platform classpath ownership
+
+The agent must not ship a copy of JUnit Platform classes. Maven's outer JVM starts the agent, but
+does not execute tests; a target's Surefire fork subsequently supplies and owns the JUnit Platform
+API that discovers `TestBoundaryListener` through the normal service-provider file. A JUnit-free
+`TestExecutionContext` gives the agent its current-test lookup without resolving that listener in
+Maven's outer JVM.
+
+```mermaid
+classDiagram
+  class AgentJar {
+    +DependencyTrackingAgent.premain()
+    +TestExecutionContext.currentTest()
+    no org.junit.platform classes
+  }
+  class TargetJUnitPlatform {
+    +TestExecutionListener SPI
+    +TestBoundaryListener
+  }
+  class MavenJvm {
+    +load agent
+  }
+  class SurefireFork {
+    +load target JUnit classes
+    +discover listener
+  }
+  MavenJvm --> AgentJar : starts safely without JUnit
+  SurefireFork --> TargetJUnitPlatform : owns platform classes
+  TargetJUnitPlatform --> AgentJar : discovers listener from SPI
+  TestBoundaryListener --> TestExecutionContext : publishes test boundary
+  DependencyTrackingAgent --> TestExecutionContext : reads current test
+```
+
+```mermaid
+sequenceDiagram
+  participant M as Maven JVM
+  participant A as Agent
+  participant S as Surefire Fork
+  participant J as Target JUnit Platform
+  participant L as TestBoundaryListener
+
+  M->>A: premain without resolving JUnit
+  M->>S: start test fork
+  S->>J: load target platform version
+  J->>L: discover listener through SPI
+  L->>A: publish test boundary
+  A->>A: attribute class loads
+```
+
+Bundling a fixed JUnit Platform version is rejected because the agent JAR is on the parent system
+classpath and can shadow a target's newer Platform classes, producing the alignment failure seen
+with Commons Lang.

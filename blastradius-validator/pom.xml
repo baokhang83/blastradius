@@ -104,6 +104,17 @@
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>${shade.plugin.version}</version>
                 <configuration>
+                    <artifactSet>
+                        <!-- JUnit Platform is supplied by each target Surefire/Failsafe fork.
+                             Do not put our compile-time copy ahead of that runtime on the system
+                             classpath, or JUnit's alignment check rejects mixed versions. -->
+                        <excludes>
+                            <exclude>org.junit.platform:*</exclude>
+                            <exclude>org.junit.jupiter:*</exclude>
+                            <exclude>org.opentest4j:*</exclude>
+                            <exclude>org.apiguardian:*</exclude>
+                        </excludes>
+                    </artifactSet>
                     <filters>
                         <!-- Strip signature files from shaded dependencies — a merged
                              uber-jar no longer matches their original signatures,
@@ -132,8 +143,8 @@
                          "[INFO] Scanning for projects..." line and any real build/test
                          failure Maven would otherwise report vanish, leaving only "failed
                          to read dependency record" with no clue why. org.junit,
-                         org.opentest4j and org.apiguardian are deliberately excluded here:
-                         TestBoundaryListener registers as a real
+                         org.opentest4j and org.apiguardian are deliberately excluded from the
+                         shaded artifact above: TestBoundaryListener registers as a real
                          org.junit.platform.launcher.TestExecutionListener via the
                          target's own JUnit Platform SPI, which requires exact interface
                          identity with the target's own (unrelocated) JUnit Platform
