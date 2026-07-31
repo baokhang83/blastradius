@@ -18,6 +18,14 @@
         shadow-mode validator (T061) and reused unchanged by both the validator and the
         CI-gating Maven plugin.</description>
 
+    <properties>
+        <!-- This module contains DependencyTrackingAgent, which is loaded into target-test
+             JVMs through -javaagent. Compile it for Java 17 so Maven targets such as Gson
+             can load it, while the parent still requires a Java-21-or-later build JDK and
+             the validator CLI retains its Java 21 bytecode baseline. -->
+        <maven.compiler.release>17</maven.compiler.release>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.eclipse.jgit</groupId>
@@ -55,6 +63,9 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>${compiler.plugin.version}</version>
                 <configuration>
+                    <!-- Test sources can keep using the Java 21 baseline. Only production
+                         classes cross the -javaagent boundary into target JVMs. -->
+                    <testRelease>21</testRelease>
                     <!-- Retains record/constructor parameter names in bytecode, so
                          Jackson can deserialize records via their canonical
                          constructor without @JsonCreator/@JsonProperty annotations. -->

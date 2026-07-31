@@ -1,8 +1,8 @@
 {
-  "feature": "cut-shadow-mode-validator-time-below-2-min-per-commit-pair-a",
-  "branch": "feature/cut-shadow-mode-validator-time-below-2-min-per-commit-pair-a",
+  "feature": "support-java-17-target-test-jvms-with-a-compatible-tracking",
+  "branch": "feature/support-java-17-target-test-jvms-with-a-compatible-tracking",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/cut-shadow-mode-validator-time-below-2-min-per-commit-pair-a/sessions/split-runcommand-into-concurrent-build-phase-then-serial-ana.md",
-  "base_ref": "feature/scope-the-non-source-fallback-to-the-changed-module-plus-its",
-  "updated": "2026-07-30"
+  "last_session": "docs/fluencyloop/features/support-java-17-target-test-jvms-with-a-compatible-tracking/sessions/compile-the-injected-tracking-agent-for-java-17-while-retain.md",
+  "base_ref": "main",
+  "updated": "2026-07-31"
 }
