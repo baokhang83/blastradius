@@ -2,7 +2,7 @@
   "feature": "replay-real-parent-child-history-edges-and-report-failure-be",
   "branch": "feature/replay-real-parent-child-history-edges-and-report-failure-be",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/replay-real-parent-child-history-edges-and-report-failure-be/sessions/model-reachable-history-as-direct-parent-child-edges.md",
+  "last_session": "docs/fluencyloop/features/replay-real-parent-child-history-edges-and-report-failure-be/sessions/measure-newly-confirmed-failure-coverage-per-edge.md",
   "base_ref": "main",
   "updated": "2026-08-01"
 }

@@ -316,7 +316,9 @@ public final class RunCommand {
                 baseRecordSet.ambientDependencies(), reactorScope);
 
         CommitPair enrichedPair = CommitPair.analyzed(pair.baseCommit(), pair.headCommit(), changedFiles);
-        List<WouldMissCase> misses = wouldMissComparator.compare(enrichedPair, decisions, groundTruth, baseGroundTruth);
+        List<WouldMissCase> misses = wouldMissComparator
+                .compare(enrichedPair, decisions, groundTruth, baseGroundTruth)
+                .wouldMissCases();
         List<FlakyFailure> flakyFailures = groundTruth.stream()
                 .filter(r -> r.outcome() == Outcome.FLAKY)
                 .map(r -> new FlakyFailure(enrichedPair, r.test()))

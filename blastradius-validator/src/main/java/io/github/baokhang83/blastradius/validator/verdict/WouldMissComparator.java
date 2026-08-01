@@ -4,6 +4,7 @@ import io.github.baokhang83.blastradius.validator.build.GroundTruthResult;
 import io.github.baokhang83.blastradius.validator.build.Outcome;
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.validator.git.CommitPair;
+import io.github.baokhang83.blastradius.validator.report.FailureCoverage;
 import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.util.ArrayList;
@@ -31,7 +32,7 @@ public final class WouldMissComparator {
      *                        Selection had nothing to catch: the failure predates the
      *                        diff, so no dependency edge could have flagged it.
      */
-    public List<WouldMissCase> compare(
+    public FailureComparison compare(
             CommitPair pair, List<SelectionDecision> decisions, List<GroundTruthResult> groundTruth,
             List<GroundTruthResult> baseGroundTruth) {
         Map<TestIdentity, SelectionDecision> decisionByTest =
@@ -47,6 +48,8 @@ public final class WouldMissComparator {
                 .toList();
 
         List<WouldMissCase> misses = new ArrayList<>();
+        int newlyConfirmedFailures = 0;
+        int selectedNewlyConfirmedFailures = 0;
         for (GroundTruthResult result : groundTruth) {
             if (result.outcome() != Outcome.CONFIRMED_FAILED) {
                 continue;
@@ -54,13 +57,19 @@ public final class WouldMissComparator {
             if (preExistingFailures.contains(result.test())) {
                 continue;
             }
+            newlyConfirmedFailures++;
             SelectionDecision decision = decisionByTest.get(result.test());
             if (decision != null && decision.selected()) {
+                selectedNewlyConfirmedFailures++;
                 continue;
             }
             String reason = decision == null ? "no selection decision recorded" : decision.reason().name();
             misses.add(new WouldMissCase(pair, result.test(), changedClasses, reason));
         }
-        return misses;
+        return new FailureComparison(misses, new FailureCoverage(
+                newlyConfirmedFailures == 0 ? 0 : 1,
+                newlyConfirmedFailures,
+                selectedNewlyConfirmedFailures,
+                misses.size()));
     }
 }
