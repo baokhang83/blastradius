@@ -115,16 +115,20 @@ The status labels below are evidence-based:
 
 ## Priority roadmap
 
-1. **Open contribution and security:** add `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
-   `SECURITY.md`, and a `SUPPORT.md` or equivalent issue template.
-2. **Make governance explicit:** publish maintainers and decision rights; document written
-   consensus, votes, technical vetoes, and how contributors gain responsibility.
-3. **Close licensing/provenance gaps:** define inbound licensing (DCO or CLA), add dependency
-   license scanning/SBOM generation, and document `NOTICE` and copyright handling.
-4. **Harden release assurance:** verify signed release artifacts in CI, publish a source archive
-   policy, and keep the changelog complete for every release.
-5. **Measure responsiveness:** choose public support and issue-triage expectations, then review
-   them periodically.
+1. **[Open contribution and security](https://github.com/baokhang83/blastradius/issues/181):**
+   add `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, and a `SUPPORT.md` or
+   equivalent issue template.
+2. **[Make governance explicit](https://github.com/baokhang83/blastradius/issues/182):**
+   publish maintainers and decision rights; document written consensus, votes, technical
+   vetoes, and how contributors gain responsibility.
+3. **[Close licensing/provenance gaps](https://github.com/baokhang83/blastradius/issues/183):**
+   define inbound licensing (DCO or CLA), add dependency license scanning/SBOM generation,
+   and document `NOTICE` and copyright handling.
+4. **[Harden release assurance](https://github.com/baokhang83/blastradius/issues/184):**
+   verify signed release artifacts in CI, publish a source archive policy, and keep the
+   changelog complete for every release.
+5. **[Measure responsiveness](https://github.com/baokhang83/blastradius/issues/185):** choose
+   public support and issue-triage expectations, then review them periodically.
 
 ## Reassessment
 
