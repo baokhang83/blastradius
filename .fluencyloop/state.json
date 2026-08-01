@@ -1,8 +1,8 @@
 {
-  "feature": "replay-real-parent-child-history-edges-and-report-failure-be",
-  "branch": "feature/replay-real-parent-child-history-edges-and-report-failure-be",
-  "stage": "build",
-  "last_session": "docs/fluencyloop/features/replay-real-parent-child-history-edges-and-report-failure-be/sessions/align-edge-terminology-in-public-validator-types.md",
+  "feature": "add-opt-in-bounded-mutation-based-validator-soundness-valida",
+  "branch": "feature/add-opt-in-bounded-mutation-based-validator-soundness-valida",
+  "stage": "design",
+  "last_session": "",
   "base_ref": "main",
   "updated": "2026-08-01"
 }
