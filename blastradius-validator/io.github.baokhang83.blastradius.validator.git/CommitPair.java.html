@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A before/after pair of consecutive commits within the analyzed range.
+ * A direct parent-to-child history edge within the analyzed range.
  *
  * @param baseCommit      the earlier commit's SHA
  * @param headCommit      the later commit's SHA; ground truth is captured here

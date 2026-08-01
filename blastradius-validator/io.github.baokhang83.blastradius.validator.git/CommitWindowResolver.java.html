@@ -3,8 +3,8 @@
 import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
@@ -12,53 +12,65 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 
 /**
- * Resolves a fixed, operator-configurable window of the most recent consecutive commit
- * pairs on a target project's default branch (FR-012). Only the ordered (base, head) SHA
- * pairs are resolved here; {@code changedFiles} classification is a separate concern
- * (see {@link ChangedFileClassifier}) applied later in the pipeline.
+ * Resolves a fixed, operator-configurable window of direct parent-to-child edges in a target
+ * project's reachable history (FR-012). Only the ordered (base, head) SHA pairs are resolved
+ * here; {@code changedFiles} classification is a separate concern (see {@link
+ * ChangedFileClassifier}) applied later in the pipeline.
  */
 <span class="fc" id="L20">public final class CommitWindowResolver {</span>
 
     /**
      * @param repoPath   local working copy with full git history
-     * @param windowSize number of most-recent commit pairs to resolve; a window of N
-     *                   requires N+1 commits and yields N pairs. Returns fewer pairs if
-     *                   the repository's history is shorter than requested.
-     * @return pairs ordered oldest-to-newest (chronological replay order)
+     * @param windowSize number of most-recent parent-child edges to resolve
+     * @return pairs ordered oldest-to-newest (replay order), including every direct parent edge
+     *         for a reachable merge commit
      */
     public List&lt;CommitPair&gt; resolveWindow(Path repoPath, int windowSize) {
-<span class="fc" id="L30">        try (Git git = Git.open(repoPath.toFile())) {</span>
-<span class="fc" id="L31">            Repository repo = git.getRepository();</span>
-<span class="fc" id="L32">            ObjectId head = repo.resolve(&quot;HEAD&quot;);</span>
-<span class="pc bpc" id="L33" title="1 of 2 branches missed.">            if (head == null) {</span>
-<span class="nc" id="L34">                return List.of();</span>
+<span class="fc" id="L29">        return resolveWindow(repoPath, windowSize, HistoryMode.ALL_PARENTS);</span>
+    }
+
+    /**
+     * Resolves a fixed window of direct parent-to-child history edges according to {@code mode}.
+     *
+     * @param repoPath   local working copy with full git history
+     * @param windowSize number of most-recent parent-child edges to resolve
+     * @param mode       whether every parent edge or only first-parent edges are included
+     * @return pairs ordered oldest-to-newest (replay order)
+     */
+    public List&lt;CommitPair&gt; resolveWindow(Path repoPath, int windowSize, HistoryMode mode) {
+<span class="fc" id="L41">        Objects.requireNonNull(mode, &quot;mode&quot;);</span>
+<span class="fc" id="L42">        try (Git git = Git.open(repoPath.toFile())) {</span>
+<span class="fc" id="L43">            Repository repo = git.getRepository();</span>
+<span class="fc" id="L44">            ObjectId head = repo.resolve(&quot;HEAD&quot;);</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">            if (head == null) {</span>
+<span class="nc" id="L46">                return List.of();</span>
             }
 
-<span class="fc" id="L37">            List&lt;RevCommit&gt; newestFirst = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L38">            try (RevWalk walk = new RevWalk(repo)) {</span>
-<span class="fc" id="L39">                RevCommit start = walk.parseCommit(head);</span>
-<span class="fc" id="L40">                walk.markStart(start);</span>
-<span class="fc" id="L41">                int limit = windowSize + 1;</span>
-<span class="fc bfc" id="L42" title="All 2 branches covered.">                for (RevCommit commit : walk) {</span>
-<span class="fc" id="L43">                    newestFirst.add(commit);</span>
-<span class="fc bfc" id="L44" title="All 2 branches covered.">                    if (newestFirst.size() &gt;= limit) {</span>
-<span class="fc" id="L45">                        break;</span>
+<span class="fc" id="L49">            List&lt;CommitPair&gt; newestFirst = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L50">            try (RevWalk walk = new RevWalk(repo)) {</span>
+<span class="fc" id="L51">                RevCommit start = walk.parseCommit(head);</span>
+<span class="fc" id="L52">                walk.markStart(start);</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">                for (RevCommit commit : walk) {</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">                    int parentCount = mode == HistoryMode.FIRST_PARENT</span>
+<span class="fc" id="L55">                            ? Math.min(1, commit.getParentCount())</span>
+<span class="fc" id="L56">                            : commit.getParentCount();</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">                    for (int parentIndex = 0; parentIndex &lt; parentCount; parentIndex++) {</span>
+<span class="fc" id="L58">                        newestFirst.add(CommitPair.analyzed(</span>
+<span class="fc" id="L59">                                commit.getParent(parentIndex).getName(), commit.getName(), List.of()));</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">                        if (newestFirst.size() &gt;= windowSize) {</span>
+<span class="fc" id="L61">                            break;</span>
+                        }
                     }
-<span class="fc" id="L47">                }</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">                    if (newestFirst.size() &gt;= windowSize) {</span>
+<span class="fc" id="L65">                        break;</span>
+                    }
+<span class="fc" id="L67">                }</span>
             }
 
-<span class="fc" id="L50">            List&lt;RevCommit&gt; oldestFirst = new ArrayList&lt;&gt;(newestFirst);</span>
-<span class="fc" id="L51">            Collections.reverse(oldestFirst);</span>
-
-<span class="fc" id="L53">            List&lt;CommitPair&gt; pairs = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L54" title="All 2 branches covered.">            for (int i = 0; i &lt; oldestFirst.size() - 1; i++) {</span>
-<span class="fc" id="L55">                String base = oldestFirst.get(i).getName();</span>
-<span class="fc" id="L56">                String headSha = oldestFirst.get(i + 1).getName();</span>
-<span class="fc" id="L57">                pairs.add(CommitPair.analyzed(base, headSha, List.of()));</span>
-            }
-<span class="fc" id="L59">            return pairs;</span>
-<span class="nc bnc" id="L60" title="All 2 branches missed.">        } catch (Exception e) {</span>
-<span class="nc" id="L61">            throw new IllegalStateException(&quot;failed to resolve commit window for &quot; + repoPath, e);</span>
+<span class="fc" id="L70">            java.util.Collections.reverse(newestFirst);</span>
+<span class="fc" id="L71">            return newestFirst;</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">        } catch (Exception e) {</span>
+<span class="nc" id="L73">            throw new IllegalStateException(&quot;failed to resolve commit window for &quot; + repoPath, e);</span>
         }
     }
 }
