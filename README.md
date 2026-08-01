@@ -57,7 +57,7 @@ These are early results from three Maven projects and three 300-pair history win
 <plugin>
   <groupId>io.github.baokhang83.blastradius</groupId>
   <artifactId>blastradius-maven-plugin</artifactId>
-  <version>0.3.0</version>
+  <version>0.3.2</version>
   <executions>
     <execution>
       <phase>process-test-classes</phase>

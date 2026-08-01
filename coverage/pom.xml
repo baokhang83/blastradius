@@ -7,7 +7,7 @@
     <parent>
         <groupId>io.github.baokhang83.blastradius</groupId>
         <artifactId>blastradius-parent</artifactId>
-        <version>0.3.1</version>
+        <version>0.3.2</version>
     </parent>
 
     <artifactId>coverage</artifactId>

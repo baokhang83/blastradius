@@ -72,7 +72,7 @@ The status labels below are evidence-based:
 | QU10 | **Met** | The README documents limitations and the recommended full-suite safety net, and publishes validator evidence rather than making an unconditional safety claim. |
 | QU20 | **Partial** | CI and dependency updates exist, but there is no documented secure-development or vulnerability-management policy. |
 | QU30 | **Gap** | Add `SECURITY.md` with a private reporting channel, disclosure expectations, and response process. |
-| QU40 | **Partial** | [`CHANGELOG.md`](CHANGELOG.md) documents notable changes and compatibility requirements, but there is no stated compatibility/deprecation policy and the current 0.3.1 release is not yet represented. |
+| QU40 | **Partial** | [`CHANGELOG.md`](CHANGELOG.md) documents notable changes and compatibility requirements, but there is no stated compatibility/deprecation policy. |
 | QU50 | **Not assessed** | GitHub Issues is configured in the POM, but the repository does not define or report a bug-response expectation. |
 
 ### Community
