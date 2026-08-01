@@ -12,7 +12,6 @@ import io.github.baokhang83.blastradius.validator.build.GroundTruthResolver;
 import io.github.baokhang83.blastradius.validator.build.GroundTruthResult;
 import io.github.baokhang83.blastradius.validator.build.JdkMismatchDetector;
 import io.github.baokhang83.blastradius.validator.build.MavenBuildRunner;
-import io.github.baokhang83.blastradius.validator.build.Outcome;
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
 import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraph;
@@ -22,6 +21,8 @@ import io.github.baokhang83.blastradius.core.reactor.TestModuleIndex;
 import io.github.baokhang83.blastradius.validator.git.CommitCheckout;
 import io.github.baokhang83.blastradius.validator.git.CommitPair;
 import io.github.baokhang83.blastradius.validator.git.CommitWindowResolver;
+import io.github.baokhang83.blastradius.validator.selection.PairSelectionAnalyzer;
+import io.github.baokhang83.blastradius.validator.selection.PairSelectionResult;
 import io.github.baokhang83.blastradius.validator.report.FailureCoverage;
 import io.github.baokhang83.blastradius.validator.git.PairStatus;
 import io.github.baokhang83.blastradius.validator.report.AnalysisReport;
@@ -29,18 +30,13 @@ import io.github.baokhang83.blastradius.validator.report.ReportWriter;
 import io.github.baokhang83.blastradius.validator.report.SavingsSummary;
 import io.github.baokhang83.blastradius.validator.report.SavingsSummaryAggregator;
 import io.github.baokhang83.blastradius.core.selection.FallbackSelector;
-import io.github.baokhang83.blastradius.core.selection.NewOrModifiedTestSelector;
 import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
-import io.github.baokhang83.blastradius.core.selection.SelectionEngine;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
-import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.validator.verdict.FlakyFailure;
-import io.github.baokhang83.blastradius.validator.verdict.FailureComparison;
 import io.github.baokhang83.blastradius.validator.verdict.Verdict;
 import io.github.baokhang83.blastradius.validator.verdict.VerdictCalculator;
 import io.github.baokhang83.blastradius.validator.verdict.WouldMissCase;
-import io.github.baokhang83.blastradius.validator.verdict.WouldMissComparator;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
@@ -50,10 +46,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 
 /**
  * Wires the full pipeline together: for each commit pair in the resolved window, checks
@@ -73,11 +67,9 @@ public final class RunCommand {
     private final ChangedFileClassifier changedFileClassifier = new ChangedFileClassifier();
     private final ReactorModuleGraphBuilder reactorModuleGraphBuilder = new ReactorModuleGraphBuilder();
     private final FallbackSelector fallbackSelector = new FallbackSelector();
-    private final SelectionEngine selectionEngine = new SelectionEngine();
-    private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();
-    private final WouldMissComparator wouldMissComparator = new WouldMissComparator();
     private final VerdictCalculator verdictCalculator = new VerdictCalculator();
     private final SavingsSummaryAggregator savingsSummaryAggregator = new SavingsSummaryAggregator();
+    private final PairSelectionAnalyzer pairSelectionAnalyzer = new PairSelectionAnalyzer();
     private final ReportWriter reportWriter = new ReportWriter();
     private final BuildFailureDetector buildFailureDetector = new BuildFailureDetector();
     private final JdkMismatchDetector jdkMismatchDetector = new JdkMismatchDetector();
@@ -274,33 +266,9 @@ public final class RunCommand {
         List<GroundTruthResult> baseGroundTruth = base.groundTruth();
         List<GroundTruthResult> groundTruth = head.groundTruth();
 
-        Map<TestIdentity, Map<String, String>> baseRecord = baseRecordSet.tests();
-        // Keyed by baselineKey(), not the raw tracked identity, so a ground-truth lookup
-        // (which may carry a parameterized-test's Surefire-style invocation suffix) can
-        // still find the baseline the tracking agent recorded under the plain method
-        // name. See TestIdentity#baselineKey for why the two pipelines disagree here.
-        Map<TestIdentity, Set<String>> testDependencies = baseRecord.entrySet().stream()
-                .collect(Collectors.toMap(
-                        e -> e.getKey().baselineKey(),
-                        e -> e.getValue().keySet(),
-                        (a, b) -> {
-                            Set<String> union = new java.util.HashSet<>(a);
-                            union.addAll(b);
-                            return union;
-                        }));
-
         // Changed files, classified, against the real target repo's git history.
         List<ChangedFile> changedFiles =
                 changedFileClassifier.classify(targetRepo, pair.baseCommit(), pair.headCommit());
-        Set<String> changedClassNames = changedFiles.stream()
-                .flatMap(file -> file.candidateClassNames().stream())
-                .collect(Collectors.toUnmodifiableSet());
-
-        Set<TestIdentity> allTests = groundTruth.stream().map(GroundTruthResult::test).collect(Collectors.toSet());
-        Set<TestIdentity> newOrModifiedTests = allTests.stream()
-                .filter(test -> newOrModifiedTestSelector.appliesTo(
-                        test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))
-                .collect(Collectors.toSet());
 
         // Reactor scope for the NON_SOURCE fallback: built from the HEAD tree so module layout
         // and inter-module edges reflect the commit selection runs against. Phase 1's concurrent
@@ -318,19 +286,11 @@ public final class RunCommand {
                     pair.headCommit(), sha -> buildReactorScope(scopeCheckout.checkoutCommit(sha)));
         }
 
-        List<SelectionDecision> decisions = selectionEngine.selectAll(
-                allTests, testDependencies, newOrModifiedTests, changedFiles,
-                baseRecordSet.ambientDependencies(), reactorScope);
-
         CommitPair enrichedPair = CommitPair.analyzed(pair.baseCommit(), pair.headCommit(), changedFiles);
-        FailureComparison comparison = wouldMissComparator.compare(
-                enrichedPair, decisions, groundTruth, baseGroundTruth);
-        List<FlakyFailure> flakyFailures = groundTruth.stream()
-                .filter(r -> r.outcome() == Outcome.FLAKY)
-                .map(r -> new FlakyFailure(enrichedPair, r.test()))
-                .toList();
-
-        return new PairAnalysis(enrichedPair, comparison.wouldMissCases(), comparison.coverage(), decisions, flakyFailures);
+        PairSelectionResult result = pairSelectionAnalyzer.analyze(
+                enrichedPair, baseRecordSet, baseGroundTruth, groundTruth, reactorScope);
+        return new PairAnalysis(enrichedPair, result.failureComparison().wouldMissCases(),
+                result.failureComparison().coverage(), result.decisions(), result.flakyFailures());
     }
 
     /**
@@ -338,7 +298,7 @@ public final class RunCommand {
      * the {@link CheckoutPool} has already handed the caller. Checks out {@code sha} on that
      * clone (which wipes {@code target/} — §VII) and runs the suite through
      * {@link GroundTruthResolver} so a test already broken at this commit is confirmed and
-     * recorded, which {@link WouldMissComparator} needs to avoid flagging a pre-existing
+     * recorded, which the shared pair-selection analysis needs to avoid flagging a pre-existing
      * failure as a miss.
      *
      * <p>When {@code agentAttached} is true the tracking agent records each test's

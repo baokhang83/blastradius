@@ -8,6 +8,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Comparator;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.lib.PersonIdent;
 
 /**
  * Materializes historical commits of a target project into an isolated scratch working
@@ -72,6 +73,31 @@ public final class CommitCheckout implements AutoCloseable {
             return scratchDir;
         } catch (Exception e) {
             throw new IllegalStateException("failed to checkout commit " + commitSha, e);
+        }
+    }
+
+    /** Returns the disposable clone's worktree, never the caller's target repository. */
+    public Path workTree() {
+        return scratchDir;
+    }
+
+    /**
+     * Writes one tracked file in this disposable clone and commits it on its current detached
+     * HEAD. The returned SHA therefore names a real Git child of the commit most recently passed
+     * to {@link #checkoutCommit(String)}.
+     */
+    public String commitFile(Path relativePath, String contents, String message) {
+        Path normalized = relativePath.normalize();
+        if (normalized.isAbsolute() || normalized.startsWith("..")) {
+            throw new IllegalArgumentException("path must stay inside the scratch clone: " + relativePath);
+        }
+        try {
+            Files.writeString(scratchDir.resolve(normalized), contents);
+            scratchGit.add().addFilepattern(normalized.toString().replace('\\', '/')).call();
+            PersonIdent identity = new PersonIdent("Blastradius Validator", "validator@blastradius.invalid");
+            return scratchGit.commit().setMessage(message).setAuthor(identity).setCommitter(identity).call().getId().name();
+        } catch (Exception e) {
+            throw new IllegalStateException("failed to commit synthetic change to " + relativePath, e);
         }
     }
 
