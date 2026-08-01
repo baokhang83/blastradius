@@ -9,8 +9,8 @@ import java.util.Objects;
  * The operator-supplied input for a single validator run (FR-001, FR-012).
  *
  * @param projectPath          local git working copy of the target project
- * @param commitWindowSize     number of most-recent commits to analyze; operator-chosen,
- *                             no fixed default (FR-012)
+ * @param commitWindowSize     number of most-recent direct parent-child history edges to
+ *                             analyze; operator-chosen, no fixed default (FR-012)
  * @param reportOutputPath     file path to write the JSON {@code AnalysisReport} to
  * @param mavenParallelThreads value for the target project's own {@code mvn -T} reactor
  *                             parallelism, or {@code null} to build serially (the default)
