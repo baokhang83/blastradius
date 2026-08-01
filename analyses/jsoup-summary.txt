@@ -1,0 +1,19 @@
+Verdict: PASS
+Analyzed: 300 commit pair(s)
+Would-miss cases: 0
+
+Savings: 304060 / 536850 test executions selected (43.4% skipped)
+  - dependency-matched: 113686
+  - fallback-driven: 179420
+  - module-scoped fallback: 0
+  - new-or-modified: 10954
+Flaky failures observed: 9 (excluded from verdict)
+  - commit c09c1f51f4779d259df0423119a83ebe8aa3b86d..29bc6f50c0a31614835e9378f0d30fcae9bcc2e8: org.jsoup.parser.HtmlParserTest#handlesManyChildren
+  - commit 85a4fa2fb8e979b7bc3197aa7c9b822ab2052e38..aabf0b0dbb19f6ff13f28cf1b5033b1661437a71: org.jsoup.parser.HtmlParserTest#handlesManyChildren
+  - commit aabf0b0dbb19f6ff13f28cf1b5033b1661437a71..78383995e7cf5f0c6a068a94aea3e0c0dc10e73d: org.jsoup.parser.HtmlParserTest#handlesManyChildren
+  - commit 0270598732b77c25e643e4e1b1e4347fd8037dfa..92a4269c1d00ae77e838e1e701bcc9bf087a730a: org.jsoup.parser.HtmlParserTest#handlesManyChildren
+  - commit da185458a86a9a820e2b522e40b6df597d4f31f8..1222bd183cb699d1cc4e90996156b9c959d980f4: org.jsoup.parser.HtmlParserTest#handlesManyChildren
+  - commit fccfaaed2ac4ebaddfb4371ed2f0e6a2ed469273..dec21ef066af58e694b48ff483079f346ba5c217: org.jsoup.parser.HtmlParserTest#handlesManyChildren
+  - commit dec21ef066af58e694b48ff483079f346ba5c217..6b96c742ef84bd0347d3338aff13ed6da8278b1f: org.jsoup.parser.HtmlParserTest#handlesManyChildren
+  - commit 63ed60b84cbd23672569926b7fb191ded5af34d3..a9f6ad0cbf2ec738af9d5ba57d8681925ab74772: org.jsoup.parser.HtmlParserTest#handlesManyChildren
+  - commit f0b43718c2e4483b4906f53a8a3f6cb4ccd02ca7..8277081e8be3ef7ee27de53cbd5c774f1ae10aea: org.jsoup.parser.HtmlParserTest#handlesManyChildren
