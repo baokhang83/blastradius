@@ -25,7 +25,7 @@ The validator replayed sequential commit pairs in shadow mode and compared the s
 | <h4><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">apache/shenyu</a></h4> | [`ce3719d`](https://github.com/apache/shenyu/commit/ce3719d4d68cb51df0704a154fb1da8b2a1778ed) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | 300 (0) | 0 | 233,603 / 747,680 | **68.8%** | 42 (excluded from verdict) |
 | <h4><a href="https://github.com/apache/commons-lang"><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/>apache/commons-lang</a></h4>  | [`13c9949`](https://github.com/apache/commons-lang/commit/13c99492bf695b8ca378d0976919fcea10010c7f) → [`8f8f3b2`](https://github.com/apache/commons-lang/commit/8f8f3b26e8cb81e0879fc676068db1212652dcaf) | 300 (0) | 0 | 9,297,241 / 23,610,943 | **60.6%** | 0 |
 | <h4><a href="https://github.com/jhy/jsoup">jhy/jsoup</a></h4> | [`e10e04d`](https://github.com/jhy/jsoup/commit/e10e04da6c7d93daf5f74d449594cba7ea3683e3) → [`9d2241f`](https://github.com/jhy/jsoup/commit/9d2241ff467d03accbf902a650adc60513bf5c11) | 300 (0) | 0 | 304,060 / 536,850 | **43.4%** | 9 (excluded from verdict) |
-|<img width=400 height=1/>|  |  |  |  | **57.6%** |  |
+|<img width=500 height=1/>|  |  |  |  | **57.6%** |  |
 
 These are early results from three Maven projects and three 300-pair history windows, not a universal guarantee. All runs stayed conservative: most selected tests came from fallback rules rather than direct dependency matches. Full suites still remain the recommended daily safety net.
 
