@@ -234,6 +234,71 @@ class CommitBuildServiceTest {
     }
 
     @Test
+    void aTransientNetworkFailureIsRetriedAndCanSucceed(@TempDir Path tempDir) throws Exception {
+        AtomicInteger attempts = new AtomicInteger();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try (CheckoutPool pool = poolOf(tempDir, 2)) {
+            CommitBuildService service = new CommitBuildService(
+                    pool, executor, silent, cacheIn(tempDir), (checkout, sha, agent) ->
+                            attempts.incrementAndGet() == 1
+                                    ? new CommitBuild(true,
+                                            "Could not transfer artifact from/to central: Network is unreachable",
+                                            null, List.of())
+                                    : ok(sha),
+                    1);
+
+            Map<BuildKey, BuildOutcome> built = service.buildAll(List.of(new BuildKey("flaky", true)));
+
+            assertFalse(built.get(new BuildKey("flaky", true)).failed());
+            assertEquals(2, attempts.get(), "should have retried exactly once before succeeding");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void aPersistentTransientFailureGivesUpAfterMaxRetries(@TempDir Path tempDir) throws Exception {
+        AtomicInteger attempts = new AtomicInteger();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try (CheckoutPool pool = poolOf(tempDir, 2)) {
+            CommitBuildService service = new CommitBuildService(
+                    pool, executor, silent, cacheIn(tempDir), (checkout, sha, agent) -> {
+                        attempts.incrementAndGet();
+                        return new CommitBuild(true, "Connection timed out", null, List.of());
+                    },
+                    1);
+
+            Map<BuildKey, BuildOutcome> built = service.buildAll(List.of(new BuildKey("alwaysDown", true)));
+
+            assertTrue(built.get(new BuildKey("alwaysDown", true)).failed());
+            // Initial attempt + MAX_TRANSIENT_RETRIES retries, then give up.
+            assertEquals(4, attempts.get());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void aNonTransientFailureIsNotRetried(@TempDir Path tempDir) throws Exception {
+        AtomicInteger attempts = new AtomicInteger();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try (CheckoutPool pool = poolOf(tempDir, 2)) {
+            CommitBuildService service = new CommitBuildService(
+                    pool, executor, silent, cacheIn(tempDir), (checkout, sha, agent) -> {
+                        attempts.incrementAndGet();
+                        return new CommitBuild(true, "compilation error: cannot find symbol", null, List.of());
+                    });
+
+            Map<BuildKey, BuildOutcome> built = service.buildAll(List.of(new BuildKey("brokenCode", true)));
+
+            assertTrue(built.get(new BuildKey("brokenCode", true)).failed());
+            assertEquals(1, attempts.get(), "a real compile failure must not be retried");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void aBuilderThatThrowsBecomesAFailedResultNotALostJob(@TempDir Path tempDir) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try (CheckoutPool pool = poolOf(tempDir, 2)) {

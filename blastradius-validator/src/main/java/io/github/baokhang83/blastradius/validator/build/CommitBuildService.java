@@ -38,6 +38,17 @@ import java.util.concurrent.Future;
 public final class CommitBuildService {
 
     /**
+     * How many extra attempts a build gets after an initial failure that looks like a transient
+     * network blip to a Maven repository ({@link TransientBuildFailureDetector}) — e.g. the WSL
+     * host's network dropping mid-download. A genuine compile or dependency error fails the same
+     * way every time, so it is excluded on the first attempt rather than retried.
+     */
+    private static final int MAX_TRANSIENT_RETRIES = 3;
+
+    /** Base delay before a retry; doubled each attempt so a longer outage still recovers. */
+    private static final long RETRY_BACKOFF_MILLIS = 5_000;
+
+    /**
      * Identifies a single build the window needs: a commit, built either with the tracking
      * agent attached (to record dependencies) or without it (an independent ground-truth
      * build). Its {@code equals}/{@code hashCode} are what dedupe and memoize builds.
@@ -55,15 +66,24 @@ public final class CommitBuildService {
     private final ProgressLogger progress;
     private final BuildCache cache;
     private final CommitBuilder builder;
+    private final long retryBackoffMillis;
 
     public CommitBuildService(
             CheckoutPool pool, ExecutorService executor, ProgressLogger progress,
             BuildCache cache, CommitBuilder builder) {
+        this(pool, executor, progress, cache, builder, RETRY_BACKOFF_MILLIS);
+    }
+
+    /** Exposes the retry backoff so tests can shrink it instead of waiting on real sleeps. */
+    CommitBuildService(
+            CheckoutPool pool, ExecutorService executor, ProgressLogger progress,
+            BuildCache cache, CommitBuilder builder, long retryBackoffMillis) {
         this.pool = pool;
         this.executor = executor;
         this.progress = progress;
         this.cache = cache;
         this.builder = builder;
+        this.retryBackoffMillis = retryBackoffMillis;
     }
 
     /**
@@ -107,10 +127,19 @@ public final class CommitBuildService {
         CommitCheckout checkout = pool.borrow();
         try {
             CommitBuild build = builder.build(checkout, key.sha(), key.agentAttached());
+            for (int attempt = 1;
+                    build.failed() && attempt <= MAX_TRANSIENT_RETRIES
+                            && TransientBuildFailureDetector.isTransient(build.failureReason());
+                    attempt++) {
+                progress.buildRetrying(key.sha(), role, attempt, MAX_TRANSIENT_RETRIES, build.failureReason());
+                Thread.sleep(retryBackoffMillis * attempt);
+                build = builder.build(checkout, key.sha(), key.agentAttached());
+            }
             long millis = System.currentTimeMillis() - start;
             if (build.failed()) {
-                // Failures are intentionally not cached (transient, cheap to recompute); the
-                // referencing pair is excluded, and a re-run rebuilds this commit.
+                // Either not a transient failure, or the retries above were exhausted. Not
+                // cached (cheap to recompute); the referencing pair is excluded, and a re-run
+                // rebuilds this commit.
                 progress.buildFailed(key.sha(), role, build.failureReason());
                 return BuildOutcome.failed(build.failureReason());
             }
