@@ -16,9 +16,11 @@ train something probabilistic on historical flakiness. Blastradius does neither:
 uses that real, per-test dependency map to decide what to run next time. No training data,
 no heuristics, no opaque score.
 
-## Early validation: Apache ShenYu
+## Early validation
 
-The validator replayed 300 sequential Apache ShenYu commit pairs in shadow mode, from [`ce3719d4d68cb51df0704a154fb1da8b2a1778ed`](https://github.com/apache/shenyu/commit/ce3719d4d68cb51df0704a154fb1da8b2a1778ed) to [`3a411e017acfc47636e2bbfeb2958108d1f15a05`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05). All 300 pairs built and were analyzed; comparison with the corresponding full-test outcomes found no would-miss cases. 
+### Apache ShenYu
+
+The validator replayed 300 sequential Apache ShenYu commit pairs in shadow mode, from [`ce3719d4d68cb51df0704a154fb1da8b2a1778ed`](https://github.com/apache/shenyu/commit/ce3719d4d68cb51df0704a154fb1da8b2a1778ed) to [`3a411e017acfc47636e2bbfeb2958108d1f15a05`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05). All 300 pairs built and were analyzed; comparison with the corresponding full-test outcomes found no would-miss cases. The full [machine-readable report](analyses/report_shenyu_300.json) and [human-readable summary](analyses/summary_shenyu_300.txt) are included in this repository.
 
 | Metric | Result |
 | --- | --- |
@@ -29,7 +31,20 @@ The validator replayed 300 sequential Apache ShenYu commit pairs in shadow mode,
 | Tests selected | 233,603 |
 | Flaky test observations | 42 (excluded from the verdict) |
 
-This is early evidence from one Maven project and one 300-pair history window, not a universal guarantee. The run stayed conservative: most selected tests came from fallback and module-scoped fallback rules rather than direct dependency matches. It also exposed recurring test flakiness, which the validator excludes from its soundness verdict. Full suites still remain the recommended daily safety net.
+### Apache Commons Lang
+
+The validator replayed 300 sequential Apache Commons Lang commit pairs in shadow mode, from [`13c99492bf695b8ca378d0976919fcea10010c7f`](https://github.com/apache/commons-lang/commit/13c99492bf695b8ca378d0976919fcea10010c7f) to [`8f8f3b26e8cb81e0879fc676068db1212652dcaf`](https://github.com/apache/commons-lang/commit/8f8f3b26e8cb81e0879fc676068db1212652dcaf). All 300 pairs built and were analyzed; comparison with the corresponding full-test outcomes found no would-miss cases. The full [machine-readable report](analyses/common-lang-report.json) and [human-readable summary](analyses/common-lang-summary.txt) are included in this repository.
+
+| Metric | Result |
+| --- | --- |
+| Commit pairs analyzed | 300 / 300 |
+| Build exclusions | 0 |
+| Would-miss cases | 0 |
+| Test executions skipped | 14,313,702 / 23,610,943 **(60.6%)** |
+| Tests selected | 9,297,241 |
+| Flaky test observations | 0 |
+
+These are early results from two Maven projects and two 300-pair history windows, not a universal guarantee. Both runs stayed conservative: most selected tests came from fallback rules rather than direct dependency matches. Full suites still remain the recommended daily safety net.
 
 ## How it works
 
