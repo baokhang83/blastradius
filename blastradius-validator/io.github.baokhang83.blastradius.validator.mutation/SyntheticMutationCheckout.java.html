@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>SyntheticMutationCheckout.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.mutation</a> &gt; <span class="el_source">SyntheticMutationCheckout.java</span></div><h1>SyntheticMutationCheckout.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.mutation;
+
+import io.github.baokhang83.blastradius.validator.git.CommitCheckout;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Objects;
+
+/** A disposable target-project clone that can turn one candidate into a real child commit. */
+public final class SyntheticMutationCheckout implements AutoCloseable {
+
+    private final CommitCheckout checkout;
+
+<span class="fc" id="L13">    private SyntheticMutationCheckout(CommitCheckout checkout) {</span>
+<span class="fc" id="L14">        this.checkout = checkout;</span>
+<span class="fc" id="L15">    }</span>
+
+    public static SyntheticMutationCheckout forTargetProject(Path targetProject, Path scratchParent) {
+<span class="fc" id="L18">        return new SyntheticMutationCheckout(CommitCheckout.forTargetProject(targetProject, scratchParent));</span>
+    }
+
+    public Path checkoutBaseline(String baselineSha) {
+<span class="fc" id="L22">        return checkout.checkoutCommit(baselineSha);</span>
+    }
+
+    /** Applies {@code candidate} and commits the result as a direct child of the current baseline. */
+    public String commit(MutationCandidate candidate) {
+<span class="fc" id="L27">        Objects.requireNonNull(candidate, &quot;candidate&quot;);</span>
+<span class="fc" id="L28">        Path source = workTree().resolve(candidate.sourcePath());</span>
+        try {
+<span class="fc" id="L30">            String mutated = candidate.applyTo(Files.readString(source));</span>
+<span class="fc" id="L31">            return checkout.commitFile(Path.of(candidate.sourcePath()), mutated,</span>
+<span class="fc" id="L32">                    &quot;blastradius mutation: &quot; + candidate.className() + &quot; &quot; + candidate.operator());</span>
+<span class="nc" id="L33">        } catch (java.io.IOException e) {</span>
+<span class="nc" id="L34">            throw new java.io.UncheckedIOException(&quot;failed to mutate &quot; + candidate.sourcePath(), e);</span>
+        }
+    }
+
+    public Path workTree() {
+<span class="fc" id="L39">        return checkout.workTree();</span>
+    }
+
+    @Override
+    public void close() {
+<span class="fc" id="L44">        checkout.close();</span>
+<span class="fc" id="L45">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

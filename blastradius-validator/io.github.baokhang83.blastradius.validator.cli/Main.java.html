@@ -2,6 +2,10 @@
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.baokhang83.blastradius.validator.git.HistoryMode;
+import io.github.baokhang83.blastradius.validator.mutation.MutationCommand;
+import io.github.baokhang83.blastradius.validator.mutation.MutationConfig;
+import io.github.baokhang83.blastradius.validator.mutation.MutationReport;
+import io.github.baokhang83.blastradius.validator.mutation.MutationTextSummaryRenderer;
 import io.github.baokhang83.blastradius.validator.report.AnalysisReport;
 import io.github.baokhang83.blastradius.validator.report.TextSummaryRenderer;
 import java.io.IOException;
@@ -14,83 +18,166 @@ import java.nio.file.Path;
  * [--summary-out &lt;path&gt;] [--maven-threads &lt;N&gt;] [--fast-ground-truth] [--build-concurrency &lt;K&gt;]
  * [--build-timeout-minutes &lt;M&gt;] [--skip-build-extras] [--history-mode &lt;all-parents|first-parent&gt;]}
  */
-<span class="nc" id="L17">public final class Main {</span>
+<span class="nc" id="L21">public final class Main {</span>
 
     public static void main(String[] args) {
-<span class="nc bnc" id="L20" title="All 4 branches missed.">        if (args.length == 0 || !&quot;run&quot;.equals(args[0])) {</span>
-<span class="nc" id="L21">            System.err.println(&quot;usage: run --project-path &lt;path&gt; --commits &lt;N&gt; --report-out &lt;path&gt; &quot;</span>
-                    + &quot;[--summary-out &lt;path&gt;] [--maven-threads &lt;N&gt;] [--fast-ground-truth] &quot;
-                    + &quot;[--build-concurrency &lt;K&gt;] [--build-timeout-minutes &lt;M&gt;] [--skip-build-extras] &quot;
-                    + &quot;[--history-mode &lt;all-parents|first-parent&gt;]&quot;);
-<span class="nc" id="L25">            System.exit(2);</span>
-<span class="nc" id="L26">            return;</span>
+<span class="nc bnc" id="L24" title="All 2 branches missed.">        if (args.length == 0) {</span>
+<span class="nc" id="L25">            usage();</span>
+<span class="nc" id="L26">            System.exit(2);</span>
+<span class="nc" id="L27">            return;</span>
         }
+<span class="nc bnc" id="L29" title="All 3 branches missed.">        switch (args[0]) {</span>
+<span class="nc" id="L30">            case &quot;run&quot; -&gt; runHistory(args);</span>
+<span class="nc" id="L31">            case &quot;mutate&quot; -&gt; runMutations(args);</span>
+            default -&gt; {
+<span class="nc" id="L33">                usage();</span>
+<span class="nc" id="L34">                System.exit(2);</span>
+            }
+        }
+<span class="nc" id="L37">    }</span>
 
-<span class="nc" id="L29">        Path projectPath = null;</span>
-<span class="nc" id="L30">        Integer commits = null;</span>
-<span class="nc" id="L31">        Path reportOut = null;</span>
-<span class="nc" id="L32">        Path summaryOut = null;</span>
-<span class="nc" id="L33">        Integer mavenThreads = null;</span>
-<span class="nc" id="L34">        boolean fastGroundTruth = false;</span>
-<span class="nc" id="L35">        int buildConcurrency = 1;</span>
-<span class="nc" id="L36">        long buildTimeoutMinutes = RunConfig.DEFAULT_BUILD_TIMEOUT_MINUTES;</span>
-<span class="nc" id="L37">        boolean skipBuildExtras = false;</span>
-<span class="nc" id="L38">        HistoryMode historyMode = HistoryMode.ALL_PARENTS;</span>
+    private static void runHistory(String[] args) {
 
-<span class="nc bnc" id="L40" title="All 2 branches missed.">        for (int i = 1; i &lt; args.length; i++) {</span>
-<span class="nc bnc" id="L41" title="All 11 branches missed.">            switch (args[i]) {</span>
-<span class="nc" id="L42">                case &quot;--project-path&quot; -&gt; projectPath = Path.of(args[++i]);</span>
-<span class="nc" id="L43">                case &quot;--commits&quot; -&gt; commits = Integer.parseInt(args[++i]);</span>
-<span class="nc" id="L44">                case &quot;--report-out&quot; -&gt; reportOut = Path.of(args[++i]);</span>
-<span class="nc" id="L45">                case &quot;--summary-out&quot; -&gt; summaryOut = Path.of(args[++i]);</span>
-<span class="nc" id="L46">                case &quot;--maven-threads&quot; -&gt; mavenThreads = Integer.parseInt(args[++i]);</span>
-<span class="nc" id="L47">                case &quot;--fast-ground-truth&quot; -&gt; fastGroundTruth = true;</span>
-<span class="nc" id="L48">                case &quot;--build-concurrency&quot; -&gt; buildConcurrency = Integer.parseInt(args[++i]);</span>
-<span class="nc" id="L49">                case &quot;--build-timeout-minutes&quot; -&gt; buildTimeoutMinutes = Long.parseLong(args[++i]);</span>
-<span class="nc" id="L50">                case &quot;--skip-build-extras&quot; -&gt; skipBuildExtras = true;</span>
-<span class="nc" id="L51">                case &quot;--history-mode&quot; -&gt; historyMode = HistoryMode.fromCliValue(args[++i]);</span>
+<span class="nc" id="L41">        Path projectPath = null;</span>
+<span class="nc" id="L42">        Integer commits = null;</span>
+<span class="nc" id="L43">        Path reportOut = null;</span>
+<span class="nc" id="L44">        Path summaryOut = null;</span>
+<span class="nc" id="L45">        Integer mavenThreads = null;</span>
+<span class="nc" id="L46">        boolean fastGroundTruth = false;</span>
+<span class="nc" id="L47">        int buildConcurrency = 1;</span>
+<span class="nc" id="L48">        long buildTimeoutMinutes = RunConfig.DEFAULT_BUILD_TIMEOUT_MINUTES;</span>
+<span class="nc" id="L49">        boolean skipBuildExtras = false;</span>
+<span class="nc" id="L50">        HistoryMode historyMode = HistoryMode.ALL_PARENTS;</span>
+
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        for (int i = 1; i &lt; args.length; i++) {</span>
+<span class="nc bnc" id="L53" title="All 11 branches missed.">            switch (args[i]) {</span>
+<span class="nc" id="L54">                case &quot;--project-path&quot; -&gt; projectPath = Path.of(args[++i]);</span>
+<span class="nc" id="L55">                case &quot;--commits&quot; -&gt; commits = Integer.parseInt(args[++i]);</span>
+<span class="nc" id="L56">                case &quot;--report-out&quot; -&gt; reportOut = Path.of(args[++i]);</span>
+<span class="nc" id="L57">                case &quot;--summary-out&quot; -&gt; summaryOut = Path.of(args[++i]);</span>
+<span class="nc" id="L58">                case &quot;--maven-threads&quot; -&gt; mavenThreads = Integer.parseInt(args[++i]);</span>
+<span class="nc" id="L59">                case &quot;--fast-ground-truth&quot; -&gt; fastGroundTruth = true;</span>
+<span class="nc" id="L60">                case &quot;--build-concurrency&quot; -&gt; buildConcurrency = Integer.parseInt(args[++i]);</span>
+<span class="nc" id="L61">                case &quot;--build-timeout-minutes&quot; -&gt; buildTimeoutMinutes = Long.parseLong(args[++i]);</span>
+<span class="nc" id="L62">                case &quot;--skip-build-extras&quot; -&gt; skipBuildExtras = true;</span>
+<span class="nc" id="L63">                case &quot;--history-mode&quot; -&gt; historyMode = HistoryMode.fromCliValue(args[++i]);</span>
                 default -&gt; {
-<span class="nc" id="L53">                    System.err.println(&quot;unknown argument: &quot; + args[i]);</span>
-<span class="nc" id="L54">                    System.exit(2);</span>
-<span class="nc" id="L55">                    return;</span>
+<span class="nc" id="L65">                    System.err.println(&quot;unknown argument: &quot; + args[i]);</span>
+<span class="nc" id="L66">                    System.exit(2);</span>
+<span class="nc" id="L67">                    return;</span>
                 }
             }
         }
 
-<span class="nc bnc" id="L60" title="All 6 branches missed.">        if (projectPath == null || commits == null || reportOut == null) {</span>
-<span class="nc" id="L61">            System.err.println(&quot;missing required argument(s): --project-path, --commits, --report-out are all required&quot;);</span>
-<span class="nc" id="L62">            System.exit(2);</span>
-<span class="nc" id="L63">            return;</span>
+<span class="nc bnc" id="L72" title="All 6 branches missed.">        if (projectPath == null || commits == null || reportOut == null) {</span>
+<span class="nc" id="L73">            System.err.println(&quot;missing required argument(s): --project-path, --commits, --report-out are all required&quot;);</span>
+<span class="nc" id="L74">            System.exit(2);</span>
+<span class="nc" id="L75">            return;</span>
         }
 
         try {
-<span class="nc" id="L67">            RunConfig config = new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth,</span>
+<span class="nc" id="L79">            RunConfig config = new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth,</span>
                     buildConcurrency, buildTimeoutMinutes, skipBuildExtras, historyMode);
-<span class="nc" id="L69">            int exitCode = new RunCommand().run(config);</span>
-<span class="nc" id="L70">            printSummary(reportOut, summaryOut, exitCode);</span>
-<span class="nc" id="L71">            System.exit(exitCode);</span>
-<span class="nc" id="L72">        } catch (IllegalArgumentException e) {</span>
-<span class="nc" id="L73">            System.err.println(&quot;invalid configuration: &quot; + e.getMessage());</span>
-<span class="nc" id="L74">            System.exit(2);</span>
-<span class="nc" id="L75">        }</span>
-<span class="nc" id="L76">    }</span>
+<span class="nc" id="L81">            int exitCode = new RunCommand().run(config);</span>
+<span class="nc" id="L82">            printSummary(reportOut, summaryOut, exitCode);</span>
+<span class="nc" id="L83">            System.exit(exitCode);</span>
+<span class="nc" id="L84">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L85">            System.err.println(&quot;invalid configuration: &quot; + e.getMessage());</span>
+<span class="nc" id="L86">            System.exit(2);</span>
+<span class="nc" id="L87">        }</span>
+<span class="nc" id="L88">    }</span>
+
+    private static void runMutations(String[] args) {
+<span class="nc" id="L91">        Path projectPath = null;</span>
+<span class="nc" id="L92">        Path reportOut = null;</span>
+<span class="nc" id="L93">        Path summaryOut = null;</span>
+<span class="nc" id="L94">        String classFilter = null;</span>
+<span class="nc" id="L95">        int maxMutationClasses = MutationConfig.DEFAULT_MAX_CLASSES;</span>
+<span class="nc" id="L96">        int maxMutations = MutationConfig.DEFAULT_MAX_MUTATIONS;</span>
+<span class="nc" id="L97">        long timeLimitMinutes = MutationConfig.DEFAULT_TIME_LIMIT_MINUTES;</span>
+<span class="nc" id="L98">        Integer mavenThreads = null;</span>
+<span class="nc" id="L99">        long buildTimeoutMinutes = MutationConfig.DEFAULT_BUILD_TIMEOUT_MINUTES;</span>
+<span class="nc" id="L100">        boolean skipBuildExtras = false;</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        for (int i = 1; i &lt; args.length; i++) {</span>
+<span class="nc bnc" id="L102" title="All 11 branches missed.">            switch (args[i]) {</span>
+<span class="nc" id="L103">                case &quot;--project-path&quot; -&gt; projectPath = Path.of(args[++i]);</span>
+<span class="nc" id="L104">                case &quot;--report-out&quot; -&gt; reportOut = Path.of(args[++i]);</span>
+<span class="nc" id="L105">                case &quot;--summary-out&quot; -&gt; summaryOut = Path.of(args[++i]);</span>
+<span class="nc" id="L106">                case &quot;--mutation-class&quot; -&gt; classFilter = args[++i];</span>
+<span class="nc" id="L107">                case &quot;--max-mutation-classes&quot; -&gt; maxMutationClasses = Integer.parseInt(args[++i]);</span>
+<span class="nc" id="L108">                case &quot;--max-mutations&quot; -&gt; maxMutations = Integer.parseInt(args[++i]);</span>
+<span class="nc" id="L109">                case &quot;--mutation-time-limit-minutes&quot; -&gt; timeLimitMinutes = Long.parseLong(args[++i]);</span>
+<span class="nc" id="L110">                case &quot;--maven-threads&quot; -&gt; mavenThreads = Integer.parseInt(args[++i]);</span>
+<span class="nc" id="L111">                case &quot;--build-timeout-minutes&quot; -&gt; buildTimeoutMinutes = Long.parseLong(args[++i]);</span>
+<span class="nc" id="L112">                case &quot;--skip-build-extras&quot; -&gt; skipBuildExtras = true;</span>
+                default -&gt; {
+<span class="nc" id="L114">                    System.err.println(&quot;unknown argument: &quot; + args[i]);</span>
+<span class="nc" id="L115">                    System.exit(2);</span>
+<span class="nc" id="L116">                    return;</span>
+                }
+            }
+        }
+<span class="nc bnc" id="L120" title="All 4 branches missed.">        if (projectPath == null || reportOut == null) {</span>
+<span class="nc" id="L121">            System.err.println(&quot;missing required argument(s): --project-path and --report-out are required&quot;);</span>
+<span class="nc" id="L122">            System.exit(2);</span>
+<span class="nc" id="L123">            return;</span>
+        }
+        try {
+<span class="nc" id="L126">            MutationConfig config = new MutationConfig(projectPath, reportOut, classFilter, maxMutationClasses, maxMutations,</span>
+                    timeLimitMinutes, mavenThreads, buildTimeoutMinutes, skipBuildExtras);
+<span class="nc" id="L128">            int exitCode = new MutationCommand().run(config);</span>
+<span class="nc" id="L129">            printMutationSummary(reportOut, summaryOut, exitCode);</span>
+<span class="nc" id="L130">            System.exit(exitCode);</span>
+<span class="nc" id="L131">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L132">            System.err.println(&quot;invalid configuration: &quot; + e.getMessage());</span>
+<span class="nc" id="L133">            System.exit(2);</span>
+<span class="nc" id="L134">        }</span>
+<span class="nc" id="L135">    }</span>
 
     /** Renders the just-written report as text — to stdout by default, or {@code --summary-out}. */
     private static void printSummary(Path reportOut, Path summaryOut, int exitCode) {
-<span class="nc bnc" id="L80" title="All 2 branches missed.">        if (exitCode == 2) {</span>
-<span class="nc" id="L81">            return; // the run itself never completed; there is no report to render</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">        if (exitCode == 2) {</span>
+<span class="nc" id="L140">            return; // the run itself never completed; there is no report to render</span>
         }
         try {
-<span class="nc" id="L84">            AnalysisReport report = new ObjectMapper().readValue(reportOut.toFile(), AnalysisReport.class);</span>
-<span class="nc" id="L85">            String text = new TextSummaryRenderer().render(report);</span>
-<span class="nc bnc" id="L86" title="All 2 branches missed.">            if (summaryOut != null) {</span>
-<span class="nc" id="L87">                Files.writeString(summaryOut, text);</span>
+<span class="nc" id="L143">            AnalysisReport report = new ObjectMapper().readValue(reportOut.toFile(), AnalysisReport.class);</span>
+<span class="nc" id="L144">            String text = new TextSummaryRenderer().render(report);</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">            if (summaryOut != null) {</span>
+<span class="nc" id="L146">                Files.writeString(summaryOut, text);</span>
             } else {
-<span class="nc" id="L89">                System.out.print(text);</span>
+<span class="nc" id="L148">                System.out.print(text);</span>
             }
-<span class="nc" id="L91">        } catch (IOException e) {</span>
-<span class="nc" id="L92">            System.err.println(&quot;warning: could not render text summary: &quot; + e.getMessage());</span>
-<span class="nc" id="L93">        }</span>
-<span class="nc" id="L94">    }</span>
+<span class="nc" id="L150">        } catch (IOException e) {</span>
+<span class="nc" id="L151">            System.err.println(&quot;warning: could not render text summary: &quot; + e.getMessage());</span>
+<span class="nc" id="L152">        }</span>
+<span class="nc" id="L153">    }</span>
+
+    private static void printMutationSummary(Path reportOut, Path summaryOut, int exitCode) {
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        if (exitCode == 2) {</span>
+<span class="nc" id="L157">            return;</span>
+        }
+        try {
+<span class="nc" id="L160">            MutationReport report = new ObjectMapper().readValue(reportOut.toFile(), MutationReport.class);</span>
+<span class="nc" id="L161">            String text = new MutationTextSummaryRenderer().render(report);</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">            if (summaryOut != null) {</span>
+<span class="nc" id="L163">                Files.writeString(summaryOut, text);</span>
+            } else {
+<span class="nc" id="L165">                System.out.print(text);</span>
+            }
+<span class="nc" id="L167">        } catch (IOException e) {</span>
+<span class="nc" id="L168">            System.err.println(&quot;warning: could not render mutation text summary: &quot; + e.getMessage());</span>
+<span class="nc" id="L169">        }</span>
+<span class="nc" id="L170">    }</span>
+
+    private static void usage() {
+<span class="nc" id="L173">        System.err.println(&quot;usage: run --project-path &lt;path&gt; --commits &lt;N&gt; --report-out &lt;path&gt; &quot;</span>
+                + &quot;[--summary-out &lt;path&gt;] [--maven-threads &lt;N&gt;] [--fast-ground-truth] &quot;
+                + &quot;[--build-concurrency &lt;K&gt;] [--build-timeout-minutes &lt;M&gt;] [--skip-build-extras] &quot;
+                + &quot;[--history-mode &lt;all-parents|first-parent&gt;]\n&quot;
+                + &quot;   or: mutate --project-path &lt;path&gt; --report-out &lt;path&gt; [--summary-out &lt;path&gt;] &quot;
+                + &quot;[--mutation-class &lt;FQCN&gt;] [--max-mutation-classes &lt;N&gt;] [--max-mutations &lt;N&gt;] &quot;
+                + &quot;[--mutation-time-limit-minutes &lt;M&gt;] [--maven-threads &lt;N&gt;] &quot;
+                + &quot;[--build-timeout-minutes &lt;M&gt;] [--skip-build-extras]&quot;);
+<span class="nc" id="L181">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

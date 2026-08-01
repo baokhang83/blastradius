@@ -8,6 +8,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Comparator;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.lib.PersonIdent;
 
 /**
  * Materializes historical commits of a target project into an isolated scratch working
@@ -24,10 +25,10 @@ public final class CommitCheckout implements AutoCloseable {
     private final Git scratchGit;
     private final Path scratchDir;
 
-<span class="fc" id="L27">    private CommitCheckout(Git scratchGit, Path scratchDir) {</span>
-<span class="fc" id="L28">        this.scratchGit = scratchGit;</span>
-<span class="fc" id="L29">        this.scratchDir = scratchDir;</span>
-<span class="fc" id="L30">    }</span>
+<span class="fc" id="L28">    private CommitCheckout(Git scratchGit, Path scratchDir) {</span>
+<span class="fc" id="L29">        this.scratchGit = scratchGit;</span>
+<span class="fc" id="L30">        this.scratchDir = scratchDir;</span>
+<span class="fc" id="L31">    }</span>
 
     /**
      * Clones {@code targetRepoPath} once into a fresh subdirectory under
@@ -35,14 +36,14 @@ public final class CommitCheckout implements AutoCloseable {
      */
     public static CommitCheckout forTargetProject(Path targetRepoPath, Path scratchParentDir) {
         try {
-<span class="fc" id="L38">            Path scratchDir = Files.createTempDirectory(scratchParentDir, &quot;blastradius-checkout-&quot;);</span>
-<span class="fc" id="L39">            Git clone = Git.cloneRepository()</span>
-<span class="fc" id="L40">                    .setURI(targetRepoPath.toUri().toString())</span>
-<span class="fc" id="L41">                    .setDirectory(scratchDir.toFile())</span>
-<span class="fc" id="L42">                    .call();</span>
-<span class="fc" id="L43">            return new CommitCheckout(clone, scratchDir);</span>
-<span class="nc" id="L44">        } catch (Exception e) {</span>
-<span class="nc" id="L45">            throw new IllegalStateException(&quot;failed to create scratch clone of &quot; + targetRepoPath, e);</span>
+<span class="fc" id="L39">            Path scratchDir = Files.createTempDirectory(scratchParentDir, &quot;blastradius-checkout-&quot;);</span>
+<span class="fc" id="L40">            Git clone = Git.cloneRepository()</span>
+<span class="fc" id="L41">                    .setURI(targetRepoPath.toUri().toString())</span>
+<span class="fc" id="L42">                    .setDirectory(scratchDir.toFile())</span>
+<span class="fc" id="L43">                    .call();</span>
+<span class="fc" id="L44">            return new CommitCheckout(clone, scratchDir);</span>
+<span class="nc" id="L45">        } catch (Exception e) {</span>
+<span class="nc" id="L46">            throw new IllegalStateException(&quot;failed to create scratch clone of &quot; + targetRepoPath, e);</span>
         }
     }
 
@@ -67,34 +68,59 @@ public final class CommitCheckout implements AutoCloseable {
      */
     public Path checkoutCommit(String commitSha) {
         try {
-<span class="fc" id="L70">            scratchGit.checkout().setName(commitSha).call();</span>
-<span class="fc" id="L71">            deleteAllTargetDirectories(scratchDir);</span>
-<span class="fc" id="L72">            return scratchDir;</span>
-<span class="nc" id="L73">        } catch (Exception e) {</span>
-<span class="nc" id="L74">            throw new IllegalStateException(&quot;failed to checkout commit &quot; + commitSha, e);</span>
+<span class="fc" id="L71">            scratchGit.checkout().setName(commitSha).call();</span>
+<span class="fc" id="L72">            deleteAllTargetDirectories(scratchDir);</span>
+<span class="fc" id="L73">            return scratchDir;</span>
+<span class="nc" id="L74">        } catch (Exception e) {</span>
+<span class="nc" id="L75">            throw new IllegalStateException(&quot;failed to checkout commit &quot; + commitSha, e);</span>
+        }
+    }
+
+    /** Returns the disposable clone's worktree, never the caller's target repository. */
+    public Path workTree() {
+<span class="fc" id="L81">        return scratchDir;</span>
+    }
+
+    /**
+     * Writes one tracked file in this disposable clone and commits it on its current detached
+     * HEAD. The returned SHA therefore names a real Git child of the commit most recently passed
+     * to {@link #checkoutCommit(String)}.
+     */
+    public String commitFile(Path relativePath, String contents, String message) {
+<span class="fc" id="L90">        Path normalized = relativePath.normalize();</span>
+<span class="pc bpc" id="L91" title="2 of 4 branches missed.">        if (normalized.isAbsolute() || normalized.startsWith(&quot;..&quot;)) {</span>
+<span class="nc" id="L92">            throw new IllegalArgumentException(&quot;path must stay inside the scratch clone: &quot; + relativePath);</span>
+        }
+        try {
+<span class="fc" id="L95">            Files.writeString(scratchDir.resolve(normalized), contents);</span>
+<span class="fc" id="L96">            scratchGit.add().addFilepattern(normalized.toString().replace('\\', '/')).call();</span>
+<span class="fc" id="L97">            PersonIdent identity = new PersonIdent(&quot;Blastradius Validator&quot;, &quot;validator@blastradius.invalid&quot;);</span>
+<span class="fc" id="L98">            return scratchGit.commit().setMessage(message).setAuthor(identity).setCommitter(identity).call().getId().name();</span>
+<span class="nc" id="L99">        } catch (Exception e) {</span>
+<span class="nc" id="L100">            throw new IllegalStateException(&quot;failed to commit synthetic change to &quot; + relativePath, e);</span>
         }
     }
 
     private static void deleteAllTargetDirectories(Path scratchDir) {
         try {
-<span class="fc" id="L80">            Files.walkFileTree(scratchDir, new SimpleFileVisitor&lt;&gt;() {</span>
+<span class="fc" id="L106">            Files.walkFileTree(scratchDir, new SimpleFileVisitor&lt;&gt;() {</span>
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-<span class="fc" id="L83">                    String name = dir.getFileName().toString();</span>
-<span class="fc bfc" id="L84" title="All 2 branches covered.">                    if (&quot;.git&quot;.equals(name)) {</span>
-<span class="fc" id="L85">                        return FileVisitResult.SKIP_SUBTREE;</span>
+<span class="fc" id="L109">                    String name = dir.getFileName().toString();</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">                    if (&quot;.git&quot;.equals(name)) {</span>
+<span class="fc" id="L111">                        return FileVisitResult.SKIP_SUBTREE;</span>
                     }
-<span class="fc bfc" id="L87" title="All 2 branches covered.">                    if (&quot;target&quot;.equals(name)) {</span>
-<span class="fc" id="L88">                        deleteRecursively(dir);</span>
-<span class="fc" id="L89">                        return FileVisitResult.SKIP_SUBTREE;</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">                    if (&quot;target&quot;.equals(name)) {</span>
+<span class="fc" id="L114">                        deleteRecursively(dir);</span>
+<span class="fc" id="L115">                        return FileVisitResult.SKIP_SUBTREE;</span>
                     }
-<span class="fc" id="L91">                    return FileVisitResult.CONTINUE;</span>
+<span class="fc" id="L117">                    return FileVisitResult.CONTINUE;</span>
                 }
             });
-<span class="nc" id="L94">        } catch (IOException e) {</span>
-<span class="nc" id="L95">            throw new IllegalStateException(&quot;failed to scan for stale target directories under &quot; + scratchDir, e);</span>
-<span class="fc" id="L96">        }</span>
-<span class="fc" id="L97">    }</span>
+<span class="nc" id="L120">        } catch (IOException e) {</span>
+<span class="nc" id="L121">            throw new IllegalStateException(&quot;failed to scan for stale target directories under &quot; + scratchDir, e);</span>
+<span class="fc" id="L122">        }</span>
+<span class="fc" id="L123">    }</span>
 
     /**
      * The isolated local Maven repository ({@code -Dmaven.repo.local}) to use for builds on
@@ -115,33 +141,33 @@ public final class CommitCheckout implements AutoCloseable {
      * from the same method rather than re-encoding the suffix.
      */
     public static Path isolatedMavenRepoFor(Path workDir) {
-<span class="fc" id="L118">        Path abs = workDir.toAbsolutePath().normalize();</span>
-<span class="fc" id="L119">        return abs.resolveSibling(abs.getFileName() + &quot;-m2&quot;);</span>
+<span class="fc" id="L144">        Path abs = workDir.toAbsolutePath().normalize();</span>
+<span class="fc" id="L145">        return abs.resolveSibling(abs.getFileName() + &quot;-m2&quot;);</span>
     }
 
     /** Closes the scratch clone and deletes its directory and its isolated Maven repo, if any. */
     @Override
     public void close() {
-<span class="fc" id="L125">        scratchGit.close();</span>
-<span class="fc" id="L126">        deleteRecursively(scratchDir);</span>
-<span class="fc" id="L127">        deleteRecursively(isolatedMavenRepoFor(scratchDir));</span>
-<span class="fc" id="L128">    }</span>
+<span class="fc" id="L151">        scratchGit.close();</span>
+<span class="fc" id="L152">        deleteRecursively(scratchDir);</span>
+<span class="fc" id="L153">        deleteRecursively(isolatedMavenRepoFor(scratchDir));</span>
+<span class="fc" id="L154">    }</span>
 
     private static void deleteRecursively(Path dir) {
-<span class="fc bfc" id="L131" title="All 2 branches covered.">        if (Files.notExists(dir)) {</span>
-<span class="fc" id="L132">            return;</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">        if (Files.notExists(dir)) {</span>
+<span class="fc" id="L158">            return;</span>
         }
-<span class="fc" id="L134">        try (var stream = Files.walk(dir)) {</span>
-<span class="fc" id="L135">            stream.sorted(Comparator.reverseOrder()).forEach(p -&gt; {</span>
+<span class="fc" id="L160">        try (var stream = Files.walk(dir)) {</span>
+<span class="fc" id="L161">            stream.sorted(Comparator.reverseOrder()).forEach(p -&gt; {</span>
                 try {
-<span class="fc" id="L137">                    Files.delete(p);</span>
-<span class="nc" id="L138">                } catch (IOException ignored) {</span>
+<span class="fc" id="L163">                    Files.delete(p);</span>
+<span class="nc" id="L164">                } catch (IOException ignored) {</span>
                     // best-effort scratch cleanup
-<span class="fc" id="L140">                }</span>
-<span class="fc" id="L141">            });</span>
-<span class="nc" id="L142">        } catch (IOException ignored) {</span>
+<span class="fc" id="L166">                }</span>
+<span class="fc" id="L167">            });</span>
+<span class="nc" id="L168">        } catch (IOException ignored) {</span>
             // best-effort scratch cleanup
-<span class="fc" id="L144">        }</span>
-<span class="fc" id="L145">    }</span>
+<span class="fc" id="L170">        }</span>
+<span class="fc" id="L171">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>PairSelectionAnalyzer.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.selection</a> &gt; <span class="el_source">PairSelectionAnalyzer.java</span></div><h1>PairSelectionAnalyzer.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.selection;
+
+import io.github.baokhang83.blastradius.core.git.ChangedFile;
+import io.github.baokhang83.blastradius.core.reactor.ReactorScope;
+import io.github.baokhang83.blastradius.core.selection.NewOrModifiedTestSelector;
+import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
+import io.github.baokhang83.blastradius.core.selection.SelectionEngine;
+import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import io.github.baokhang83.blastradius.validator.build.GroundTruthResult;
+import io.github.baokhang83.blastradius.validator.build.Outcome;
+import io.github.baokhang83.blastradius.validator.git.CommitPair;
+import io.github.baokhang83.blastradius.validator.verdict.FlakyFailure;
+import io.github.baokhang83.blastradius.validator.verdict.WouldMissComparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * The selection-and-comparison half of validator replay, shared by historical and synthetic
+ * mutation edges once both sides have established full-suite outcomes.
+ */
+<span class="fc" id="L24">public final class PairSelectionAnalyzer {</span>
+
+<span class="fc" id="L26">    private final SelectionEngine selectionEngine = new SelectionEngine();</span>
+<span class="fc" id="L27">    private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();</span>
+<span class="fc" id="L28">    private final WouldMissComparator wouldMissComparator = new WouldMissComparator();</span>
+
+    public PairSelectionResult analyze(
+            CommitPair edge,
+            DependencyRecordSet baselineDependencies,
+            List&lt;GroundTruthResult&gt; baselineOutcomes,
+            List&lt;GroundTruthResult&gt; headOutcomes,
+            ReactorScope reactorScope) {
+<span class="fc" id="L36">        Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependencies = baselineDependencies.tests().entrySet().stream()</span>
+<span class="fc" id="L37">                .collect(Collectors.toMap(</span>
+<span class="fc" id="L38">                        entry -&gt; entry.getKey().baselineKey(),</span>
+<span class="fc" id="L39">                        entry -&gt; entry.getValue().keySet(),</span>
+                        (left, right) -&gt; {
+<span class="nc" id="L41">                            Set&lt;String&gt; union = new java.util.HashSet&lt;&gt;(left);</span>
+<span class="nc" id="L42">                            union.addAll(right);</span>
+<span class="nc" id="L43">                            return union;</span>
+                        }));
+<span class="fc" id="L45">        Set&lt;String&gt; changedClassNames = edge.changedFiles().stream()</span>
+<span class="fc" id="L46">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
+<span class="fc" id="L47">                .collect(Collectors.toUnmodifiableSet());</span>
+<span class="fc" id="L48">        Set&lt;TestIdentity&gt; allTests = headOutcomes.stream()</span>
+<span class="fc" id="L49">                .map(GroundTruthResult::test)</span>
+<span class="fc" id="L50">                .collect(Collectors.toSet());</span>
+<span class="fc" id="L51">        Set&lt;TestIdentity&gt; newOrModifiedTests = allTests.stream()</span>
+<span class="fc" id="L52">                .filter(test -&gt; newOrModifiedTestSelector.appliesTo(</span>
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">                        test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))</span>
+<span class="fc" id="L54">                .collect(Collectors.toSet());</span>
+<span class="fc" id="L55">        List&lt;SelectionDecision&gt; decisions = selectionEngine.selectAll(</span>
+<span class="fc" id="L56">                allTests, testDependencies, newOrModifiedTests, edge.changedFiles(),</span>
+<span class="fc" id="L57">                baselineDependencies.ambientDependencies(), reactorScope);</span>
+<span class="fc" id="L58">        List&lt;FlakyFailure&gt; flakyFailures = headOutcomes.stream()</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">                .filter(result -&gt; result.outcome() == Outcome.FLAKY)</span>
+<span class="pc" id="L60">                .map(result -&gt; new FlakyFailure(edge, result.test()))</span>
+<span class="fc" id="L61">                .toList();</span>
+<span class="fc" id="L62">        return new PairSelectionResult(</span>
+<span class="fc" id="L63">                decisions, wouldMissComparator.compare(edge, decisions, headOutcomes, baselineOutcomes), flakyFailures);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

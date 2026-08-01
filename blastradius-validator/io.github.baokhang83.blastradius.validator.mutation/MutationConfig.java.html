@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>MutationConfig.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.mutation</a> &gt; <span class="el_source">MutationConfig.java</span></div><h1>MutationConfig.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.mutation;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Objects;
+
+/** Operator-supplied bounds for one opt-in mutation soundness run. */
+public record MutationConfig(
+        Path projectPath,
+        Path reportOutputPath,
+        String classFilter,
+        int maxMutationClasses,
+        int maxMutations,
+        long timeLimitMinutes,
+        Integer mavenParallelThreads,
+        long buildTimeoutMinutes,
+        boolean skipBuildExtras) {
+
+    public static final int DEFAULT_MAX_CLASSES = 10;
+    public static final int DEFAULT_MAX_MUTATIONS = 20;
+    public static final long DEFAULT_TIME_LIMIT_MINUTES = 60;
+    public static final long DEFAULT_BUILD_TIMEOUT_MINUTES = 5;
+
+    public MutationConfig(Path projectPath, Path reportOutputPath) {
+<span class="nc" id="L25">        this(projectPath, reportOutputPath, null, DEFAULT_MAX_CLASSES, DEFAULT_MAX_MUTATIONS,</span>
+                DEFAULT_TIME_LIMIT_MINUTES, null, DEFAULT_BUILD_TIMEOUT_MINUTES, false);
+<span class="nc" id="L27">    }</span>
+
+<span class="fc" id="L29">    public MutationConfig {</span>
+<span class="fc" id="L30">        Objects.requireNonNull(projectPath, &quot;projectPath&quot;);</span>
+<span class="fc" id="L31">        Objects.requireNonNull(reportOutputPath, &quot;reportOutputPath&quot;);</span>
+<span class="pc bpc" id="L32" title="2 of 4 branches missed.">        if (!Files.isDirectory(projectPath) || !Files.isDirectory(projectPath.resolve(&quot;.git&quot;))) {</span>
+<span class="nc" id="L33">            throw new IllegalArgumentException(&quot;projectPath must be a local git repository: &quot; + projectPath);</span>
+        }
+<span class="pc bpc" id="L35" title="1 of 2 branches missed.">        if (Files.isDirectory(reportOutputPath)) {</span>
+<span class="nc" id="L36">            throw new IllegalArgumentException(&quot;reportOutputPath must be a file path, not a directory: &quot; + reportOutputPath);</span>
+        }
+<span class="pc bpc" id="L38" title="4 of 8 branches missed.">        if (maxMutationClasses &lt; 1 || maxMutations &lt; 1 || timeLimitMinutes &lt; 1 || buildTimeoutMinutes &lt; 1) {</span>
+<span class="nc" id="L39">            throw new IllegalArgumentException(&quot;mutation limits must be positive&quot;);</span>
+        }
+<span class="pc bpc" id="L41" title="3 of 4 branches missed.">        if (mavenParallelThreads != null &amp;&amp; mavenParallelThreads &lt; 1) {</span>
+<span class="nc" id="L42">            throw new IllegalArgumentException(&quot;mavenParallelThreads must be positive&quot;);</span>
+        }
+<span class="fc" id="L44">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

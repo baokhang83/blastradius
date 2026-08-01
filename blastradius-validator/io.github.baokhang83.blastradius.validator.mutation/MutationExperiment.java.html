@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>MutationExperiment.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.mutation</a> &gt; <span class="el_source">MutationExperiment.java</span></div><h1>MutationExperiment.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.mutation;
+
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import java.util.List;
+import java.util.Objects;
+
+/** The auditable outcome of one real synthetic baseline-to-mutant Git edge. */
+public record MutationExperiment(
+        MutationCandidate mutation,
+        String mutantCommit,
+        MutationStatus status,
+        String buildFailure,
+        List&lt;TestIdentity&gt; killingTests,
+        List&lt;TestIdentity&gt; selectedKillingTests,
+        List&lt;TestIdentity&gt; skippedKillingTests,
+        List&lt;TestIdentity&gt; flakyTests) {
+
+<span class="fc" id="L18">    public MutationExperiment {</span>
+<span class="fc" id="L19">        Objects.requireNonNull(mutation, &quot;mutation&quot;);</span>
+<span class="fc" id="L20">        Objects.requireNonNull(mutantCommit, &quot;mutantCommit&quot;);</span>
+<span class="fc" id="L21">        Objects.requireNonNull(status, &quot;status&quot;);</span>
+<span class="fc" id="L22">        Objects.requireNonNull(killingTests, &quot;killingTests&quot;);</span>
+<span class="fc" id="L23">        Objects.requireNonNull(selectedKillingTests, &quot;selectedKillingTests&quot;);</span>
+<span class="fc" id="L24">        Objects.requireNonNull(skippedKillingTests, &quot;skippedKillingTests&quot;);</span>
+<span class="fc" id="L25">        Objects.requireNonNull(flakyTests, &quot;flakyTests&quot;);</span>
+<span class="fc" id="L26">        killingTests = List.copyOf(killingTests);</span>
+<span class="fc" id="L27">        selectedKillingTests = List.copyOf(selectedKillingTests);</span>
+<span class="fc" id="L28">        skippedKillingTests = List.copyOf(skippedKillingTests);</span>
+<span class="fc" id="L29">        flakyTests = List.copyOf(flakyTests);</span>
+<span class="pc bpc" id="L30" title="2 of 6 branches missed.">        if (status == MutationStatus.UNBUILDABLE &amp;&amp; (buildFailure == null || buildFailure.isBlank())) {</span>
+<span class="nc" id="L31">            throw new IllegalArgumentException(&quot;unbuildable mutant needs a buildFailure&quot;);</span>
+        }
+<span class="pc bpc" id="L33" title="1 of 4 branches missed.">        if (status != MutationStatus.UNBUILDABLE &amp;&amp; buildFailure != null) {</span>
+<span class="nc" id="L34">            throw new IllegalArgumentException(&quot;buildFailure belongs only to an unbuildable mutant&quot;);</span>
+        }
+<span class="pc bpc" id="L36" title="1 of 4 branches missed.">        if (status == MutationStatus.KILLED &amp;&amp; killingTests.isEmpty()) {</span>
+<span class="nc" id="L37">            throw new IllegalArgumentException(&quot;a killed mutant needs a confirmed killing test&quot;);</span>
+        }
+<span class="pc bpc" id="L39" title="1 of 2 branches missed.">        if (selectedKillingTests.size() + skippedKillingTests.size() != killingTests.size()) {</span>
+<span class="nc" id="L40">            throw new IllegalArgumentException(&quot;every killing test must be selected or skipped&quot;);</span>
+        }
+<span class="fc" id="L42">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
