@@ -1,5 +1,6 @@
 package io.github.baokhang83.blastradius.validator.cli;
 
+import io.github.baokhang83.blastradius.validator.git.HistoryMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
@@ -43,7 +44,8 @@ import java.util.Objects;
  */
 public record RunConfig(
         Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
-        boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes, boolean skipBuildExtras) {
+        boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes, boolean skipBuildExtras,
+        HistoryMode historyMode) {
 
     /** Default build timeout in minutes when the operator doesn't override it. */
     public static final long DEFAULT_BUILD_TIMEOUT_MINUTES = 5;
@@ -78,6 +80,14 @@ public record RunConfig(
                 buildConcurrency, buildTimeoutMinutes, false);
     }
 
+    /** Preserves the established configuration API while defaulting to broad graph coverage. */
+    public RunConfig(
+            Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
+            boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes, boolean skipBuildExtras) {
+        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,
+                buildConcurrency, buildTimeoutMinutes, skipBuildExtras, HistoryMode.ALL_PARENTS);
+    }
+
     public RunConfig {
         Objects.requireNonNull(projectPath, "projectPath");
         if (!Files.isDirectory(projectPath)) {
@@ -90,6 +100,7 @@ public record RunConfig(
             throw new IllegalArgumentException("commitWindowSize must be positive, got: " + commitWindowSize);
         }
         Objects.requireNonNull(reportOutputPath, "reportOutputPath");
+        Objects.requireNonNull(historyMode, "historyMode");
         if (Files.isDirectory(reportOutputPath)) {
             throw new IllegalArgumentException("reportOutputPath must be a file path, not a directory: " + reportOutputPath);
         }

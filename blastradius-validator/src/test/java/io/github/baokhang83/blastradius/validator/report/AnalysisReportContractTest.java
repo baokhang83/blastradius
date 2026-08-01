@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.baokhang83.blastradius.validator.git.CommitPair;
+import io.github.baokhang83.blastradius.validator.git.HistoryMode;
 import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.validator.verdict.Verdict;
@@ -84,6 +85,24 @@ class AnalysisReportContractTest {
         AnalysisReport parsed = roundTrip(original);
 
         assertEquals(original, parsed);
+    }
+
+    @Test
+    void reportCarriesTheHistoryModeAndFailureCoverageDenominator() throws Exception {
+        AnalysisReport report = new AnalysisReport(
+                Verdict.PASS,
+                HistoryMode.FIRST_PARENT,
+                List.of(),
+                List.of(),
+                new FailureCoverage(2, 3, 3, 0),
+                List.of(),
+                List.of(),
+                aggregator.aggregate(List.of()));
+
+        AnalysisReport parsed = roundTrip(report);
+
+        assertEquals(HistoryMode.FIRST_PARENT, parsed.historyMode());
+        assertEquals(new FailureCoverage(2, 3, 3, 0), parsed.failureCoverage());
     }
 
     private AnalysisReport roundTrip(AnalysisReport report) throws Exception {
