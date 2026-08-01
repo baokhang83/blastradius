@@ -29,7 +29,8 @@ being compared to new results.
 | <h4><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | [`ce3719d`](https://github.com/apache/shenyu/commit/ce3719d4d68cb51df0704a154fb1da8b2a1778ed) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | 300 (0) | 0 | 233,603 / 747,680 | **68.8%** |
 | <h4><a href="https://github.com/apache/commons-lang"><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/>commons-lang</a></h4>  | [`13c9949`](https://github.com/apache/commons-lang/commit/13c99492bf695b8ca378d0976919fcea10010c7f) → [`8f8f3b2`](https://github.com/apache/commons-lang/commit/8f8f3b26e8cb81e0879fc676068db1212652dcaf) | 300 (0) | 0 | 9,297,241 / 23,610,943 | **60.6%** |
 | <h4><a href="https://github.com/jhy/jsoup">jsoup</a></h4> | [`e10e04d`](https://github.com/jhy/jsoup/commit/e10e04da6c7d93daf5f74d449594cba7ea3683e3) → [`9d2241f`](https://github.com/jhy/jsoup/commit/9d2241ff467d03accbf902a650adc60513bf5c11) | 300 (0) | 0 | 304,060 / 536,850 | **43.4%** |
-|<img width=400 />|  |  |  |  | **57.6%** |
+| <h4><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/httpcomponents-client">httpclient</a></h4> | [`d84079d`](https://github.com/apache/httpcomponents-client/commit/d84079d9fc1c252f4262d0246a0f012ac22f811e) → [`3b4ff29`](https://github.com/apache/httpcomponents-client/commit/3b4ff29208b307f141a1989cbf038941d445a72e) | 300 (0) | **13** | 282,351 / 670,643 | **57.9%** |
+|<img width=400 />|  |  |  |  | **57.7%** |
 
 These historical windows are not a universal guarantee. Current validator reports identify their
 `ALL_PARENTS` or `FIRST_PARENT` replay mode and make the observed-failure denominator explicit;
