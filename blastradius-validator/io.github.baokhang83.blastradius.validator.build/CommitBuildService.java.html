@@ -38,11 +38,22 @@ import java.util.concurrent.Future;
 public final class CommitBuildService {
 
     /**
+     * How many extra attempts a build gets after an initial failure that looks like a transient
+     * network blip to a Maven repository ({@link TransientBuildFailureDetector}) — e.g. the WSL
+     * host's network dropping mid-download. A genuine compile or dependency error fails the same
+     * way every time, so it is excluded on the first attempt rather than retried.
+     */
+    private static final int MAX_TRANSIENT_RETRIES = 3;
+
+    /** Base delay before a retry; doubled each attempt so a longer outage still recovers. */
+    private static final long RETRY_BACKOFF_MILLIS = 5_000;
+
+    /**
      * Identifies a single build the window needs: a commit, built either with the tracking
      * agent attached (to record dependencies) or without it (an independent ground-truth
      * build). Its {@code equals}/{@code hashCode} are what dedupe and memoize builds.
      */
-<span class="fc" id="L45">    public record BuildKey(String sha, boolean agentAttached) {}</span>
+<span class="fc" id="L56">    public record BuildKey(String sha, boolean agentAttached) {}</span>
 
     /** Performs one commit's build on a borrowed, already-owned checkout. */
     @FunctionalInterface
@@ -55,16 +66,25 @@ public final class CommitBuildService {
     private final ProgressLogger progress;
     private final BuildCache cache;
     private final CommitBuilder builder;
+    private final long retryBackoffMillis;
 
     public CommitBuildService(
             CheckoutPool pool, ExecutorService executor, ProgressLogger progress,
-<span class="fc" id="L61">            BuildCache cache, CommitBuilder builder) {</span>
-<span class="fc" id="L62">        this.pool = pool;</span>
-<span class="fc" id="L63">        this.executor = executor;</span>
-<span class="fc" id="L64">        this.progress = progress;</span>
-<span class="fc" id="L65">        this.cache = cache;</span>
-<span class="fc" id="L66">        this.builder = builder;</span>
-<span class="fc" id="L67">    }</span>
+            BuildCache cache, CommitBuilder builder) {
+<span class="fc" id="L74">        this(pool, executor, progress, cache, builder, RETRY_BACKOFF_MILLIS);</span>
+<span class="fc" id="L75">    }</span>
+
+    /** Exposes the retry backoff so tests can shrink it instead of waiting on real sleeps. */
+    CommitBuildService(
+            CheckoutPool pool, ExecutorService executor, ProgressLogger progress,
+<span class="fc" id="L80">            BuildCache cache, CommitBuilder builder, long retryBackoffMillis) {</span>
+<span class="fc" id="L81">        this.pool = pool;</span>
+<span class="fc" id="L82">        this.executor = executor;</span>
+<span class="fc" id="L83">        this.progress = progress;</span>
+<span class="fc" id="L84">        this.cache = cache;</span>
+<span class="fc" id="L85">        this.builder = builder;</span>
+<span class="fc" id="L86">        this.retryBackoffMillis = retryBackoffMillis;</span>
+<span class="fc" id="L87">    }</span>
 
     /**
      * Builds every distinct key concurrently and returns a map from key to its lightweight
@@ -75,59 +95,68 @@ public final class CommitBuildService {
     public Map&lt;BuildKey, BuildOutcome&gt; buildAll(List&lt;BuildKey&gt; keys) throws InterruptedException {
         // LinkedHashMap keyed by BuildKey both deduplicates (a repeated key maps to the same
         // future) and preserves the caller's ordering for deterministic submission.
-<span class="fc" id="L78">        Map&lt;BuildKey, Future&lt;BuildOutcome&gt;&gt; futures = new LinkedHashMap&lt;&gt;();</span>
-<span class="fc bfc" id="L79" title="All 2 branches covered.">        for (BuildKey key : keys) {</span>
-<span class="fc" id="L80">            futures.computeIfAbsent(key, k -&gt; executor.submit(() -&gt; buildOne(k)));</span>
-<span class="fc" id="L81">        }</span>
+<span class="fc" id="L98">        Map&lt;BuildKey, Future&lt;BuildOutcome&gt;&gt; futures = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">        for (BuildKey key : keys) {</span>
+<span class="fc" id="L100">            futures.computeIfAbsent(key, k -&gt; executor.submit(() -&gt; buildOne(k)));</span>
+<span class="fc" id="L101">        }</span>
 
-<span class="fc" id="L83">        Map&lt;BuildKey, BuildOutcome&gt; results = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L103">        Map&lt;BuildKey, BuildOutcome&gt; results = new ConcurrentHashMap&lt;&gt;();</span>
         try {
-<span class="fc bfc" id="L85" title="All 2 branches covered.">            for (Map.Entry&lt;BuildKey, Future&lt;BuildOutcome&gt;&gt; entry : futures.entrySet()) {</span>
-<span class="fc" id="L86">                results.put(entry.getKey(), entry.getValue().get());</span>
-<span class="fc" id="L87">            }</span>
-<span class="nc" id="L88">        } catch (ExecutionException e) {</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">            for (Map.Entry&lt;BuildKey, Future&lt;BuildOutcome&gt;&gt; entry : futures.entrySet()) {</span>
+<span class="fc" id="L106">                results.put(entry.getKey(), entry.getValue().get());</span>
+<span class="fc" id="L107">            }</span>
+<span class="nc" id="L108">        } catch (ExecutionException e) {</span>
             // buildOne never throws — it converts every builder failure into a failed
             // BuildOutcome — so an ExecutionException here can only be an unchecked error in
             // the orchestration itself, which should abort the phase rather than be masked.
-<span class="nc" id="L92">            throw new IllegalStateException(&quot;unexpected failure while building commits&quot;, e.getCause());</span>
-<span class="fc" id="L93">        }</span>
-<span class="fc" id="L94">        return results;</span>
+<span class="nc" id="L112">            throw new IllegalStateException(&quot;unexpected failure while building commits&quot;, e.getCause());</span>
+<span class="fc" id="L113">        }</span>
+<span class="fc" id="L114">        return results;</span>
     }
 
     private BuildOutcome buildOne(BuildKey key) throws InterruptedException {
-<span class="fc bfc" id="L98" title="All 2 branches covered.">        String role = key.agentAttached() ? &quot;with agent&quot; : &quot;no agent&quot;;</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">        String role = key.agentAttached() ? &quot;with agent&quot; : &quot;no agent&quot;;</span>
         // Resume: a build already cached from a prior run is reused without borrowing a clone
         // or running mvn — the &quot;if a pair result is found, skip it&quot; path.
-<span class="fc bfc" id="L101" title="All 2 branches covered.">        if (cache.contains(key)) {</span>
-<span class="fc" id="L102">            progress.buildCached(key.sha(), role);</span>
-<span class="fc" id="L103">            return BuildOutcome.ok();</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (cache.contains(key)) {</span>
+<span class="fc" id="L122">            progress.buildCached(key.sha(), role);</span>
+<span class="fc" id="L123">            return BuildOutcome.ok();</span>
         }
-<span class="fc" id="L105">        progress.buildStarted(key.sha(), role);</span>
-<span class="fc" id="L106">        long start = System.currentTimeMillis();</span>
-<span class="fc" id="L107">        CommitCheckout checkout = pool.borrow();</span>
+<span class="fc" id="L125">        progress.buildStarted(key.sha(), role);</span>
+<span class="fc" id="L126">        long start = System.currentTimeMillis();</span>
+<span class="fc" id="L127">        CommitCheckout checkout = pool.borrow();</span>
         try {
-<span class="fc" id="L109">            CommitBuild build = builder.build(checkout, key.sha(), key.agentAttached());</span>
-<span class="fc" id="L110">            long millis = System.currentTimeMillis() - start;</span>
-<span class="fc bfc" id="L111" title="All 2 branches covered.">            if (build.failed()) {</span>
-                // Failures are intentionally not cached (transient, cheap to recompute); the
-                // referencing pair is excluded, and a re-run rebuilds this commit.
-<span class="fc" id="L114">                progress.buildFailed(key.sha(), role, build.failureReason());</span>
-<span class="fc" id="L115">                return BuildOutcome.failed(build.failureReason());</span>
+<span class="fc" id="L129">            CommitBuild build = builder.build(checkout, key.sha(), key.agentAttached());</span>
+<span class="fc" id="L130">            for (int attempt = 1;</span>
+<span class="fc bfc" id="L131" title="All 4 branches covered.">                    build.failed() &amp;&amp; attempt &lt;= MAX_TRANSIENT_RETRIES</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">                            &amp;&amp; TransientBuildFailureDetector.isTransient(build.failureReason());</span>
+<span class="fc" id="L133">                    attempt++) {</span>
+<span class="fc" id="L134">                progress.buildRetrying(key.sha(), role, attempt, MAX_TRANSIENT_RETRIES, build.failureReason());</span>
+<span class="fc" id="L135">                Thread.sleep(retryBackoffMillis * attempt);</span>
+<span class="fc" id="L136">                build = builder.build(checkout, key.sha(), key.agentAttached());</span>
+            }
+<span class="fc" id="L138">            long millis = System.currentTimeMillis() - start;</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">            if (build.failed()) {</span>
+                // Either not a transient failure, or the retries above were exhausted. Not
+                // cached (cheap to recompute); the referencing pair is excluded, and a re-run
+                // rebuilds this commit.
+<span class="fc" id="L143">                progress.buildFailed(key.sha(), role, build.failureReason());</span>
+<span class="fc" id="L144">                return BuildOutcome.failed(build.failureReason());</span>
             }
             // Persist the heavy payload to disk, then let it become garbage: phase 1 keeps only
             // the lightweight outcome, so heap no longer grows with the window.
-<span class="fc" id="L119">            cache.store(key, build);</span>
-<span class="fc" id="L120">            progress.buildFinished(key.sha(), role, millis);</span>
-<span class="fc" id="L121">            return BuildOutcome.ok();</span>
-<span class="fc" id="L122">        } catch (RuntimeException e) {</span>
+<span class="fc" id="L148">            cache.store(key, build);</span>
+<span class="fc" id="L149">            progress.buildFinished(key.sha(), role, millis);</span>
+<span class="fc" id="L150">            return BuildOutcome.ok();</span>
+<span class="fc" id="L151">        } catch (RuntimeException e) {</span>
             // A builder that throws (e.g. an I/O error materializing the checkout) must not
             // lose the job or crash the phase: record it as a failed outcome so the referencing
             // pair is excluded, and let every other commit finish (FR-009).
-<span class="fc" id="L126">            String reason = &quot;commit &quot; + key.sha() + &quot; build error: &quot; + e.getMessage();</span>
-<span class="fc" id="L127">            progress.buildFailed(key.sha(), role, reason);</span>
-<span class="fc" id="L128">            return BuildOutcome.failed(reason);</span>
+<span class="fc" id="L155">            String reason = &quot;commit &quot; + key.sha() + &quot; build error: &quot; + e.getMessage();</span>
+<span class="fc" id="L156">            progress.buildFailed(key.sha(), role, reason);</span>
+<span class="fc" id="L157">            return BuildOutcome.failed(reason);</span>
         } finally {
-<span class="fc" id="L130">            pool.release(checkout);</span>
+<span class="fc" id="L159">            pool.release(checkout);</span>
         }
     }
 }
