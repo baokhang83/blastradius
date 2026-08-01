@@ -6,12 +6,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 
-/** Writes the {@link AnalysisReport} to disk as indented JSON (FR-010). */
+/** Writes a validator report to disk as indented JSON. */
 public final class ReportWriter {
 
     private final ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
-    public void write(Path outputFile, AnalysisReport report) {
+    public void write(Path outputFile, Object report) {
         try {
             mapper.writeValue(outputFile.toFile(), report);
         } catch (IOException e) {

@@ -37,6 +37,30 @@ These historical windows are not a universal guarantee. Current validator report
 zero would-miss cases without that denominator are not a soundness result. Full suites remain the
 recommended daily safety net.
 
+## Controlled mutation validation
+
+Historical replay can contain few newly confirmed failures. The validator also offers an opt-in,
+bounded mutation mode that creates one synthetic, compiling child commit in a disposable clone,
+runs the full suite, and checks that every test which demonstrably kills the mutation was selected
+for that real `B → M` edge. It never changes the project working tree you point it at.
+
+```sh
+java -jar blastradius-validator/target/blastradius-validator-0.3.2.jar mutate \
+  --project-path ../your-maven-project \
+  --report-out mutation-report.json \
+  --summary-out mutation-summary.txt \
+  --max-mutation-classes 10 \
+  --max-mutations 10 \
+  --mutation-time-limit-minutes 60
+```
+
+The first deterministic corpus inverts boolean literals and equality or relational operators in
+`src/main/java`. A killing test must pass on the baseline, fail on the mutant, and remain failed
+on confirmation. Unbuildable mutants, baseline failures, and flakes are reported separately and
+do not become soundness failures. This is sampled fault evidence, not a claim that all real
+changes or every possible defect are covered. Use the optional `--mutation-class <FQCN>` only
+when you want to focus the bounded run on one production class.
+
 ## How it works
 
 1. **Track.** On a build of your base branch, a `java.lang.instrument` agent watches every
