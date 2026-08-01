@@ -3,6 +3,7 @@ package io.github.baokhang83.blastradius.validator.report;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.baokhang83.blastradius.validator.git.CommitPair;
+import io.github.baokhang83.blastradius.validator.git.HistoryMode;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.validator.verdict.Verdict;
 import io.github.baokhang83.blastradius.validator.verdict.WouldMissCase;
@@ -63,5 +64,26 @@ class TextSummaryRendererTest {
         assertTrue(text.contains("com.example.BTest#b"));
         assertTrue(text.contains("com.example.CTest#c"));
         assertTrue(text.contains("Would-miss cases: 3"));
+    }
+
+    @Test
+    void rendersReplayModeAndFailureCoverageBeforeWouldMissDetails() {
+        AnalysisReport report = new AnalysisReport(
+                Verdict.PASS,
+                HistoryMode.ALL_PARENTS,
+                List.of(),
+                List.of(),
+                new FailureCoverage(2, 3, 2, 1),
+                List.of(),
+                List.of(),
+                new SavingsSummary(3, 2, 1.0 / 3.0, 1, 0, 1, 0));
+
+        String text = renderer.render(report);
+
+        assertTrue(text.contains("History mode: ALL_PARENTS"));
+        assertTrue(text.contains("Pairs with newly confirmed failures: 2"));
+        assertTrue(text.contains("Newly confirmed failing tests: 3"));
+        assertTrue(text.contains("Newly confirmed failures selected: 2"));
+        assertTrue(text.contains("Newly confirmed failures skipped: 1"));
     }
 }

@@ -128,6 +128,11 @@ class EndToEndVerdictIntegrationTest {
         assertEquals(1, exitCode, "expected FAIL verdict (exit code 1)");
         JsonNode report = new ObjectMapper().readTree(reportFile.toFile());
         assertEquals("FAIL", report.get("verdict").asText());
+        assertEquals("ALL_PARENTS", report.get("historyMode").asText());
+        assertEquals(1, report.get("failureCoverage").get("pairsWithNewlyConfirmedFailures").asInt());
+        assertEquals(1, report.get("failureCoverage").get("newlyConfirmedFailingTests").asInt());
+        assertEquals(0, report.get("failureCoverage").get("selectedNewlyConfirmedFailures").asInt());
+        assertEquals(1, report.get("failureCoverage").get("skippedNewlyConfirmedFailures").asInt());
         assertEquals(1, report.get("wouldMissCases").size());
         assertEquals("com.example.GapTest", report.get("wouldMissCases").get(0).get("test").get("className").asText());
     }

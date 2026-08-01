@@ -1,6 +1,7 @@
 package io.github.baokhang83.blastradius.validator.cli;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.baokhang83.blastradius.validator.git.HistoryMode;
 import io.github.baokhang83.blastradius.validator.report.AnalysisReport;
 import io.github.baokhang83.blastradius.validator.report.TextSummaryRenderer;
 import java.io.IOException;
@@ -11,7 +12,7 @@ import java.nio.file.Path;
  * CLI entry point. Usage:
  * {@code blastradius-validator run --project-path <path> --commits <N> --report-out <path>
  * [--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth] [--build-concurrency <K>]
- * [--build-timeout-minutes <M>] [--skip-build-extras]}
+ * [--build-timeout-minutes <M>] [--skip-build-extras] [--history-mode <all-parents|first-parent>]}
  */
 public final class Main {
 
@@ -19,7 +20,8 @@ public final class Main {
         if (args.length == 0 || !"run".equals(args[0])) {
             System.err.println("usage: run --project-path <path> --commits <N> --report-out <path> "
                     + "[--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth] "
-                    + "[--build-concurrency <K>] [--build-timeout-minutes <M>] [--skip-build-extras]");
+                    + "[--build-concurrency <K>] [--build-timeout-minutes <M>] [--skip-build-extras] "
+                    + "[--history-mode <all-parents|first-parent>]");
             System.exit(2);
             return;
         }
@@ -33,6 +35,7 @@ public final class Main {
         int buildConcurrency = 1;
         long buildTimeoutMinutes = RunConfig.DEFAULT_BUILD_TIMEOUT_MINUTES;
         boolean skipBuildExtras = false;
+        HistoryMode historyMode = HistoryMode.ALL_PARENTS;
 
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
@@ -45,6 +48,7 @@ public final class Main {
                 case "--build-concurrency" -> buildConcurrency = Integer.parseInt(args[++i]);
                 case "--build-timeout-minutes" -> buildTimeoutMinutes = Long.parseLong(args[++i]);
                 case "--skip-build-extras" -> skipBuildExtras = true;
+                case "--history-mode" -> historyMode = HistoryMode.fromCliValue(args[++i]);
                 default -> {
                     System.err.println("unknown argument: " + args[i]);
                     System.exit(2);
@@ -61,7 +65,7 @@ public final class Main {
 
         try {
             RunConfig config = new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth,
-                    buildConcurrency, buildTimeoutMinutes, skipBuildExtras);
+                    buildConcurrency, buildTimeoutMinutes, skipBuildExtras, historyMode);
             int exitCode = new RunCommand().run(config);
             printSummary(reportOut, summaryOut, exitCode);
             System.exit(exitCode);

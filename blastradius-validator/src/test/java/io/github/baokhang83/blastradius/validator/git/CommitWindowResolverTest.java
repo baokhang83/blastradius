@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import java.nio.file.Path;
+import java.util.Set;
 import java.util.List;
+import org.eclipse.jgit.api.Git;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -54,6 +56,51 @@ class CommitWindowResolverTest {
         List<CommitPair> window = resolver.resolveWindow(tempDir, 5);
 
         assertTrue(window.isEmpty());
+    }
+
+    @Test
+    void defaultModeReplaysEveryDirectParentEdgeOfAReachableMerge(@TempDir Path tempDir) throws Exception {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(tempDir);
+        fixture.commit("initial");
+        Git git = fixture.git();
+
+        git.checkout().setCreateBranch(true).setName("feature").call();
+        fixture.writeResource("feature.txt", "feature");
+        String featureParent = fixture.commit("feature work");
+
+        git.checkout().setName("main").call();
+        fixture.writeResource("main.txt", "main");
+        String firstParent = fixture.commit("main work");
+
+        git.merge().include(git.getRepository().resolve(featureParent)).call();
+        String merge = git.getRepository().resolve("HEAD").getName();
+
+        List<CommitPair> window = resolver.resolveWindow(tempDir, 2);
+
+        assertEquals(Set.of(new PairKey(firstParent, merge), new PairKey(featureParent, merge)),
+                window.stream().map(CommitWindowResolverTest::keyOf).collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Test
+    void firstParentModeReplaysOnlyTheMainlineEdgeOfAReachableMerge(@TempDir Path tempDir) throws Exception {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(tempDir);
+        fixture.commit("initial");
+        Git git = fixture.git();
+
+        git.checkout().setCreateBranch(true).setName("feature").call();
+        fixture.writeResource("feature.txt", "feature");
+        String featureParent = fixture.commit("feature work");
+
+        git.checkout().setName("main").call();
+        fixture.writeResource("main.txt", "main");
+        String firstParent = fixture.commit("main work");
+
+        git.merge().include(git.getRepository().resolve(featureParent)).call();
+        String merge = git.getRepository().resolve("HEAD").getName();
+
+        List<CommitPair> window = resolver.resolveWindow(tempDir, 1, HistoryMode.FIRST_PARENT);
+
+        assertEquals(List.of(new PairKey(firstParent, merge)), window.stream().map(CommitWindowResolverTest::keyOf).toList());
     }
 
     private record PairKey(String base, String head) {}

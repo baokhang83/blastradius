@@ -8,6 +8,7 @@ import io.github.baokhang83.blastradius.validator.build.Outcome;
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.validator.git.CommitPair;
 import io.github.baokhang83.blastradius.core.git.FileKind;
+import io.github.baokhang83.blastradius.validator.report.FailureCoverage;
 import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
 import io.github.baokhang83.blastradius.core.selection.SelectionReason;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
@@ -26,10 +27,10 @@ class WouldMissComparatorTest {
         List<SelectionDecision> decisions = List.of(SelectionDecision.noMatch(FOO_TEST));
         List<GroundTruthResult> groundTruth = List.of(new GroundTruthResult(FOO_TEST, Outcome.CONFIRMED_FAILED));
 
-        List<WouldMissCase> misses = comparator.compare(pair, decisions, groundTruth, List.of());
+        FailureComparison comparison = comparator.compare(pair, decisions, groundTruth, List.of());
 
-        assertEquals(1, misses.size());
-        WouldMissCase miss = misses.get(0);
+        assertEquals(new FailureCoverage(1, 1, 0, 1), comparison.coverage());
+        WouldMissCase miss = comparison.wouldMissCases().get(0);
         assertEquals(FOO_TEST, miss.test());
         assertEquals(pair, miss.commitPair());
         assertTrue(miss.changedClasses().contains("com.example.Foo"));
@@ -42,9 +43,10 @@ class WouldMissComparatorTest {
         List<SelectionDecision> decisions = List.of(SelectionDecision.dependencyMatch(FOO_TEST, "com.example.Foo"));
         List<GroundTruthResult> groundTruth = List.of(new GroundTruthResult(FOO_TEST, Outcome.CONFIRMED_FAILED));
 
-        List<WouldMissCase> misses = comparator.compare(pair, decisions, groundTruth, List.of());
+        FailureComparison comparison = comparator.compare(pair, decisions, groundTruth, List.of());
 
-        assertEquals(0, misses.size());
+        assertEquals(new FailureCoverage(1, 1, 1, 0), comparison.coverage());
+        assertTrue(comparison.wouldMissCases().isEmpty());
     }
 
     @Test
@@ -53,9 +55,10 @@ class WouldMissComparatorTest {
         List<SelectionDecision> decisions = List.of(SelectionDecision.noMatch(FOO_TEST));
         List<GroundTruthResult> groundTruth = List.of(new GroundTruthResult(FOO_TEST, Outcome.PASSED));
 
-        List<WouldMissCase> misses = comparator.compare(pair, decisions, groundTruth, List.of());
+        FailureComparison comparison = comparator.compare(pair, decisions, groundTruth, List.of());
 
-        assertEquals(0, misses.size());
+        assertEquals(FailureCoverage.empty(), comparison.coverage());
+        assertTrue(comparison.wouldMissCases().isEmpty());
     }
 
     @Test
@@ -64,9 +67,10 @@ class WouldMissComparatorTest {
         List<SelectionDecision> decisions = List.of(SelectionDecision.noMatch(FOO_TEST));
         List<GroundTruthResult> groundTruth = List.of(new GroundTruthResult(FOO_TEST, Outcome.FLAKY));
 
-        List<WouldMissCase> misses = comparator.compare(pair, decisions, groundTruth, List.of());
+        FailureComparison comparison = comparator.compare(pair, decisions, groundTruth, List.of());
 
-        assertEquals(0, misses.size());
+        assertEquals(FailureCoverage.empty(), comparison.coverage());
+        assertTrue(comparison.wouldMissCases().isEmpty());
     }
 
     @Test
@@ -74,9 +78,10 @@ class WouldMissComparatorTest {
         CommitPair pair = CommitPair.analyzed("base", "head", List.of());
         List<GroundTruthResult> groundTruth = List.of(new GroundTruthResult(FOO_TEST, Outcome.CONFIRMED_FAILED));
 
-        List<WouldMissCase> misses = comparator.compare(pair, List.of(), groundTruth, List.of());
+        FailureComparison comparison = comparator.compare(pair, List.of(), groundTruth, List.of());
 
-        assertEquals(1, misses.size());
+        assertEquals(new FailureCoverage(1, 1, 0, 1), comparison.coverage());
+        assertEquals(1, comparison.wouldMissCases().size());
     }
 
     @Test
@@ -90,9 +95,10 @@ class WouldMissComparatorTest {
         List<GroundTruthResult> groundTruth = List.of(new GroundTruthResult(FOO_TEST, Outcome.CONFIRMED_FAILED));
         List<GroundTruthResult> baseGroundTruth = List.of(new GroundTruthResult(FOO_TEST, Outcome.CONFIRMED_FAILED));
 
-        List<WouldMissCase> misses = comparator.compare(pair, decisions, groundTruth, baseGroundTruth);
+        FailureComparison comparison = comparator.compare(pair, decisions, groundTruth, baseGroundTruth);
 
-        assertEquals(0, misses.size());
+        assertEquals(FailureCoverage.empty(), comparison.coverage());
+        assertTrue(comparison.wouldMissCases().isEmpty());
     }
 
     @Test
@@ -105,8 +111,26 @@ class WouldMissComparatorTest {
         List<GroundTruthResult> groundTruth = List.of(new GroundTruthResult(FOO_TEST, Outcome.CONFIRMED_FAILED));
         List<GroundTruthResult> baseGroundTruth = List.of(new GroundTruthResult(FOO_TEST, Outcome.FLAKY));
 
-        List<WouldMissCase> misses = comparator.compare(pair, decisions, groundTruth, baseGroundTruth);
+        FailureComparison comparison = comparator.compare(pair, decisions, groundTruth, baseGroundTruth);
 
-        assertEquals(1, misses.size());
+        assertEquals(new FailureCoverage(1, 1, 0, 1), comparison.coverage());
+        assertEquals(1, comparison.wouldMissCases().size());
+    }
+
+    @Test
+    void coverageCountsSelectedAndSkippedNewFailuresWithinOnePair() {
+        TestIdentity selected = new TestIdentity("com.example.SelectedTest", "checksSelected");
+        CommitPair pair = CommitPair.analyzed("base", "head", List.of());
+        List<SelectionDecision> decisions = List.of(
+                SelectionDecision.dependencyMatch(selected, "com.example.Shared"),
+                SelectionDecision.noMatch(FOO_TEST));
+        List<GroundTruthResult> groundTruth = List.of(
+                new GroundTruthResult(selected, Outcome.CONFIRMED_FAILED),
+                new GroundTruthResult(FOO_TEST, Outcome.CONFIRMED_FAILED));
+
+        FailureComparison comparison = comparator.compare(pair, decisions, groundTruth, List.of());
+
+        assertEquals(new FailureCoverage(1, 2, 1, 1), comparison.coverage());
+        assertEquals(1, comparison.wouldMissCases().size());
     }
 }

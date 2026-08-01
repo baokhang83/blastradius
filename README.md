@@ -16,9 +16,13 @@ train something probabilistic on historical flakiness. Blastradius does neither:
 uses that real, per-test dependency map to decide what to run next time. No training data,
 no heuristics, no opaque score.
 
-## Early validation
+## Historical validation (superseded for soundness claims)
 
-The validator replayed sequential commit pairs in shadow mode and compared the selected-test outcomes with each corresponding full-test outcome.
+These three 300-pair analyses used the validator's former traversal-adjacency semantics: each
+reported pair was adjacent in a `RevWalk`, but was not necessarily a direct Git parent-to-child
+edge. They are retained as historical operational data, including their selection reductions,
+but are superseded as soundness evidence and must be rerun with the current edge semantics before
+being compared to new results.
 
 | Project | Commit range | Pairs analyzed (excluded) | Would-miss cases | Test executions selected | Skipped |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -28,7 +32,10 @@ The validator replayed sequential commit pairs in shadow mode and compared the s
 | <h4><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/httpcomponents-client">httpclient</a></h4> | [`d84079d`](https://github.com/apache/httpcomponents-client/commit/d84079d9fc1c252f4262d0246a0f012ac22f811e) → [`3b4ff29`](https://github.com/apache/httpcomponents-client/commit/3b4ff29208b307f141a1989cbf038941d445a72e) | 300 (0) | **13** | 282,351 / 670,643 | **57.9%** |
 |<img width=400 />|  |  |  |  | **57.7%** |
 
-These are early results from four Maven projects and four 300-pair history windows, not a universal guarantee. Apache HttpClient produced 13 confirmed failures that selection would have skipped, while the other three windows produced none. The result is a limitation to investigate, not evidence that selection is safe for every project. Full suites remain the recommended daily safety net.
+These historical windows are not a universal guarantee. Current validator reports identify their
+`ALL_PARENTS` or `FIRST_PARENT` replay mode and make the observed-failure denominator explicit;
+zero would-miss cases without that denominator are not a soundness result. Full suites remain the
+recommended daily safety net.
 
 ## How it works
 

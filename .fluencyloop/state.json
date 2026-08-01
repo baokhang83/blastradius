@@ -1,8 +1,8 @@
 {
-  "feature": "support-java-17-target-test-jvms-with-a-compatible-tracking",
-  "branch": "feature/support-java-17-target-test-jvms-with-a-compatible-tracking",
+  "feature": "replay-real-parent-child-history-edges-and-report-failure-be",
+  "branch": "feature/replay-real-parent-child-history-edges-and-report-failure-be",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/support-java-17-target-test-jvms-with-a-compatible-tracking/sessions/avoid-re-entrant-class-definition-while-tracking-junit-test.md",
+  "last_session": "docs/fluencyloop/features/replay-real-parent-child-history-edges-and-report-failure-be/sessions/align-edge-terminology-in-public-validator-types.md",
   "base_ref": "main",
-  "updated": "2026-07-31"
+  "updated": "2026-08-01"
 }

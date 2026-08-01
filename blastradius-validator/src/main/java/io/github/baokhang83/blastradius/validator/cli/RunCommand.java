@@ -22,6 +22,7 @@ import io.github.baokhang83.blastradius.core.reactor.TestModuleIndex;
 import io.github.baokhang83.blastradius.validator.git.CommitCheckout;
 import io.github.baokhang83.blastradius.validator.git.CommitPair;
 import io.github.baokhang83.blastradius.validator.git.CommitWindowResolver;
+import io.github.baokhang83.blastradius.validator.report.FailureCoverage;
 import io.github.baokhang83.blastradius.validator.git.PairStatus;
 import io.github.baokhang83.blastradius.validator.report.AnalysisReport;
 import io.github.baokhang83.blastradius.validator.report.ReportWriter;
@@ -35,6 +36,7 @@ import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.validator.verdict.FlakyFailure;
+import io.github.baokhang83.blastradius.validator.verdict.FailureComparison;
 import io.github.baokhang83.blastradius.validator.verdict.Verdict;
 import io.github.baokhang83.blastradius.validator.verdict.VerdictCalculator;
 import io.github.baokhang83.blastradius.validator.verdict.WouldMissCase;
@@ -122,7 +124,8 @@ public final class RunCommand {
 
             long runStart = System.currentTimeMillis();
             List<CommitPair> window =
-                    commitWindowResolver.resolveWindow(config.projectPath(), config.commitWindowSize());
+                    commitWindowResolver.resolveWindow(
+                            config.projectPath(), config.commitWindowSize(), config.historyMode());
             progress.windowResolved(window.size());
 
             int concurrency = config.buildConcurrency();
@@ -196,6 +199,7 @@ public final class RunCommand {
         List<WouldMissCase> allMisses = new ArrayList<>();
         List<SelectionDecision> allDecisions = new ArrayList<>();
         List<FlakyFailure> allFlaky = new ArrayList<>();
+        FailureCoverage failureCoverage = FailureCoverage.empty();
         // Reactor scope per HEAD commit: a repeated head across the window repays neither the
         // checkout nor the tree walk. Only populated for pairs with a NON_SOURCE change.
         Map<String, ReactorScope> reactorScopeCache = new HashMap<>();
@@ -223,6 +227,7 @@ public final class RunCommand {
                     allMisses.addAll(analysis.misses());
                     allDecisions.addAll(analysis.decisions());
                     allFlaky.addAll(analysis.flakyFailures());
+                    failureCoverage = failureCoverage.plus(analysis.failureCoverage());
                     progress.pairCompleted(pairIndex, window.size(), analysis.misses().size(), pairMillis);
                 }
             }
@@ -232,12 +237,14 @@ public final class RunCommand {
 
         Verdict verdict = verdictCalculator.calculate(allMisses);
         SavingsSummary savingsSummary = savingsSummaryAggregator.aggregate(allDecisions);
-        return new AnalysisReport(verdict, analyzedPairs, excludedPairs, allMisses, allFlaky, savingsSummary);
+        return new AnalysisReport(verdict, config.historyMode(), analyzedPairs, excludedPairs, failureCoverage,
+                allMisses, allFlaky, savingsSummary);
     }
 
     private record PairAnalysis(
             CommitPair pair,
             List<WouldMissCase> misses,
+            FailureCoverage failureCoverage,
             List<SelectionDecision> decisions,
             List<FlakyFailure> flakyFailures) {}
 
@@ -316,13 +323,14 @@ public final class RunCommand {
                 baseRecordSet.ambientDependencies(), reactorScope);
 
         CommitPair enrichedPair = CommitPair.analyzed(pair.baseCommit(), pair.headCommit(), changedFiles);
-        List<WouldMissCase> misses = wouldMissComparator.compare(enrichedPair, decisions, groundTruth, baseGroundTruth);
+        FailureComparison comparison = wouldMissComparator.compare(
+                enrichedPair, decisions, groundTruth, baseGroundTruth);
         List<FlakyFailure> flakyFailures = groundTruth.stream()
                 .filter(r -> r.outcome() == Outcome.FLAKY)
                 .map(r -> new FlakyFailure(enrichedPair, r.test()))
                 .toList();
 
-        return new PairAnalysis(enrichedPair, misses, decisions, flakyFailures);
+        return new PairAnalysis(enrichedPair, comparison.wouldMissCases(), comparison.coverage(), decisions, flakyFailures);
     }
 
     /**
@@ -391,7 +399,7 @@ public final class RunCommand {
 
     private static PairAnalysis excluded(CommitPair pair, String reason) {
         CommitPair excludedPair = CommitPair.excluded(pair.baseCommit(), pair.headCommit(), reason);
-        return new PairAnalysis(excludedPair, List.of(), List.of(), List.of());
+        return new PairAnalysis(excludedPair, List.of(), FailureCoverage.empty(), List.of(), List.of());
     }
 
     /**
