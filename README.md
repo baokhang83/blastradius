@@ -18,31 +18,12 @@ no heuristics, no opaque score.
 
 ## Early validation
 
-### Apache ShenYu
+The validator replayed sequential commit pairs in shadow mode and compared the selected-test outcomes with each corresponding full-test outcome.
 
-The validator replayed 300 sequential Apache ShenYu commit pairs in shadow mode, from [`ce3719d`](https://github.com/apache/shenyu/commit/ce3719d4d68cb51df0704a154fb1da8b2a1778ed) to [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05). All 300 pairs built and were analyzed; comparison with the corresponding full-test outcomes found no would-miss cases.
-
-| Metric | Result |
-| --- | --- |
-| Commit pairs analyzed | 300 / 300 |
-| Build exclusions | 0 |
-| Would-miss cases | 0 |
-| Test executions skipped | 514,077 / 747,680 **(68.8%)** |
-| Tests selected | 233,603 |
-| Flaky test observations | 42 (excluded from the verdict) |
-
-### Apache Commons Lang
-
-The validator replayed 300 sequential Apache Commons Lang commit pairs in shadow mode, from [`13c9949`](https://github.com/apache/commons-lang/commit/13c99492bf695b8ca378d0976919fcea10010c7f) to [`8f8f3b2`](https://github.com/apache/commons-lang/commit/8f8f3b26e8cb81e0879fc676068db1212652dcaf). All 300 pairs built and were analyzed; comparison with the corresponding full-test outcomes found no would-miss cases.
-
-| Metric | Result |
-| --- | --- |
-| Commit pairs analyzed | 300 / 300 |
-| Build exclusions | 0 |
-| Would-miss cases | 0 |
-| Test executions skipped | 14,313,702 / 23,610,943 **(60.6%)** |
-| Tests selected | 9,297,241 |
-| Flaky test observations | 0 |
+| Project | Commit range | Pairs analyzed (excluded) | Would-miss cases | Test executions selected | Skipped | Flaky observations |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| Apache ShenYu | [`ce3719d`](https://github.com/apache/shenyu/commit/ce3719d4d68cb51df0704a154fb1da8b2a1778ed) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | 300 (0) | 0 | 233,603 / 747,680 | **68.8%** | 42 (excluded from verdict) |
+| Apache Commons Lang | [`13c9949`](https://github.com/apache/commons-lang/commit/13c99492bf695b8ca378d0976919fcea10010c7f) → [`8f8f3b2`](https://github.com/apache/commons-lang/commit/8f8f3b26e8cb81e0879fc676068db1212652dcaf) | 300 (0) | 0 | 9,297,241 / 23,610,943 | **60.6%** | 0 |
 
 These are early results from two Maven projects and two 300-pair history windows, not a universal guarantee. Both runs stayed conservative: most selected tests came from fallback rules rather than direct dependency matches. Full suites still remain the recommended daily safety net.
 
