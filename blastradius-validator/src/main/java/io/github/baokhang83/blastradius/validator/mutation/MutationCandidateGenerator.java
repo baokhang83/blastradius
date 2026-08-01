@@ -29,10 +29,12 @@ public final class MutationCandidateGenerator {
     }
 
     /** Like {@link #generate(Path, String, int)}, with a bound on production classes visited. */
-    public List<MutationCandidate> generate(Path projectRoot, String classFilter, int maxClasses, int maxMutations) {
+    public List<MutationCandidate> generate(
+            Path projectRoot, String classFilter, int maxMutationClasses, int maxMutations) {
         Objects.requireNonNull(projectRoot, "projectRoot");
-        if (maxClasses < 1) {
-            throw new IllegalArgumentException("maxClasses must be positive, got: " + maxClasses);
+        if (maxMutationClasses < 1) {
+            throw new IllegalArgumentException(
+                    "maxMutationClasses must be positive, got: " + maxMutationClasses);
         }
         if (maxMutations < 1) {
             throw new IllegalArgumentException("maxMutations must be positive, got: " + maxMutations);
@@ -45,7 +47,7 @@ public final class MutationCandidateGenerator {
             return paths.filter(path -> path.toString().endsWith(".java"))
                     .sorted()
                     .filter(path -> classFilter == null || classFilter.equals(className(sourceRoot, path)))
-                    .limit(maxClasses)
+                    .limit(maxMutationClasses)
                     .flatMap(path -> candidatesIn(sourceRoot, path, classFilter).stream())
                     .sorted(Comparator.comparing(MutationCandidate::sourcePath)
                             .thenComparingInt(MutationCandidate::offset))

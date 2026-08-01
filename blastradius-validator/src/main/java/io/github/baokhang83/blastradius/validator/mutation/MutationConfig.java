@@ -9,7 +9,7 @@ public record MutationConfig(
         Path projectPath,
         Path reportOutputPath,
         String classFilter,
-        int maxClasses,
+        int maxMutationClasses,
         int maxMutations,
         long timeLimitMinutes,
         Integer mavenParallelThreads,
@@ -35,7 +35,7 @@ public record MutationConfig(
         if (Files.isDirectory(reportOutputPath)) {
             throw new IllegalArgumentException("reportOutputPath must be a file path, not a directory: " + reportOutputPath);
         }
-        if (maxClasses < 1 || maxMutations < 1 || timeLimitMinutes < 1 || buildTimeoutMinutes < 1) {
+        if (maxMutationClasses < 1 || maxMutations < 1 || timeLimitMinutes < 1 || buildTimeoutMinutes < 1) {
             throw new IllegalArgumentException("mutation limits must be positive");
         }
         if (mavenParallelThreads != null && mavenParallelThreads < 1) {

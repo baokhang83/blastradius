@@ -92,7 +92,7 @@ public final class Main {
         Path reportOut = null;
         Path summaryOut = null;
         String classFilter = null;
-        int maxClasses = MutationConfig.DEFAULT_MAX_CLASSES;
+        int maxMutationClasses = MutationConfig.DEFAULT_MAX_CLASSES;
         int maxMutations = MutationConfig.DEFAULT_MAX_MUTATIONS;
         long timeLimitMinutes = MutationConfig.DEFAULT_TIME_LIMIT_MINUTES;
         Integer mavenThreads = null;
@@ -104,7 +104,7 @@ public final class Main {
                 case "--report-out" -> reportOut = Path.of(args[++i]);
                 case "--summary-out" -> summaryOut = Path.of(args[++i]);
                 case "--mutation-class" -> classFilter = args[++i];
-                case "--max-classes" -> maxClasses = Integer.parseInt(args[++i]);
+                case "--max-mutation-classes" -> maxMutationClasses = Integer.parseInt(args[++i]);
                 case "--max-mutations" -> maxMutations = Integer.parseInt(args[++i]);
                 case "--mutation-time-limit-minutes" -> timeLimitMinutes = Long.parseLong(args[++i]);
                 case "--maven-threads" -> mavenThreads = Integer.parseInt(args[++i]);
@@ -123,7 +123,7 @@ public final class Main {
             return;
         }
         try {
-            MutationConfig config = new MutationConfig(projectPath, reportOut, classFilter, maxClasses, maxMutations,
+            MutationConfig config = new MutationConfig(projectPath, reportOut, classFilter, maxMutationClasses, maxMutations,
                     timeLimitMinutes, mavenThreads, buildTimeoutMinutes, skipBuildExtras);
             int exitCode = new MutationCommand().run(config);
             printMutationSummary(reportOut, summaryOut, exitCode);
@@ -175,7 +175,7 @@ public final class Main {
                 + "[--build-concurrency <K>] [--build-timeout-minutes <M>] [--skip-build-extras] "
                 + "[--history-mode <all-parents|first-parent>]\n"
                 + "   or: mutate --project-path <path> --report-out <path> [--summary-out <path>] "
-                + "[--mutation-class <FQCN>] [--max-classes <N>] [--max-mutations <N>] "
+                + "[--mutation-class <FQCN>] [--max-mutation-classes <N>] [--max-mutations <N>] "
                 + "[--mutation-time-limit-minutes <M>] [--maven-threads <N>] "
                 + "[--build-timeout-minutes <M>] [--skip-build-extras]");
     }

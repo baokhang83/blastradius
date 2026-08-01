@@ -62,7 +62,7 @@ public final class MutationCommand {
                 String baselineSha = head(checkout.workTree());
                 Path baselineTree = checkout.checkoutBaseline(baselineSha);
                 List<MutationCandidate> candidates = candidateGenerator.generate(
-                        baselineTree, config.classFilter(), config.maxClasses(), config.maxMutations());
+                        baselineTree, config.classFilter(), config.maxMutationClasses(), config.maxMutations());
                 dependencyOutput = Files.createTempFile("blastradius-mutation-deps-", ".json");
                 GroundTruthResolution baselineResolution =
                         groundTruthResolver.resolve(baselineTree, agentJar, dependencyOutput);

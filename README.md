@@ -49,7 +49,7 @@ java -jar blastradius-validator/target/blastradius-validator-0.3.2.jar mutate \
   --project-path ../your-maven-project \
   --report-out mutation-report.json \
   --summary-out mutation-summary.txt \
-  --max-classes 10 \
+  --max-mutation-classes 10 \
   --max-mutations 10 \
   --mutation-time-limit-minutes 60
 ```
