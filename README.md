@@ -22,7 +22,7 @@ The validator replayed sequential commit pairs in shadow mode and compared the s
 
 | Project | Commit range | Pairs analyzed (excluded) | Would-miss cases | Test executions selected | Skipped | Flaky observations |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
-| # [`Apache Shenyu`](https://github.com/apache/shenyu) | [`ce3719d`](https://github.com/apache/shenyu/commit/ce3719d4d68cb51df0704a154fb1da8b2a1778ed) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | 300 (0) | 0 | 233,603 / 747,680 | **68.8%** | 42 (excluded from verdict) |
+| # [Apache Shenyu](https://apache.org) | [`ce3719d`](https://github.com/apache/shenyu/commit/ce3719d4d68cb51df0704a154fb1da8b2a1778ed) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | 300 (0) | 0 | 233,603 / 747,680 | **68.8%** | 42 (excluded from verdict) |
 | # <a href="https://github.com/apache/commons-lang" style="text-decoration: none;!important;"><b>Apache Commons-Lang</b></a>  | [`13c9949`](https://github.com/apache/commons-lang/commit/13c99492bf695b8ca378d0976919fcea10010c7f) → [`8f8f3b2`](https://github.com/apache/commons-lang/commit/8f8f3b26e8cb81e0879fc676068db1212652dcaf) | 300 (0) | 0 | 9,297,241 / 23,610,943 | **60.6%** | 0 |
 
 These are early results from two Maven projects and two 300-pair history windows, not a universal guarantee. Both runs stayed conservative: most selected tests came from fallback rules rather than direct dependency matches. Full suites still remain the recommended daily safety net.
