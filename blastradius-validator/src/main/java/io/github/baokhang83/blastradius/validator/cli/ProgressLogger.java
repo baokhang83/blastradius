@@ -63,6 +63,11 @@ public final class ProgressLogger {
         line("build FAILED " + shortSha(sha) + " [" + role + "]: " + reason);
     }
 
+    public void buildRetrying(String sha, String role, int attempt, int maxAttempts, String reason) {
+        line("build failed " + shortSha(sha) + " [" + role + "] (transient, retry " + attempt + "/"
+                + maxAttempts + "): " + reason);
+    }
+
     public void pairCompleted(int index, int total, int wouldMissCount, long millis) {
         line("pair " + index + "/" + total + " done in " + duration(millis)
                 + " — " + wouldMissCount + " would-miss case(s)");
