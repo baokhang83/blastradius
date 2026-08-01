@@ -16,9 +16,13 @@ train something probabilistic on historical flakiness. Blastradius does neither:
 uses that real, per-test dependency map to decide what to run next time. No training data,
 no heuristics, no opaque score.
 
-## Early validation
+## Historical validation (superseded for soundness claims)
 
-The validator replayed sequential commit pairs in shadow mode and compared the selected-test outcomes with each corresponding full-test outcome.
+These three 300-pair analyses used the validator's former traversal-adjacency semantics: each
+reported pair was adjacent in a `RevWalk`, but was not necessarily a direct Git parent-to-child
+edge. They are retained as historical operational data, including their selection reductions,
+but are superseded as soundness evidence and must be rerun with the current edge semantics before
+being compared to new results.
 
 | Project | Commit range | Pairs analyzed (excluded) | Would-miss cases | Test executions selected | Skipped |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -27,7 +31,10 @@ The validator replayed sequential commit pairs in shadow mode and compared the s
 | <h4><a href="https://github.com/jhy/jsoup">jsoup</a></h4> | [`e10e04d`](https://github.com/jhy/jsoup/commit/e10e04da6c7d93daf5f74d449594cba7ea3683e3) → [`9d2241f`](https://github.com/jhy/jsoup/commit/9d2241ff467d03accbf902a650adc60513bf5c11) | 300 (0) | 0 | 304,060 / 536,850 | **43.4%** |
 |<img width=400 />|  |  |  |  | **57.6%** |
 
-These are early results from three Maven projects and three 300-pair history windows, not a universal guarantee. All runs stayed conservative: most selected tests came from fallback rules rather than direct dependency matches. Full suites still remain the recommended daily safety net.
+These historical windows are not a universal guarantee. Current validator reports identify their
+`ALL_PARENTS` or `FIRST_PARENT` replay mode and make the observed-failure denominator explicit;
+zero would-miss cases without that denominator are not a soundness result. Full suites remain the
+recommended daily safety net.
 
 ## How it works
 
