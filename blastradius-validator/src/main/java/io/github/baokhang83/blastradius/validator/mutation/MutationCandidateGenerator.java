@@ -2,22 +2,25 @@ package io.github.baokhang83.blastradius.validator.mutation;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 /**
- * Enumerates the first, deliberately narrow mutation corpus from {@code src/main/java}.
- * Comments, string literals, character literals, and text blocks are skipped so candidates
- * describe executable Java tokens rather than explanatory text.
+ * Enumerates the first, deliberately narrow mutation corpus from every module's
+ * {@code src/main/java} across the whole reactor. Comments, string literals, character literals,
+ * and text blocks are skipped so candidates describe executable Java tokens rather than
+ * explanatory text.
  */
 public final class MutationCandidateGenerator {
 
-    private static final Path PRODUCTION_SOURCES = Path.of("src", "main", "java");
+    private static final String PRODUCTION_MARKER = "src/main/java/";
 
     /**
      * @param projectRoot Maven project root containing production Java sources
@@ -39,43 +42,75 @@ public final class MutationCandidateGenerator {
         if (maxMutations < 1) {
             throw new IllegalArgumentException("maxMutations must be positive, got: " + maxMutations);
         }
-        Path sourceRoot = projectRoot.resolve(PRODUCTION_SOURCES);
-        if (Files.notExists(sourceRoot)) {
+        if (Files.notExists(projectRoot)) {
             return List.of();
         }
-        try (Stream<Path> paths = Files.walk(sourceRoot)) {
-            return paths.filter(path -> path.toString().endsWith(".java"))
-                    .sorted()
-                    .filter(path -> classFilter == null || classFilter.equals(className(sourceRoot, path)))
-                    .limit(maxMutationClasses)
-                    .flatMap(path -> candidatesIn(sourceRoot, path, classFilter).stream())
-                    .sorted(Comparator.comparing(MutationCandidate::sourcePath)
-                            .thenComparingInt(MutationCandidate::offset))
-                    .limit(maxMutations)
-                    .toList();
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to enumerate production Java sources under " + sourceRoot, e);
-        }
+        return collectProductionSources(projectRoot).stream()
+                .sorted()
+                .filter(path -> classFilter == null || classFilter.equals(classNameOf(path)))
+                .limit(maxMutationClasses)
+                .flatMap(path -> candidatesIn(projectRoot, path, classFilter).stream())
+                .sorted(Comparator.comparing(MutationCandidate::sourcePath)
+                        .thenComparingInt(MutationCandidate::offset))
+                .limit(maxMutations)
+                .toList();
     }
 
-    private static List<MutationCandidate> candidatesIn(Path sourceRoot, Path sourceFile, String classFilter) {
-        String sourcePath = PRODUCTION_SOURCES.resolve(sourceRoot.relativize(sourceFile)).toString()
-                .replace(sourceFile.getFileSystem().getSeparator(), "/");
-        String className = className(sourceRoot, sourceFile);
+    /**
+     * Every {@code .java} production source anywhere in the reactor, as a repo-relative,
+     * forward-slashed path. A source counts as production when its path contains a
+     * {@value #PRODUCTION_MARKER} segment; this discovers one root per module (a real reactor has
+     * no {@code src/main/java} at the repo root — each submodule carries its own), rather than
+     * assuming a single root at {@code projectRoot}. {@code .git}, {@code target}, and {@code build}
+     * subtrees are pruned so generated output and VCS internals are never mutated.
+     */
+    private static List<String> collectProductionSources(Path projectRoot) {
+        List<String> sources = new ArrayList<>();
+        try {
+            Files.walkFileTree(projectRoot, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                    String name = dir.getFileName() == null ? "" : dir.getFileName().toString();
+                    if (".git".equals(name) || "target".equals(name) || "build".equals(name)) {
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    String relative = projectRoot.relativize(file).toString().replace('\\', '/');
+                    if (relative.endsWith(".java") && relative.contains(PRODUCTION_MARKER)) {
+                        sources.add(relative);
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to enumerate production Java sources under " + projectRoot, e);
+        }
+        return sources;
+    }
+
+    private static List<MutationCandidate> candidatesIn(Path projectRoot, String repoRelativePath, String classFilter) {
+        String className = classNameOf(repoRelativePath);
         if (classFilter != null && !classFilter.equals(className)) {
             return List.of();
         }
         try {
-            return scan(sourcePath, className, Files.readString(sourceFile));
+            return scan(repoRelativePath, className, Files.readString(projectRoot.resolve(repoRelativePath)));
         } catch (IOException e) {
-            throw new UncheckedIOException("failed to read " + sourceFile, e);
+            throw new UncheckedIOException("failed to read " + repoRelativePath, e);
         }
     }
 
-    private static String className(Path sourceRoot, Path sourceFile) {
-        return sourceRoot.relativize(sourceFile).toString()
-                .replace(sourceFile.getFileSystem().getSeparator(), ".")
-                .replaceFirst("\\.java$", "");
+    /** Derives the FQN from the path <em>after</em> the last {@value #PRODUCTION_MARKER} segment. */
+    private static String classNameOf(String repoRelativePath) {
+        int marker = repoRelativePath.lastIndexOf(PRODUCTION_MARKER);
+        String afterRoot = marker < 0
+                ? repoRelativePath
+                : repoRelativePath.substring(marker + PRODUCTION_MARKER.length());
+        return afterRoot.replace('/', '.').replaceFirst("\\.java$", "");
     }
 
     private static List<MutationCandidate> scan(String sourcePath, String className, String source) {
