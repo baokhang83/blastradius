@@ -137,7 +137,24 @@ public final class MavenBuildRunner {
      *                         dependencies, or {@code null} if {@code agentJar} is null
      */
     public BuildResult run(Path projectDir, Path agentJar, Path dependencyRecordOutputFile) {
-        return execute(projectDir, command(null), agentJar, dependencyRecordOutputFile);
+        return run(projectDir, agentJar, dependencyRecordOutputFile, null);
+    }
+
+    /**
+     * Like {@link #run(Path, Path, Path)}, but scopes the full-suite build to {@code modulePath}
+     * (plus its upstream dependencies via {@code -am} <em>and</em> its downstream dependents via
+     * {@code -amd}) instead of the whole reactor. Used by mutation validation: a synthetic mutant
+     * changes one file in one module, so the only tests whose outcome can change live in that
+     * module or in a module that depends on it. {@code clean} is kept ({@code true}) because each
+     * mutant runs on a freshly re-checked-out tree whose {@code target/} dirs were already wiped;
+     * {@code -amd} is what keeps a legitimately-selected <em>downstream</em> killing test in scope,
+     * so scoping never fabricates a would-miss (§III).
+     *
+     * @param modulePath the mutated module's repo-relative directory, or {@code null} to build the
+     *                   whole reactor (e.g. the change maps to no single module)
+     */
+    public BuildResult run(Path projectDir, Path agentJar, Path dependencyRecordOutputFile, String modulePath) {
+        return execute(projectDir, command(null, modulePath, true, true), agentJar, dependencyRecordOutputFile);
     }
 
     /**
@@ -316,6 +333,10 @@ public final class MavenBuildRunner {
     }
 
     String[] command(String testSelector, String modulePath, boolean clean) {
+        return command(testSelector, modulePath, clean, false);
+    }
+
+    String[] command(String testSelector, String modulePath, boolean clean, boolean alsoMakeDependents) {
         // `clean` is required for the FIRST build of a checkout, not cosmetic:
         // CommitCheckout reuses one scratch working copy across every commit in the
         // window, and `target/` is untracked — a previous commit's build artifacts
@@ -364,6 +385,16 @@ public final class MavenBuildRunner {
             args.add("-pl");
             args.add(modulePath);
             args.add("-am");
+            if (alsoMakeDependents) {
+                // -amd (also-make-dependents): also build every module that depends on this one.
+                // A single-file mutation in modulePath can break a test in a downstream module
+                // that exercises the mutated code through modulePath's API; without -amd that
+                // module is never built, so its (correctly selected) killing test never runs and
+                // mutation validation would misreport it as a skipped killer (§III). Meaningless
+                // for the single-test confirmFailure rerun (which names one test in one module),
+                // so it stays off there.
+                args.add("-amd");
+            }
         }
         if (skipBuildExtras) {
             // Soundness-neutral: coverage/lint/license/resource-bundling plugins don't decide

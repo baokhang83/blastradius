@@ -121,6 +121,48 @@ class GroundTruthResolverTest {
         assertEquals(Outcome.PASSED, outcomeOf(results, "com.example.b.BarTest", "checksSomething"));
     }
 
+    @Test
+    void moduleScopedResolveBuildsTheModuleAndItsDependentsButSkipsAnUnrelatedBrokenModule(
+            @TempDir Path projectDir) {
+        // moduleB depends on moduleA. Scoping resolve() to moduleA with also-make-dependents
+        // must still reach moduleB's test (a killer could live downstream), while a third,
+        // unrelated module that doesn't compile is never built — proving the scope is exactly
+        // "the module + its dependents", not the whole reactor.
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.twoModuleReactor(projectDir);
+        fixture.writeClassInModule("moduleA", "com.example.a.Widget",
+                "package com.example.a; public class Widget { public int value() { return 1; } }");
+        fixture.writeTestInModule("moduleA", "com.example.a.WidgetTest", """
+                package com.example.a;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class WidgetTest {
+                    @Test
+                    void passes() {
+                        assertEquals(1, new Widget().value());
+                    }
+                }
+                """);
+        fixture.writeTestInModule("moduleB", "com.example.b.DownstreamTest", """
+                package com.example.b;
+                import com.example.a.Widget;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertEquals;
+                class DownstreamTest {
+                    @Test
+                    void seesWidget() {
+                        assertEquals(1, new Widget().value());
+                    }
+                }
+                """);
+        fixture.commit("initial");
+
+        List<GroundTruthResult> results =
+                resolver.resolve(projectDir, null, null, "moduleA").results();
+
+        assertEquals(Outcome.PASSED, outcomeOf(results, "com.example.a.WidgetTest", "passes"));
+        assertEquals(Outcome.PASSED, outcomeOf(results, "com.example.b.DownstreamTest", "seesWidget"));
+    }
+
     private static Outcome outcomeOf(List<GroundTruthResult> results, String className, String methodName) {
         TestIdentity target = new TestIdentity(className, methodName);
         return results.stream()

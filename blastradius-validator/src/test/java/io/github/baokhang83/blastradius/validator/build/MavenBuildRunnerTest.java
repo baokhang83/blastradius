@@ -258,6 +258,28 @@ class MavenBuildRunnerTest {
     }
 
     @Test
+    void moduleScopedFullSuiteAddsPlAmAndAmd() {
+        // A synthetic mutant changes one file in one module; a killing test can live in that
+        // module OR in any module that depends on it — so the scoped full-suite build needs
+        // -amd (also-make-dependents) on top of -am, or a legitimately-selected downstream
+        // killing test would be built-out and misreported as a would-miss (§III).
+        assertArrayEquals(
+                new String[] {
+                    MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test",
+                    "-pl", "moduleB", "-am", "-amd"
+                },
+                new MavenBuildRunner().command(null, "moduleB", true, true));
+    }
+
+    @Test
+    void alsoMakeDependentsWithoutAModulePathAddsNoAmd() {
+        // -amd is meaningless without -pl; a null module path means full reactor already.
+        assertArrayEquals(
+                new String[] {MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test"},
+                new MavenBuildRunner().command(null, null, true, true));
+    }
+
+    @Test
     void cleanFalseOmitsTheCleanGoal() {
         assertArrayEquals(
                 new String[] {

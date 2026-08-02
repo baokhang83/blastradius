@@ -43,7 +43,20 @@ public final class GroundTruthResolver {
     }
 
     public GroundTruthResolution resolve(Path projectDir, Path agentJar, Path dependencyRecordOutputFile) {
-        BuildResult initialBuild = buildRunner.run(projectDir, agentJar, dependencyRecordOutputFile);
+        return resolve(projectDir, agentJar, dependencyRecordOutputFile, null);
+    }
+
+    /**
+     * Like {@link #resolve(Path, Path, Path)}, but scopes the initial full-suite build to
+     * {@code modulePath} (plus its upstream dependencies and downstream dependents) instead of the
+     * whole reactor — see {@link MavenBuildRunner#run(Path, Path, Path, String)}. The confirmation
+     * reruns for any failures found stay per-test-module-scoped as before, since a failing test's
+     * own module is the tighter scope. A {@code null} {@code modulePath} builds the whole reactor,
+     * so this is a strict superset of the three-arg overload.
+     */
+    public GroundTruthResolution resolve(
+            Path projectDir, Path agentJar, Path dependencyRecordOutputFile, String modulePath) {
+        BuildResult initialBuild = buildRunner.run(projectDir, agentJar, dependencyRecordOutputFile, modulePath);
         Map<TestIdentity, Path> moduleByTest = new HashMap<>();
         Map<TestIdentity, Boolean> initialResults = parseAllReports(projectDir, moduleByTest);
 

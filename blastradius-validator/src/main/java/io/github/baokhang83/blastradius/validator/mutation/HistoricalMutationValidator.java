@@ -2,6 +2,7 @@ package io.github.baokhang83.blastradius.validator.mutation;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
+import io.github.baokhang83.blastradius.core.reactor.ModuleId;
 import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraph;
 import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraphBuilder;
 import io.github.baokhang83.blastradius.core.reactor.ReactorScope;
@@ -49,6 +50,9 @@ public final class HistoricalMutationValidator {
         Path headTree = checkout.checkoutCommit(pair.headCommit());
         List<MutationCandidate> candidates = candidateGenerator.generate(headTree, config.classFilter(),
                 config.maxMutationClassesPerPair(), config.maxMutationsPerPair());
+        // One reactor graph for the whole pair: each mutant changes a single file, so its build
+        // only needs the owning module + its dependents (-pl/-am/-amd), not the whole reactor.
+        ReactorModuleGraph moduleGraph = buildModuleGraph(headTree);
         List<TestIdentity> headFailures = head.groundTruth().stream()
                 .filter(result -> result.outcome() == Outcome.CONFIRMED_FAILED)
                 .map(GroundTruthResult::test)
@@ -65,7 +69,9 @@ public final class HistoricalMutationValidator {
             MutationCandidate candidate = candidates.get(index);
             checkout.checkoutCommit(pair.headCommit());
             String mutantCommit = commitMutation(checkout, candidate);
-            GroundTruthResolution mutantResolution = groundTruthResolver.resolve(checkout.workTree(), null, null);
+            String modulePath = modulePathFor(moduleGraph, candidate.sourcePath());
+            GroundTruthResolution mutantResolution =
+                    groundTruthResolver.resolve(checkout.workTree(), null, null, modulePath);
             if (buildFailureDetector.isBuildFailure(mutantResolution.initialBuild(), checkout.workTree())) {
                 experiments.add(new MutationExperiment(pair, candidate, mutantCommit, MutationStatus.UNBUILDABLE,
                         "mutant failed to build (exit " + mutantResolution.initialBuild().exitCode() + ")",
@@ -109,6 +115,31 @@ public final class HistoricalMutationValidator {
         return new MutationExperiment(pair, candidate, mutantCommit,
                 killing.isEmpty() ? MutationStatus.SURVIVED : MutationStatus.KILLED,
                 null, headFailures, killing, selected, skipped, flaky);
+    }
+
+    private ReactorModuleGraph buildModuleGraph(Path tree) {
+        try {
+            return reactorModuleGraphBuilder.fromRepoTree(tree);
+        } catch (RuntimeException e) {
+            // A graph we can't build means we can't safely narrow scope — fall back to whole-reactor
+            // builds (modulePathFor returns null for every candidate), never guess narrower (§III).
+            return null;
+        }
+    }
+
+    /**
+     * The {@code -pl} module directory for the module owning {@code sourcePath}, or {@code null}
+     * to build the whole reactor when the graph is unavailable, the path maps to no single module,
+     * or the owning module is the reactor root itself (where {@code -pl} would be redundant).
+     */
+    private static String modulePathFor(ReactorModuleGraph moduleGraph, String sourcePath) {
+        if (moduleGraph == null) {
+            return null;
+        }
+        return moduleGraph.moduleOf(sourcePath)
+                .map(ModuleId::relativePath)
+                .filter(relativePath -> !relativePath.isEmpty())
+                .orElse(null);
     }
 
     private ReactorScope buildReactorScope(Path tree) {

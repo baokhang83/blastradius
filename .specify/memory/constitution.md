@@ -1,6 +1,29 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 2.3.0 → 2.4.0 (MINOR — new Principle IX added)
+Added principles:
+  - IX. Scope-for-Speed Must Be a Provable Superset — when our own tooling narrows a
+    build for performance (e.g. Maven `-pl`), the built/tested scope MUST be a provable
+    superset of everything whose outcome the change could alter: the changed module, its
+    upstream dependencies (so it compiles), AND its downstream dependents (where a test
+    that exercises the change through the module's API can live). If the scope cannot be
+    proven, fall back to the full scope; never guess narrower.
+    Rationale: found concretely when scoping each synthetic mutant's build in mutation
+    validation from a full-reactor `mvn clean test` to `-pl <module> -am -amd`. Omitting
+    `-amd` (downstream dependents) would build out a legitimately-selected killing test in
+    a dependent module, so it never runs and gets misreported as a skipped killer — a
+    fabricated would-miss. This is §III (Safety Over Speed) applied to the build-scoping
+    decision specifically: the narrowing is sound only if it provably cannot drop a test
+    whose outcome the change affects.
+Removed principles: none
+Added/removed sections: none
+Templates requiring updates:
+  - ✅ .specify/templates/plan-template.md — Constitution Check derived dynamically from
+    this file, no changes needed
+Follow-up TODOs: none
+
+Previous entry (2.2.0 → 2.3.0):
 Version change: 2.2.0 → 2.3.0 (MINOR — new Principle VIII added)
 Added principles:
   - VIII. No Avoidable Work on the Hot Path — code that runs once per class-load
@@ -200,6 +223,28 @@ cost with no correctness benefit, since the underlying flag never changes after 
 startup. A class-load-frequency hot path is exactly where a small per-call cost
 compounds into a measurable build-time regression.
 
+### IX. Scope-for-Speed Must Be a Provable Superset
+
+When our own tooling narrows a build or test run for performance rather than running the
+full scope (e.g. Maven's `-pl` module selection), the scope it builds and tests MUST be a
+provable superset of everything whose outcome the triggering change could alter: the
+changed module itself, its upstream dependencies (so the module compiles), AND its
+downstream dependents — the modules that depend on it, where a test exercising the change
+through the module's public API can live. When the affectable set cannot be proven (the
+reactor graph is unavailable, or the change maps to no single module), the tooling MUST
+fall back to the full scope; it MUST NOT guess a narrower one.
+
+**Rationale**: found concretely when scoping each synthetic mutant's build in mutation
+validation down from a full-reactor `mvn clean test` to `-pl <module> -am -amd`. A
+single-file mutation in module X can be killed by a test in a downstream module Y that
+exercises X through its API; `-am` alone pulls only X's upstream dependencies, so Y would
+be built out entirely, its correctly-selected killing test would never run, and mutation
+validation would misreport it as a skipped killer — a fabricated would-miss. This is
+Principle III (Safety Over Speed) applied to the build-scoping decision specifically: a
+narrowing is sound only if it provably cannot drop a test whose outcome the change affects,
+which is exactly why the dependents dimension (`-amd`) is load-bearing, not an optional
+optimization.
+
 ## Technology & Architecture Constraints
 
 - **Test execution model**: JUnit 5 Platform (Jupiter) is the primary, native
@@ -253,4 +298,4 @@ gate defined in `.specify/templates/plan-template.md`. Any violation MUST be
 explicitly justified in that plan's Complexity Tracking section or the design MUST
 be simplified until it complies.
 
-**Version**: 2.3.0 | **Ratified**: 2026-07-08 | **Last Amended**: 2026-07-28
+**Version**: 2.4.0 | **Ratified**: 2026-07-08 | **Last Amended**: 2026-08-02
