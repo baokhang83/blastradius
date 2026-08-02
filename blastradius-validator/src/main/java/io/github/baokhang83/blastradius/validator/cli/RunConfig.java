@@ -2,6 +2,7 @@ package io.github.baokhang83.blastradius.validator.cli;
 
 import io.github.baokhang83.blastradius.validator.build.SkippedTests;
 import io.github.baokhang83.blastradius.validator.git.HistoryMode;
+import io.github.baokhang83.blastradius.validator.mutation.MutationValidationConfig;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
@@ -48,7 +49,7 @@ import java.util.Objects;
 public record RunConfig(
         Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
         boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes, boolean skipBuildExtras,
-        HistoryMode historyMode, SkippedTests skippedTests) {
+        HistoryMode historyMode, SkippedTests skippedTests, MutationValidationConfig mutationValidation) {
 
     /** Default build timeout in minutes when the operator doesn't override it. */
     public static final long DEFAULT_BUILD_TIMEOUT_MINUTES = 5;
@@ -88,7 +89,7 @@ public record RunConfig(
             Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
             boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes, boolean skipBuildExtras) {
         this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,
-                buildConcurrency, buildTimeoutMinutes, skipBuildExtras, HistoryMode.ALL_PARENTS, SkippedTests.none());
+                buildConcurrency, buildTimeoutMinutes, skipBuildExtras, HistoryMode.ALL_PARENTS, SkippedTests.none(), null);
     }
 
     /** Compatibility constructor for callers that do not use explicit test exclusions. */
@@ -97,7 +98,7 @@ public record RunConfig(
             boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes, boolean skipBuildExtras,
             HistoryMode historyMode) {
         this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,
-                buildConcurrency, buildTimeoutMinutes, skipBuildExtras, historyMode, SkippedTests.none());
+                buildConcurrency, buildTimeoutMinutes, skipBuildExtras, historyMode, SkippedTests.none(), null);
     }
 
     public RunConfig {

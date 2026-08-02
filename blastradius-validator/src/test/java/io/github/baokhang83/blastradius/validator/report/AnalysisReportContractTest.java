@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.baokhang83.blastradius.validator.git.CommitPair;
 import io.github.baokhang83.blastradius.validator.git.HistoryMode;
+import io.github.baokhang83.blastradius.validator.mutation.MutationValidationReport;
 import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.validator.verdict.Verdict;
@@ -113,6 +114,16 @@ class AnalysisReportContractTest {
                 List.of("org.app.FlakyTest", "org.app2.Flaky2Test"));
 
         assertEquals(List.of("org.app.FlakyTest", "org.app2.Flaky2Test"), roundTrip(report).skippedTests());
+    }
+
+    @Test
+    void reportCarriesOptionalHistoricalMutationValidation() throws Exception {
+        MutationValidationReport mutation = MutationValidationReport.from(List.of(), 0, 0);
+        AnalysisReport report = new AnalysisReport(
+                Verdict.PASS, HistoryMode.ALL_PARENTS, List.of(), List.of(), FailureCoverage.empty(),
+                List.of(), List.of(), aggregator.aggregate(List.of()), List.of(), mutation);
+
+        assertEquals(mutation, roundTrip(report).mutationValidation());
     }
 
     private AnalysisReport roundTrip(AnalysisReport report) throws Exception {

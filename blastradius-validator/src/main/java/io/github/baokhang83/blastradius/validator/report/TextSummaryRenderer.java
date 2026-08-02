@@ -45,6 +45,32 @@ public final class TextSummaryRenderer {
             sb.append("    not selected: ").append(miss.selectionReason()).append('\n');
         }
 
+        if (report.mutationValidation() != null) {
+            sb.append("Mutation validation: ").append(report.mutationValidation().verdict()).append('\n');
+            var mutation = report.mutationValidation();
+            var mutationCoverage = mutation.coverage();
+            sb.append("Mutation coverage:\n");
+            sb.append("  - generated: ").append(mutationCoverage.generatedMutations()).append('\n');
+            sb.append("  - attempted: ").append(mutationCoverage.attemptedMutations()).append('\n');
+            sb.append("  - skipped by time limit: ").append(mutationCoverage.timeLimitSkippedMutations()).append('\n');
+            sb.append("  - unbuildable: ").append(mutationCoverage.unbuildableMutants()).append('\n');
+            sb.append("  - compilable: ").append(mutationCoverage.compilableMutants()).append('\n');
+            sb.append("  - head-baseline-clean: ").append(mutationCoverage.baselineCleanMutants()).append('\n');
+            sb.append("  - test-killed: ").append(mutationCoverage.testKilledMutants()).append('\n');
+            sb.append("  - killing tests: ").append(mutationCoverage.mutationKillingTests()).append('\n');
+            sb.append("  - killing tests selected: ").append(mutationCoverage.selectedKillingTests()).append('\n');
+            sb.append("  - killing tests skipped: ").append(mutationCoverage.skippedKillingTests()).append('\n');
+            sb.append("  - flaky mutant failures: ").append(mutationCoverage.flakyMutantFailures()).append('\n');
+            for (var experiment : mutation.experiments()) {
+                sb.append("Mutation ").append(experiment.historicalPair().baseCommit()).append("..")
+                        .append(experiment.historicalPair().headCommit()).append(" -> ")
+                        .append(experiment.mutantCommit()).append(": ").append(experiment.status()).append('\n');
+                for (TestIdentity test : experiment.skippedKillingTests()) {
+                    sb.append("  - skipped killing test: ").append(testLabel(test)).append('\n');
+                }
+            }
+        }
+
         SavingsSummary savings = report.savingsSummary();
         sb.append('\n');
         sb.append("Savings: ").append(savings.totalSelected()).append(" / ")

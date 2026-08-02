@@ -25,6 +25,9 @@ import io.github.baokhang83.blastradius.validator.selection.PairSelectionAnalyze
 import io.github.baokhang83.blastradius.validator.selection.PairSelectionResult;
 import io.github.baokhang83.blastradius.validator.report.FailureCoverage;
 import io.github.baokhang83.blastradius.validator.git.PairStatus;
+import io.github.baokhang83.blastradius.validator.mutation.HistoricalMutationValidator;
+import io.github.baokhang83.blastradius.validator.mutation.MutationExperiment;
+import io.github.baokhang83.blastradius.validator.mutation.MutationValidationReport;
 import io.github.baokhang83.blastradius.validator.report.AnalysisReport;
 import io.github.baokhang83.blastradius.validator.report.ReportWriter;
 import io.github.baokhang83.blastradius.validator.report.SavingsSummary;
@@ -42,6 +45,7 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -137,7 +141,9 @@ public final class RunCommand {
 
                 // Phase 2 (cheap, serial): select + compare per pair, loading each build from the
                 // cache on demand so the full payloads are never all resident at once.
-                AnalysisReport report = analyzeWindow(window, config, outcomes, cache, pool);
+                long mutationDeadlineNanos = config.mutationValidation() == null ? Long.MAX_VALUE
+                        : System.nanoTime() + Duration.ofMinutes(config.mutationValidation().timeLimitMinutes()).toNanos();
+                AnalysisReport report = analyzeWindow(window, config, outcomes, cache, pool, mutationDeadlineNanos);
                 reportWriter.write(config.reportOutputPath(), report);
 
                 progress.summary(report.verdict().name(), System.currentTimeMillis() - runStart);
@@ -184,7 +190,7 @@ public final class RunCommand {
      */
     private AnalysisReport analyzeWindow(
             List<CommitPair> window, RunConfig config, Map<BuildKey, BuildOutcome> outcomes,
-            BuildCache cache, CheckoutPool pool)
+            BuildCache cache, CheckoutPool pool, long mutationDeadlineNanos)
             throws InterruptedException {
         List<CommitPair> analyzedPairs = new ArrayList<>();
         List<CommitPair> excludedPairs = new ArrayList<>();
@@ -192,6 +198,11 @@ public final class RunCommand {
         List<SelectionDecision> allDecisions = new ArrayList<>();
         List<FlakyFailure> allFlaky = new ArrayList<>();
         FailureCoverage failureCoverage = FailureCoverage.empty();
+        List<MutationExperiment> mutationExperiments = new ArrayList<>();
+        int generatedMutations = 0;
+        int timeLimitSkippedMutations = 0;
+        HistoricalMutationValidator mutationValidator = config.mutationValidation() == null
+                ? null : new HistoricalMutationValidator(groundTruthResolver);
         // Reactor scope per HEAD commit: a repeated head across the window repays neither the
         // checkout nor the tree walk. Only populated for pairs with a NON_SOURCE change.
         Map<String, ReactorScope> reactorScopeCache = new HashMap<>();
@@ -210,6 +221,19 @@ public final class RunCommand {
                 } catch (Exception e) {
                     analysis = excluded(pair, "analysis failed: " + e.getMessage());
                 }
+                if (analysis.pair().status() != PairStatus.EXCLUDED && mutationValidator != null) {
+                    try {
+                        CommitBuild base = cache.load(new BuildKey(pair.baseCommit(), true)).orElseThrow();
+                        CommitBuild head = cache.load(new BuildKey(pair.headCommit(), config.fastGroundTruth())).orElseThrow();
+                        HistoricalMutationValidator.PairMutationResult mutation = mutationValidator.validate(
+                                pair, base, head, scopeCheckout, config.mutationValidation(), mutationDeadlineNanos);
+                        mutationExperiments.addAll(mutation.experiments());
+                        generatedMutations += mutation.generated();
+                        timeLimitSkippedMutations += mutation.timeLimitSkipped();
+                    } catch (Exception e) {
+                        analysis = excluded(pair, "mutation validation failed: " + e.getMessage());
+                    }
+                }
                 long pairMillis = System.currentTimeMillis() - pairStart;
                 if (analysis.pair().status() == PairStatus.EXCLUDED) {
                     excludedPairs.add(analysis.pair());
@@ -227,10 +251,15 @@ public final class RunCommand {
             pool.release(scopeCheckout);
         }
 
-        Verdict verdict = verdictCalculator.calculate(allMisses);
+        Verdict historyVerdict = verdictCalculator.calculate(allMisses);
+        MutationValidationReport mutationValidation = mutationValidator == null ? null
+                : MutationValidationReport.from(mutationExperiments, generatedMutations, timeLimitSkippedMutations);
+        Verdict verdict = historyVerdict == Verdict.FAIL
+                || mutationValidation != null && mutationValidation.verdict() == Verdict.FAIL
+                ? Verdict.FAIL : Verdict.PASS;
         SavingsSummary savingsSummary = savingsSummaryAggregator.aggregate(allDecisions);
         return new AnalysisReport(verdict, config.historyMode(), analyzedPairs, excludedPairs, failureCoverage,
-                allMisses, allFlaky, savingsSummary, config.skippedTests().classes());
+                allMisses, allFlaky, savingsSummary, config.skippedTests().classes(), mutationValidation);
     }
 
     private record PairAnalysis(

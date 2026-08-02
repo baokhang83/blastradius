@@ -39,27 +39,28 @@ recommended daily safety net.
 
 ## Controlled mutation validation
 
-Historical replay can contain few newly confirmed failures. The validator also offers an opt-in,
-bounded mutation mode that creates one synthetic, compiling child commit in a disposable clone,
-runs the full suite, and checks that every test which demonstrably kills the mutation was selected
-for that real `B → M` edge. It never changes the project working tree you point it at.
+Historical replay can contain few newly confirmed failures. Add opt-in, bounded mutation
+validation to the same `run`: for every eligible historical pair `B → H`, it creates synthetic
+children `M` from `H`, runs their full suites, and checks whether the tests selected for `B → M`
+detect each controlled fault. It never changes the project working tree you point it at.
 
 ```sh
-java -jar blastradius-validator/target/blastradius-validator-0.3.2.jar mutate \
+java -jar blastradius-validator/target/blastradius-validator-0.3.2.jar run \
   --project-path ../your-maven-project \
-  --report-out mutation-report.json \
-  --summary-out mutation-summary.txt \
-  --max-mutation-classes 10 \
-  --max-mutations 10 \
+  --commits 300 \
+  --report-out report.json \
+  --mutation-validation \
+  --max-mutation-classes-per-pair 10 \
+  --max-mutations-per-pair 10 \
   --mutation-time-limit-minutes 60
 ```
 
 The first deterministic corpus inverts boolean literals and equality or relational operators in
-`src/main/java`. A killing test must pass on the baseline, fail on the mutant, and remain failed
-on confirmation. Unbuildable mutants, baseline failures, and flakes are reported separately and
-do not become soundness failures. This is sampled fault evidence, not a claim that all real
-changes or every possible defect are covered. Use the optional `--mutation-class <FQCN>` only
-when you want to focus the bounded run on one production class.
+`src/main/java`. A killing test must pass on historical head `H`, fail on mutant `M`, and remain
+failed on confirmation. Unbuildable mutants, head-baseline failures, and flakes are reported
+separately and do not become soundness failures. This is sampled fault evidence, not a claim that
+all real changes or every possible defect are covered. Use the optional `--mutation-class <FQCN>`
+to focus the bounded per-pair corpus on one production class.
 
 ### Excluding known flaky tests
 

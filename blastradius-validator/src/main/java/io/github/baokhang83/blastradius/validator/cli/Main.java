@@ -3,10 +3,7 @@ package io.github.baokhang83.blastradius.validator.cli;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.baokhang83.blastradius.validator.git.HistoryMode;
 import io.github.baokhang83.blastradius.validator.build.SkippedTests;
-import io.github.baokhang83.blastradius.validator.mutation.MutationCommand;
-import io.github.baokhang83.blastradius.validator.mutation.MutationConfig;
-import io.github.baokhang83.blastradius.validator.mutation.MutationReport;
-import io.github.baokhang83.blastradius.validator.mutation.MutationTextSummaryRenderer;
+import io.github.baokhang83.blastradius.validator.mutation.MutationValidationConfig;
 import io.github.baokhang83.blastradius.validator.report.AnalysisReport;
 import io.github.baokhang83.blastradius.validator.report.TextSummaryRenderer;
 import java.io.IOException;
@@ -31,7 +28,6 @@ public final class Main {
         }
         switch (args[0]) {
             case "run" -> runHistory(args);
-            case "mutate" -> runMutations(args);
             default -> {
                 usage();
                 System.exit(2);
@@ -52,6 +48,12 @@ public final class Main {
         boolean skipBuildExtras = false;
         HistoryMode historyMode = HistoryMode.ALL_PARENTS;
         List<String> skippedTestValues = new ArrayList<>();
+        boolean mutationValidation = false;
+        String mutationClass = null;
+        int maxMutationClassesPerPair = MutationValidationConfig.DEFAULT_MAX_CLASSES_PER_PAIR;
+        int maxMutationsPerPair = MutationValidationConfig.DEFAULT_MAX_MUTATIONS_PER_PAIR;
+        long mutationTimeLimitMinutes = MutationValidationConfig.DEFAULT_TIME_LIMIT_MINUTES;
+        boolean mutationOptionSupplied = false;
 
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
@@ -66,6 +68,23 @@ public final class Main {
                 case "--skip-build-extras" -> skipBuildExtras = true;
                 case "--history-mode" -> historyMode = HistoryMode.fromCliValue(args[++i]);
                 case "--skipped-tests" -> skippedTestValues.add(args[++i]);
+                case "--mutation-validation" -> mutationValidation = true;
+                case "--mutation-class" -> {
+                    mutationClass = args[++i];
+                    mutationOptionSupplied = true;
+                }
+                case "--max-mutation-classes-per-pair" -> {
+                    maxMutationClassesPerPair = Integer.parseInt(args[++i]);
+                    mutationOptionSupplied = true;
+                }
+                case "--max-mutations-per-pair" -> {
+                    maxMutationsPerPair = Integer.parseInt(args[++i]);
+                    mutationOptionSupplied = true;
+                }
+                case "--mutation-time-limit-minutes" -> {
+                    mutationTimeLimitMinutes = Long.parseLong(args[++i]);
+                    mutationOptionSupplied = true;
+                }
                 default -> {
                     System.err.println("unknown argument: " + args[i]);
                     System.exit(2);
@@ -79,63 +98,21 @@ public final class Main {
             System.exit(2);
             return;
         }
+        if (mutationOptionSupplied && !mutationValidation) {
+            System.err.println("mutation limits require --mutation-validation");
+            System.exit(2);
+            return;
+        }
 
         try {
             RunConfig config = new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth,
                     buildConcurrency, buildTimeoutMinutes, skipBuildExtras, historyMode,
-                    SkippedTests.parse(skippedTestValues));
+                    SkippedTests.parse(skippedTestValues), mutationValidation
+                            ? new MutationValidationConfig(mutationClass, maxMutationClassesPerPair,
+                                    maxMutationsPerPair, mutationTimeLimitMinutes)
+                            : null);
             int exitCode = new RunCommand().run(config);
             printSummary(reportOut, summaryOut, exitCode);
-            System.exit(exitCode);
-        } catch (IllegalArgumentException e) {
-            System.err.println("invalid configuration: " + e.getMessage());
-            System.exit(2);
-        }
-    }
-
-    private static void runMutations(String[] args) {
-        Path projectPath = null;
-        Path reportOut = null;
-        Path summaryOut = null;
-        String classFilter = null;
-        int maxMutationClasses = MutationConfig.DEFAULT_MAX_CLASSES;
-        int maxMutations = MutationConfig.DEFAULT_MAX_MUTATIONS;
-        long timeLimitMinutes = MutationConfig.DEFAULT_TIME_LIMIT_MINUTES;
-        Integer mavenThreads = null;
-        long buildTimeoutMinutes = MutationConfig.DEFAULT_BUILD_TIMEOUT_MINUTES;
-        boolean skipBuildExtras = false;
-        List<String> skippedTestValues = new ArrayList<>();
-        for (int i = 1; i < args.length; i++) {
-            switch (args[i]) {
-                case "--project-path" -> projectPath = Path.of(args[++i]);
-                case "--report-out" -> reportOut = Path.of(args[++i]);
-                case "--summary-out" -> summaryOut = Path.of(args[++i]);
-                case "--mutation-class" -> classFilter = args[++i];
-                case "--max-mutation-classes" -> maxMutationClasses = Integer.parseInt(args[++i]);
-                case "--max-mutations" -> maxMutations = Integer.parseInt(args[++i]);
-                case "--mutation-time-limit-minutes" -> timeLimitMinutes = Long.parseLong(args[++i]);
-                case "--maven-threads" -> mavenThreads = Integer.parseInt(args[++i]);
-                case "--build-timeout-minutes" -> buildTimeoutMinutes = Long.parseLong(args[++i]);
-                case "--skip-build-extras" -> skipBuildExtras = true;
-                case "--skipped-tests" -> skippedTestValues.add(args[++i]);
-                default -> {
-                    System.err.println("unknown argument: " + args[i]);
-                    System.exit(2);
-                    return;
-                }
-            }
-        }
-        if (projectPath == null || reportOut == null) {
-            System.err.println("missing required argument(s): --project-path and --report-out are required");
-            System.exit(2);
-            return;
-        }
-        try {
-            MutationConfig config = new MutationConfig(projectPath, reportOut, classFilter, maxMutationClasses, maxMutations,
-                    timeLimitMinutes, mavenThreads, buildTimeoutMinutes, skipBuildExtras,
-                    SkippedTests.parse(skippedTestValues));
-            int exitCode = new MutationCommand().run(config);
-            printMutationSummary(reportOut, summaryOut, exitCode);
             System.exit(exitCode);
         } catch (IllegalArgumentException e) {
             System.err.println("invalid configuration: " + e.getMessage());
@@ -161,31 +138,13 @@ public final class Main {
         }
     }
 
-    private static void printMutationSummary(Path reportOut, Path summaryOut, int exitCode) {
-        if (exitCode == 2) {
-            return;
-        }
-        try {
-            MutationReport report = new ObjectMapper().readValue(reportOut.toFile(), MutationReport.class);
-            String text = new MutationTextSummaryRenderer().render(report);
-            if (summaryOut != null) {
-                Files.writeString(summaryOut, text);
-            } else {
-                System.out.print(text);
-            }
-        } catch (IOException e) {
-            System.err.println("warning: could not render mutation text summary: " + e.getMessage());
-        }
-    }
-
     private static void usage() {
         System.err.println("usage: run --project-path <path> --commits <N> --report-out <path> "
                 + "[--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth] "
                 + "[--build-concurrency <K>] [--build-timeout-minutes <M>] [--skip-build-extras] "
-                + "[--history-mode <all-parents|first-parent>] [--skipped-tests <FQCN,...>]\n"
-                + "   or: mutate --project-path <path> --report-out <path> [--summary-out <path>] "
-                + "[--mutation-class <FQCN>] [--max-mutation-classes <N>] [--max-mutations <N>] "
-                + "[--mutation-time-limit-minutes <M>] [--maven-threads <N>] "
-                + "[--build-timeout-minutes <M>] [--skip-build-extras] [--skipped-tests <FQCN,...>]");
+                + "[--history-mode <all-parents|first-parent>] [--skipped-tests <FQCN,...>] "
+                + "[--mutation-validation] [--mutation-class <FQCN>] "
+                + "[--max-mutation-classes-per-pair <N>] [--max-mutations-per-pair <N>] "
+                + "[--mutation-time-limit-minutes <M>]");
     }
 }

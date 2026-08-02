@@ -2,6 +2,7 @@ package io.github.baokhang83.blastradius.validator.report;
 
 import io.github.baokhang83.blastradius.validator.git.CommitPair;
 import io.github.baokhang83.blastradius.validator.git.HistoryMode;
+import io.github.baokhang83.blastradius.validator.mutation.MutationValidationReport;
 import io.github.baokhang83.blastradius.validator.verdict.FlakyFailure;
 import io.github.baokhang83.blastradius.validator.verdict.Verdict;
 import io.github.baokhang83.blastradius.validator.verdict.WouldMissCase;
@@ -24,7 +25,8 @@ public record AnalysisReport(
         List<WouldMissCase> wouldMissCases,
         List<FlakyFailure> flakyFailures,
         SavingsSummary savingsSummary,
-        List<String> skippedTests) {
+        List<String> skippedTests,
+        MutationValidationReport mutationValidation) {
 
     public AnalysisReport {
         skippedTests = skippedTests == null ? List.of() : List.copyOf(skippedTests);
@@ -41,7 +43,22 @@ public record AnalysisReport(
             List<FlakyFailure> flakyFailures,
             SavingsSummary savingsSummary) {
         this(verdict, historyMode, analyzedCommitPairs, excludedCommitPairs, failureCoverage,
-                wouldMissCases, flakyFailures, savingsSummary, List.of());
+                wouldMissCases, flakyFailures, savingsSummary, List.of(), null);
+    }
+
+    /** Compatibility constructor for callers that do not use mutation validation. */
+    public AnalysisReport(
+            Verdict verdict,
+            HistoryMode historyMode,
+            List<CommitPair> analyzedCommitPairs,
+            List<CommitPair> excludedCommitPairs,
+            FailureCoverage failureCoverage,
+            List<WouldMissCase> wouldMissCases,
+            List<FlakyFailure> flakyFailures,
+            SavingsSummary savingsSummary,
+            List<String> skippedTests) {
+        this(verdict, historyMode, analyzedCommitPairs, excludedCommitPairs, failureCoverage,
+                wouldMissCases, flakyFailures, savingsSummary, skippedTests, null);
     }
 
     /** Compatibility constructor for callers that do not yet supply the newly-visible fields. */
@@ -53,7 +70,7 @@ public record AnalysisReport(
             List<FlakyFailure> flakyFailures,
             SavingsSummary savingsSummary) {
         this(verdict, HistoryMode.ALL_PARENTS, analyzedCommitPairs, excludedCommitPairs,
-                legacyFailureCoverage(wouldMissCases), wouldMissCases, flakyFailures, savingsSummary, List.of());
+                legacyFailureCoverage(wouldMissCases), wouldMissCases, flakyFailures, savingsSummary, List.of(), null);
     }
 
     private static FailureCoverage legacyFailureCoverage(List<WouldMissCase> wouldMissCases) {
