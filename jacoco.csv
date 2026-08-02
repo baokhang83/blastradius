@@ -58,7 +58,8 @@ coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutati
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutation,MutationValidationReport,4,134,3,5,0,17,3,11,0,10
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutation,MutationCandidateGenerator.ScanState,0,39,0,0,0,7,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutation,HistoricalMutationValidator,75,340,10,16,16,64,12,13,3,9
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutation,MutationCandidateGenerator,107,367,32,52,31,72,27,28,0,13
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutation,MutationCandidateGenerator,108,347,33,53,32,72,28,27,0,12
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutation,MutationCandidateGenerator.new SimpleFileVisitor() {...},2,56,2,10,0,9,2,7,0,3
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,SkippedTests,0,119,0,10,0,24,0,11,0,6
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,CommitBuildService,8,232,0,16,2,47,0,14,0,6
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,SurefireReportParser,18,151,0,18,4,36,0,15,0,6
