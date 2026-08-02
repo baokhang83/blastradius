@@ -62,6 +62,28 @@ class MutationCandidateGeneratorTest {
     }
 
     @Test
+    void classBudgetCountsClassesThatYieldCandidatesNotFilesLookedAt(@TempDir Path project) throws Exception {
+        // The alphabetically-first source has NO mutable token (an abstract class with no
+        // boolean/operator literal). With a 1-class budget it must NOT consume that budget and
+        // return empty — the budget bounds classes we actually mutate. This is the apache/shenyu
+        // failure: --max-mutation-classes-per-pair 1 landed on a token-free first class and
+        // generated zero mutants while thousands of mutable classes went unvisited.
+        write(project, "com.example.AbstractFirst", """
+                package com.example;
+                abstract class AbstractFirst { abstract void run(); }
+                """);
+        write(project, "com.example.Zeta", """
+                package com.example;
+                class Zeta { boolean value() { return true; } }
+                """);
+
+        List<MutationCandidate> candidates = generator.generate(project, null, 1, 10);
+
+        assertEquals(List.of("com.example.Zeta:BOOLEAN_LITERAL:true:false"),
+                candidates.stream().map(this::describe).toList());
+    }
+
+    @Test
     void discoversPerModuleSourceRootsInAMultiModuleReactorWithNoRootSources(@TempDir Path project)
             throws Exception {
         // A real reactor (apache/shenyu) has NO src/main/java at the repo root — every source
