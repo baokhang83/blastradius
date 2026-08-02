@@ -2,6 +2,7 @@ package io.github.baokhang83.blastradius.validator.mutation;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
+import io.github.baokhang83.blastradius.core.git.FileKind;
 import io.github.baokhang83.blastradius.core.reactor.ModuleId;
 import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraph;
 import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraphBuilder;
@@ -28,9 +29,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** Runs bounded synthetic mutants as evidence for one already-built historical pair. */
 public final class HistoricalMutationValidator {
+
+    /** Only production sources are mutable; a changed test or Kotlin file carries no candidate. */
+    private static final String PRODUCTION_SOURCE_MARKER = "src/main/java/";
 
     private final MutationCandidateGenerator candidateGenerator = new MutationCandidateGenerator();
     private final ChangedFileClassifier changedFileClassifier = new ChangedFileClassifier();
@@ -48,8 +54,29 @@ public final class HistoricalMutationValidator {
             CommitPair pair, CommitBuild base, CommitBuild head, CommitCheckout checkout,
             MutationValidationConfig config, long deadlineNanos) {
         Path headTree = checkout.checkoutCommit(pair.headCommit());
+        // Mutate the code THIS pair changed, not the whole-tree first-yielding class: a real
+        // regression lives in the changed surface, and the changed module's -amd fanout is
+        // typically cheaper to build than a low-level module's. ChangedFile.path is repo-relative,
+        // the same form MutationCandidate.sourcePath uses, so the pool is a direct set-membership.
+        Set<String> changedSourcePaths = changedFileClassifier.classify(
+                        headTree, pair.baseCommit(), pair.headCommit()).stream()
+                .filter(changed -> changed.kind() == FileKind.JAVA_SOURCE)
+                .map(ChangedFile::path)
+                .filter(path -> path.contains(PRODUCTION_SOURCE_MARKER))
+                .collect(Collectors.toSet());
         List<MutationCandidate> candidates = candidateGenerator.generate(headTree, config.classFilter(),
-                config.maxMutationClassesPerPair(), config.maxMutationsPerPair());
+                changedSourcePaths, config.maxMutationClassesPerPair(), config.maxMutationsPerPair());
+        MutationCandidateOrigin origin = MutationCandidateOrigin.DIFF_TARGETED;
+        if (candidates.isEmpty()) {
+            // The pair changed no mutable production source (docs/config/test-only, or a changed
+            // source with no boolean/operator token). Fall back to the whole-tree scan so the pair
+            // still exercises some mutant rather than silently validating nothing (§III). Every
+            // mutant this pair produces from here on asks the weaker "somewhere in the tree"
+            // question, not "in what this PR touched" — tagged so the report can tell them apart.
+            candidates = candidateGenerator.generate(headTree, config.classFilter(),
+                    config.maxMutationClassesPerPair(), config.maxMutationsPerPair());
+            origin = MutationCandidateOrigin.WHOLE_TREE_FALLBACK;
+        }
         // One reactor graph for the whole pair: each mutant changes a single file, so its build
         // only needs the owning module + its dependents (-pl/-am/-amd), not the whole reactor.
         ReactorModuleGraph moduleGraph = buildModuleGraph(headTree);
@@ -73,20 +100,20 @@ public final class HistoricalMutationValidator {
             GroundTruthResolution mutantResolution =
                     groundTruthResolver.resolve(checkout.workTree(), null, null, modulePath);
             if (buildFailureDetector.isBuildFailure(mutantResolution.initialBuild(), checkout.workTree())) {
-                experiments.add(new MutationExperiment(pair, candidate, mutantCommit, MutationStatus.UNBUILDABLE,
+                experiments.add(new MutationExperiment(pair, candidate, origin, mutantCommit, MutationStatus.UNBUILDABLE,
                         "mutant failed to build (exit " + mutantResolution.initialBuild().exitCode() + ")",
                         headFailures, List.of(), List.of(), List.of(), List.of()));
                 continue;
             }
-            experiments.add(analyzeMutant(pair, candidate, mutantCommit, base, headFailures, headOutcomes,
+            experiments.add(analyzeMutant(pair, candidate, origin, mutantCommit, base, headFailures, headOutcomes,
                     mutantResolution.results(), checkout.workTree()));
         }
         return new PairMutationResult(experiments, candidates.size(), timeSkipped);
     }
 
     private MutationExperiment analyzeMutant(
-            CommitPair pair, MutationCandidate candidate, String mutantCommit, CommitBuild base,
-            List<TestIdentity> headFailures, Map<TestIdentity, Outcome> headOutcomes,
+            CommitPair pair, MutationCandidate candidate, MutationCandidateOrigin origin, String mutantCommit,
+            CommitBuild base, List<TestIdentity> headFailures, Map<TestIdentity, Outcome> headOutcomes,
             List<GroundTruthResult> mutantOutcomes, Path mutantTree) {
         List<ChangedFile> changedFiles = changedFileClassifier.classify(mutantTree, pair.baseCommit(), mutantCommit);
         ReactorScope scope = fallbackSelector.shouldFallback(changedFiles) ? buildReactorScope(mutantTree) : null;
@@ -112,7 +139,7 @@ public final class HistoricalMutationValidator {
             }
         }
         List<TestIdentity> flaky = selection.flakyFailures().stream().map(failure -> failure.test()).toList();
-        return new MutationExperiment(pair, candidate, mutantCommit,
+        return new MutationExperiment(pair, candidate, origin, mutantCommit,
                 killing.isEmpty() ? MutationStatus.SURVIVED : MutationStatus.KILLED,
                 null, headFailures, killing, selected, skipped, flaky);
     }

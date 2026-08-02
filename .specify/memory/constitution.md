@@ -1,6 +1,31 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 2.4.0 → 2.5.0 (MINOR — new Principle X added)
+Added principles:
+  - X. A Narrowed Validation Corpus Must Fall Back, Never Validate Nothing — when our
+    tooling narrows WHICH artifacts it validates (as opposed to the build scope of
+    Principle IX) for relevance or speed — e.g. targeting mutation candidates at only a
+    commit pair's changed source files instead of the whole tree — and that narrowing
+    yields an EMPTY set, the tooling MUST fall back to the broader set so the run still
+    produces real evidence; it MUST NOT emit a verdict backed by zero validated artifacts.
+    Rationale: found concretely when targeting mutation candidates at each pair's changed
+    production sources. A docs/config/test-only pair, or a changed source carrying no
+    mutable token, yields an empty candidate pool; generating zero mutants and still
+    emitting PASS is a verdict with no evidence — the exact false-PASS direction §III
+    forbids. Unlike IX (a narrowed scope must be a provable SUPERSET), this narrowing is
+    deliberately not a superset — it validates fewer, more relevant artifacts — so its
+    soundness guard is different: an empty result triggers fallback to the whole-tree
+    corpus rather than a silent no-op. This is §III applied to the validation-corpus
+    narrowing specifically, parallel to how IX applies it to build scoping.
+Removed principles: none
+Added/removed sections: none
+Templates requiring updates:
+  - ✅ .specify/templates/plan-template.md — Constitution Check derived dynamically from
+    this file, no changes needed
+Follow-up TODOs: none
+
+Previous entry (2.3.0 → 2.4.0):
 Version change: 2.3.0 → 2.4.0 (MINOR — new Principle IX added)
 Added principles:
   - IX. Scope-for-Speed Must Be a Provable Superset — when our own tooling narrows a
@@ -245,6 +270,27 @@ narrowing is sound only if it provably cannot drop a test whose outcome the chan
 which is exactly why the dependents dimension (`-amd`) is load-bearing, not an optional
 optimization.
 
+### X. A Narrowed Validation Corpus Must Fall Back, Never Validate Nothing
+
+When our tooling narrows *which* artifacts it validates — as distinct from the *build scope*
+governed by Principle IX — for relevance or speed (e.g. targeting mutation candidates at only
+a commit pair's changed source files instead of the whole reactor tree), and that narrowing
+yields an **empty** set, the tooling MUST fall back to the broader set so the run still
+produces real evidence. It MUST NOT emit a verdict backed by zero validated artifacts.
+
+**Rationale**: found concretely when targeting mutation candidates at each pair's changed
+production sources rather than the whole-tree first-yielding class. A docs/config/test-only
+pair — or a changed source carrying no mutable boolean/operator token — yields an empty
+candidate pool; generating zero mutants and still emitting PASS is a verdict with no evidence
+behind it, the exact false-PASS direction Principle III forbids. Unlike Principle IX (a
+narrowed *build scope* must be a provable *superset* of the affectable set), this narrowing is
+deliberately **not** a superset — the whole point is to validate fewer, more relevant
+artifacts — so its soundness guard takes a different shape: an empty narrowed result triggers a
+fallback to the whole-tree corpus, never a silent no-op. The narrowing stays sound because the
+fallback guarantees every pair exercises *some* mutant. This is Principle III (Safety Over
+Speed) applied to the validation-corpus narrowing specifically, parallel to how Principle IX
+applies it to build scoping.
+
 ## Technology & Architecture Constraints
 
 - **Test execution model**: JUnit 5 Platform (Jupiter) is the primary, native
@@ -298,4 +344,4 @@ gate defined in `.specify/templates/plan-template.md`. Any violation MUST be
 explicitly justified in that plan's Complexity Tracking section or the design MUST
 be simplified until it complies.
 
-**Version**: 2.4.0 | **Ratified**: 2026-07-08 | **Last Amended**: 2026-08-02
+**Version**: 2.5.0 | **Ratified**: 2026-07-08 | **Last Amended**: 2026-08-02

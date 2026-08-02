@@ -21,10 +21,14 @@ blastradius-validator run \
 | `0` | Run completed and produced a verdict of `PASS` |
 | `1` | Run completed and produced a verdict of `FAIL` |
 | `2` | Run could not complete at all (e.g., invalid `--project-path`, not a Maven/JUnit 5 project) — distinct from a `FAIL` verdict, which is a valid, successfully-produced result |
+| `3` | Run completed and produced a verdict of `INCONCLUSIVE` — mutation validation was enabled but confirmed zero killed mutants (every attempted mutant survived, failed to build, or none were attempted), so selection was never actually put to the test |
 
 The PASS/FAIL distinction is encoded in the exit code specifically so the validator can be
 scripted (e.g., "only proceed with further investment if exit code is 0") without parsing the
 report, while a hard error (code 2) is never confusable with a legitimate FAIL verdict.
+`INCONCLUSIVE` (code 3) is likewise never confusable with `PASS`: a script gating on exit code 0
+correctly treats "we never confirmed a killed mutant" as not a clean pass, distinct from both a
+confirmed-safe `PASS` and a confirmed-miss `FAIL`.
 
 ## AnalysisReport JSON schema
 

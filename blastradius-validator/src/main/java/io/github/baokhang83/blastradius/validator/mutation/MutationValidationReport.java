@@ -24,9 +24,25 @@ public record MutationValidationReport(
         int selected = experiments.stream().mapToInt(e -> e.selectedKillingTests().size()).sum();
         int skipped = experiments.stream().mapToInt(e -> e.skippedKillingTests().size()).sum();
         int flaky = experiments.stream().mapToInt(e -> e.flakyTests().size()).sum();
+        MutationOriginCoverage diffTargeted = originCoverage(experiments, MutationCandidateOrigin.DIFF_TARGETED);
+        MutationOriginCoverage wholeTreeFallback =
+                originCoverage(experiments, MutationCandidateOrigin.WHOLE_TREE_FALLBACK);
         MutationCoverage coverage = new MutationCoverage(
                 generatedMutations, experiments.size(), timeLimitSkippedMutations, unbuildable, compilable,
-                baselineClean, killed, killingTests, selected, skipped, flaky);
-        return new MutationValidationReport(skipped == 0 ? Verdict.PASS : Verdict.FAIL, coverage, experiments);
+                baselineClean, killed, killingTests, selected, skipped, flaky, diffTargeted, wholeTreeFallback);
+        // killed == 0 means every attempted mutant either survived or failed to build: selection
+        // was never actually put to the test, so a bare PASS here would claim confirmation this
+        // run never earned (§III) — distinct from skipped == 0 with killed > 0, a real PASS.
+        Verdict verdict = killed == 0 ? Verdict.INCONCLUSIVE : skipped == 0 ? Verdict.PASS : Verdict.FAIL;
+        return new MutationValidationReport(verdict, coverage, experiments);
+    }
+
+    private static MutationOriginCoverage originCoverage(
+            List<MutationExperiment> experiments, MutationCandidateOrigin origin) {
+        List<MutationExperiment> fromOrigin = experiments.stream().filter(e -> e.origin() == origin).toList();
+        int killingTests = fromOrigin.stream().mapToInt(e -> e.killingTests().size()).sum();
+        int selected = fromOrigin.stream().mapToInt(e -> e.selectedKillingTests().size()).sum();
+        int skipped = fromOrigin.stream().mapToInt(e -> e.skippedKillingTests().size()).sum();
+        return new MutationOriginCoverage(killingTests, selected, skipped);
     }
 }

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -128,6 +129,43 @@ class MutationCandidateGeneratorTest {
 
         assertEquals(List.of("com.example.Prod"),
                 candidates.stream().map(MutationCandidate::className).distinct().toList());
+    }
+
+    @Test
+    void restrictsCandidatesToTheChangedSourcePathPool(@TempDir Path project) throws Exception {
+        // A pair changed only Gate.java; Flag.java is in the tree but untouched. With the pool
+        // set to the changed path, only Gate's candidates are generated — mutants land in the
+        // code the commit actually changed, not the whole-tree first-yielding class.
+        writeInModule(project, "shenyu-common", "org.apache.shenyu.common.Flag", """
+                package org.apache.shenyu.common;
+                public class Flag { public boolean on() { return true; } }
+                """);
+        writeInModule(project, "shenyu-admin", "org.apache.shenyu.admin.Gate", """
+                package org.apache.shenyu.admin;
+                public class Gate { public boolean open() { return false; } }
+                """);
+
+        List<MutationCandidate> candidates = generator.generate(project, null,
+                Set.of("shenyu-admin/src/main/java/org/apache/shenyu/admin/Gate.java"), 10, 10);
+
+        assertEquals(List.of(
+                "shenyu-admin/src/main/java/org/apache/shenyu/admin/Gate.java"
+                        + "|org.apache.shenyu.admin.Gate|BOOLEAN_LITERAL"),
+                candidates.stream().map(this::describePath).toList());
+    }
+
+    @Test
+    void anEmptyPathPoolYieldsNoCandidatesLeavingFallbackToTheCaller(@TempDir Path project) throws Exception {
+        // An empty pool (a docs/config/test-only pair changed no production source) must return
+        // empty — the caller owns the whole-tree fallback decision, not the generator.
+        writeInModule(project, "mod", "com.example.Prod", """
+                package com.example;
+                public class Prod { public boolean on() { return true; } }
+                """);
+
+        List<MutationCandidate> candidates = generator.generate(project, null, Set.of(), 10, 10);
+
+        assertEquals(List.of(), candidates);
     }
 
     @Test

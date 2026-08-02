@@ -147,7 +147,13 @@ public final class RunCommand {
                 reportWriter.write(config.reportOutputPath(), report);
 
                 progress.summary(report.verdict().name(), System.currentTimeMillis() - runStart);
-                return report.verdict() == Verdict.PASS ? 0 : 1;
+                return switch (report.verdict()) {
+                    case PASS -> 0;
+                    case FAIL -> 1;
+                    // Distinct from 2, which means the tool itself errored (see the catch below):
+                    // this is a clean run that simply never confirmed a killed mutant.
+                    case INCONCLUSIVE -> 3;
+                };
             } finally {
                 executor.shutdownNow();
             }
@@ -254,9 +260,17 @@ public final class RunCommand {
         Verdict historyVerdict = verdictCalculator.calculate(allMisses);
         MutationValidationReport mutationValidation = mutationValidator == null ? null
                 : MutationValidationReport.from(mutationExperiments, generatedMutations, timeLimitSkippedMutations);
-        Verdict verdict = historyVerdict == Verdict.FAIL
-                || mutationValidation != null && mutationValidation.verdict() == Verdict.FAIL
-                ? Verdict.FAIL : Verdict.PASS;
+        // Precedence FAIL > INCONCLUSIVE > PASS: a confirmed miss always wins regardless of how
+        // much mutation evidence backs it, but absent that, an INCONCLUSIVE mutation leg (no
+        // mutant was actually killed) must not be swallowed into an unearned overall PASS (§III).
+        Verdict verdict;
+        if (historyVerdict == Verdict.FAIL || mutationValidation != null && mutationValidation.verdict() == Verdict.FAIL) {
+            verdict = Verdict.FAIL;
+        } else if (mutationValidation != null && mutationValidation.verdict() == Verdict.INCONCLUSIVE) {
+            verdict = Verdict.INCONCLUSIVE;
+        } else {
+            verdict = Verdict.PASS;
+        }
         SavingsSummary savingsSummary = savingsSummaryAggregator.aggregate(allDecisions);
         return new AnalysisReport(verdict, config.historyMode(), analyzedPairs, excludedPairs, failureCoverage,
                 allMisses, allFlaky, savingsSummary, config.skippedTests().classes(), mutationValidation);
