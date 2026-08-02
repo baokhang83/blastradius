@@ -48,6 +48,14 @@ class MutationReportTest {
         assertEquals(1, report.coverage().unbuildableMutants());
     }
 
+    @Test
+    void reportCarriesExplicitSkippedTestClasses() {
+        MutationReport report = MutationReport.from("baseline-sha", List.of(), List.of(), 0, 0,
+                List.of("org.app.FlakyTest"));
+
+        assertEquals(List.of("org.app.FlakyTest"), report.skippedTests());
+    }
+
     private MutationCandidate candidate() {
         return new MutationCandidate("src/main/java/com/example/Flag.java", "com.example.Flag",
                 MutationOperator.BOOLEAN_LITERAL, 1, "true", "false");

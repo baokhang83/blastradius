@@ -2,6 +2,7 @@ package io.github.baokhang83.blastradius.validator.cli;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.baokhang83.blastradius.validator.git.HistoryMode;
+import io.github.baokhang83.blastradius.validator.build.SkippedTests;
 import io.github.baokhang83.blastradius.validator.mutation.MutationCommand;
 import io.github.baokhang83.blastradius.validator.mutation.MutationConfig;
 import io.github.baokhang83.blastradius.validator.mutation.MutationReport;
@@ -11,6 +12,8 @@ import io.github.baokhang83.blastradius.validator.report.TextSummaryRenderer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * CLI entry point. Usage:
@@ -48,6 +51,7 @@ public final class Main {
         long buildTimeoutMinutes = RunConfig.DEFAULT_BUILD_TIMEOUT_MINUTES;
         boolean skipBuildExtras = false;
         HistoryMode historyMode = HistoryMode.ALL_PARENTS;
+        List<String> skippedTestValues = new ArrayList<>();
 
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
@@ -61,6 +65,7 @@ public final class Main {
                 case "--build-timeout-minutes" -> buildTimeoutMinutes = Long.parseLong(args[++i]);
                 case "--skip-build-extras" -> skipBuildExtras = true;
                 case "--history-mode" -> historyMode = HistoryMode.fromCliValue(args[++i]);
+                case "--skipped-tests" -> skippedTestValues.add(args[++i]);
                 default -> {
                     System.err.println("unknown argument: " + args[i]);
                     System.exit(2);
@@ -77,7 +82,8 @@ public final class Main {
 
         try {
             RunConfig config = new RunConfig(projectPath, commits, reportOut, mavenThreads, fastGroundTruth,
-                    buildConcurrency, buildTimeoutMinutes, skipBuildExtras, historyMode);
+                    buildConcurrency, buildTimeoutMinutes, skipBuildExtras, historyMode,
+                    SkippedTests.parse(skippedTestValues));
             int exitCode = new RunCommand().run(config);
             printSummary(reportOut, summaryOut, exitCode);
             System.exit(exitCode);
@@ -98,6 +104,7 @@ public final class Main {
         Integer mavenThreads = null;
         long buildTimeoutMinutes = MutationConfig.DEFAULT_BUILD_TIMEOUT_MINUTES;
         boolean skipBuildExtras = false;
+        List<String> skippedTestValues = new ArrayList<>();
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
                 case "--project-path" -> projectPath = Path.of(args[++i]);
@@ -110,6 +117,7 @@ public final class Main {
                 case "--maven-threads" -> mavenThreads = Integer.parseInt(args[++i]);
                 case "--build-timeout-minutes" -> buildTimeoutMinutes = Long.parseLong(args[++i]);
                 case "--skip-build-extras" -> skipBuildExtras = true;
+                case "--skipped-tests" -> skippedTestValues.add(args[++i]);
                 default -> {
                     System.err.println("unknown argument: " + args[i]);
                     System.exit(2);
@@ -124,7 +132,8 @@ public final class Main {
         }
         try {
             MutationConfig config = new MutationConfig(projectPath, reportOut, classFilter, maxMutationClasses, maxMutations,
-                    timeLimitMinutes, mavenThreads, buildTimeoutMinutes, skipBuildExtras);
+                    timeLimitMinutes, mavenThreads, buildTimeoutMinutes, skipBuildExtras,
+                    SkippedTests.parse(skippedTestValues));
             int exitCode = new MutationCommand().run(config);
             printMutationSummary(reportOut, summaryOut, exitCode);
             System.exit(exitCode);
@@ -173,10 +182,10 @@ public final class Main {
         System.err.println("usage: run --project-path <path> --commits <N> --report-out <path> "
                 + "[--summary-out <path>] [--maven-threads <N>] [--fast-ground-truth] "
                 + "[--build-concurrency <K>] [--build-timeout-minutes <M>] [--skip-build-extras] "
-                + "[--history-mode <all-parents|first-parent>]\n"
+                + "[--history-mode <all-parents|first-parent>] [--skipped-tests <FQCN,...>]\n"
                 + "   or: mutate --project-path <path> --report-out <path> [--summary-out <path>] "
                 + "[--mutation-class <FQCN>] [--max-mutation-classes <N>] [--max-mutations <N>] "
                 + "[--mutation-time-limit-minutes <M>] [--maven-threads <N>] "
-                + "[--build-timeout-minutes <M>] [--skip-build-extras]");
+                + "[--build-timeout-minutes <M>] [--skip-build-extras] [--skipped-tests <FQCN,...>]");
     }
 }

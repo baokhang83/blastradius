@@ -9,6 +9,10 @@ public final class MutationTextSummaryRenderer {
         MutationCoverage coverage = report.coverage();
         StringBuilder text = new StringBuilder("Verdict: ").append(report.verdict()).append('\n');
         text.append("Baseline: ").append(report.baselineCommit()).append('\n');
+        text.append("Skipped test classes: ").append(report.skippedTests().size()).append('\n');
+        for (String skippedTest : report.skippedTests()) {
+            text.append("  - ").append(skippedTest).append('\n');
+        }
         text.append("Mutation coverage:\n");
         text.append("  - generated: ").append(coverage.generatedMutations()).append('\n');
         text.append("  - attempted: ").append(coverage.attemptedMutations()).append('\n');

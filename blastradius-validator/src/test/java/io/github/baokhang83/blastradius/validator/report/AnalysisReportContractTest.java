@@ -105,6 +105,16 @@ class AnalysisReportContractTest {
         assertEquals(new FailureCoverage(2, 3, 3, 0), parsed.failureCoverage());
     }
 
+    @Test
+    void reportCarriesExplicitSkippedTestClasses() throws Exception {
+        AnalysisReport report = new AnalysisReport(
+                Verdict.PASS, HistoryMode.ALL_PARENTS, List.of(), List.of(), FailureCoverage.empty(),
+                List.of(), List.of(), aggregator.aggregate(List.of()),
+                List.of("org.app.FlakyTest", "org.app2.Flaky2Test"));
+
+        assertEquals(List.of("org.app.FlakyTest", "org.app2.Flaky2Test"), roundTrip(report).skippedTests());
+    }
+
     private AnalysisReport roundTrip(AnalysisReport report) throws Exception {
         String json = mapper.writeValueAsString(report);
         return mapper.readValue(json, AnalysisReport.class);

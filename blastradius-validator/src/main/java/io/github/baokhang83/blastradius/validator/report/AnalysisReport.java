@@ -23,7 +23,26 @@ public record AnalysisReport(
         FailureCoverage failureCoverage,
         List<WouldMissCase> wouldMissCases,
         List<FlakyFailure> flakyFailures,
-        SavingsSummary savingsSummary) {
+        SavingsSummary savingsSummary,
+        List<String> skippedTests) {
+
+    public AnalysisReport {
+        skippedTests = skippedTests == null ? List.of() : List.copyOf(skippedTests);
+    }
+
+    /** Compatibility constructor for callers that do not use explicit test exclusions. */
+    public AnalysisReport(
+            Verdict verdict,
+            HistoryMode historyMode,
+            List<CommitPair> analyzedCommitPairs,
+            List<CommitPair> excludedCommitPairs,
+            FailureCoverage failureCoverage,
+            List<WouldMissCase> wouldMissCases,
+            List<FlakyFailure> flakyFailures,
+            SavingsSummary savingsSummary) {
+        this(verdict, historyMode, analyzedCommitPairs, excludedCommitPairs, failureCoverage,
+                wouldMissCases, flakyFailures, savingsSummary, List.of());
+    }
 
     /** Compatibility constructor for callers that do not yet supply the newly-visible fields. */
     public AnalysisReport(
@@ -34,7 +53,7 @@ public record AnalysisReport(
             List<FlakyFailure> flakyFailures,
             SavingsSummary savingsSummary) {
         this(verdict, HistoryMode.ALL_PARENTS, analyzedCommitPairs, excludedCommitPairs,
-                legacyFailureCoverage(wouldMissCases), wouldMissCases, flakyFailures, savingsSummary);
+                legacyFailureCoverage(wouldMissCases), wouldMissCases, flakyFailures, savingsSummary, List.of());
     }
 
     private static FailureCoverage legacyFailureCoverage(List<WouldMissCase> wouldMissCases) {

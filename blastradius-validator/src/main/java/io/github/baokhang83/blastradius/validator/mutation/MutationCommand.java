@@ -55,7 +55,8 @@ public final class MutationCommand {
             new JdkMismatchDetector().detect(config.projectPath()).ifPresent(System.err::println);
             scratchParent = Files.createTempDirectory("blastradius-mutations-");
             MavenBuildRunner buildRunner = new MavenBuildRunner(
-                    config.mavenParallelThreads(), config.buildTimeoutMinutes(), false, config.skipBuildExtras());
+                    config.mavenParallelThreads(), config.buildTimeoutMinutes(), false, config.skipBuildExtras(),
+                    config.skippedTests());
             GroundTruthResolver groundTruthResolver = new GroundTruthResolver(buildRunner);
             try (SyntheticMutationCheckout checkout =
                     SyntheticMutationCheckout.forTargetProject(config.projectPath(), scratchParent)) {
@@ -98,7 +99,8 @@ public final class MutationCommand {
                             baselineDependencies, baselineOutcomes, mutantResolution.results()));
                 }
                 MutationReport report = MutationReport.from(
-                        baselineSha, baselineFailingTests, experiments, candidates.size(), timeLimitSkipped);
+                        baselineSha, baselineFailingTests, experiments, candidates.size(), timeLimitSkipped,
+                        config.skippedTests().classes());
                 reportWriter.write(config.reportOutputPath(), report);
                 return report.verdict() == io.github.baokhang83.blastradius.validator.verdict.Verdict.PASS ? 0 : 1;
             }

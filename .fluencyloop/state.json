@@ -1,8 +1,8 @@
 {
   "feature": "add-explicit-flaky-test-exclusions-to-validator-target-build",
   "branch": "feature/add-explicit-flaky-test-exclusions-to-validator-target-build",
-  "stage": "design",
-  "last_session": "",
+  "stage": "build",
+  "last_session": "docs/fluencyloop/features/add-explicit-flaky-test-exclusions-to-validator-target-build/sessions/make-test-exclusions-auditable-across-validator-modes.md",
   "base_ref": "main",
   "updated": "2026-08-02"
 }
