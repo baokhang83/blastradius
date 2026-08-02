@@ -45,11 +45,29 @@ public final class MutationCandidateGenerator {
         if (Files.notExists(projectRoot)) {
             return List.of();
         }
-        return collectProductionSources(projectRoot).stream()
+        List<String> sources = collectProductionSources(projectRoot).stream()
                 .sorted()
                 .filter(path -> classFilter == null || classFilter.equals(classNameOf(path)))
-                .limit(maxMutationClasses)
-                .flatMap(path -> candidatesIn(projectRoot, path, classFilter).stream())
+                .toList();
+        // maxMutationClasses bounds the classes we actually MUTATE, not the files we look at. A
+        // source with no mutable token (an abstract class, an interface, a constant-free type) must
+        // not consume the budget: applying the limit before scanning meant a reactor whose
+        // alphabetically-first source happens to be token-free would yield zero mutants while
+        // thousands of mutable classes went unvisited (apache/shenyu: --max-mutation-classes 1
+        // landed on a token-free AbstractDataChangedInit and generated nothing).
+        List<MutationCandidate> collected = new ArrayList<>();
+        int classesMutated = 0;
+        for (String path : sources) {
+            if (classesMutated >= maxMutationClasses) {
+                break;
+            }
+            List<MutationCandidate> inClass = candidatesIn(projectRoot, path, classFilter);
+            if (!inClass.isEmpty()) {
+                collected.addAll(inClass);
+                classesMutated++;
+            }
+        }
+        return collected.stream()
                 .sorted(Comparator.comparing(MutationCandidate::sourcePath)
                         .thenComparingInt(MutationCandidate::offset))
                 .limit(maxMutations)
