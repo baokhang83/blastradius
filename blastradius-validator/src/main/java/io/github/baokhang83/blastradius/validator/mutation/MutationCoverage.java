@@ -1,5 +1,7 @@
 package io.github.baokhang83.blastradius.validator.mutation;
 
+import java.util.Objects;
+
 /** The full denominator behind a bounded mutation-validation verdict. */
 public record MutationCoverage(
         int generatedMutations,
@@ -12,7 +14,9 @@ public record MutationCoverage(
         int mutationKillingTests,
         int selectedKillingTests,
         int skippedKillingTests,
-        int flakyMutantFailures) {
+        int flakyMutantFailures,
+        MutationOriginCoverage diffTargeted,
+        MutationOriginCoverage wholeTreeFallback) {
 
     public MutationCoverage {
         if (generatedMutations < 0 || attemptedMutations < 0 || timeLimitSkippedMutations < 0
@@ -23,6 +27,12 @@ public record MutationCoverage(
         }
         if (selectedKillingTests + skippedKillingTests != mutationKillingTests) {
             throw new IllegalArgumentException("selected and skipped killing tests must sum to all killing tests");
+        }
+        Objects.requireNonNull(diffTargeted, "diffTargeted");
+        Objects.requireNonNull(wholeTreeFallback, "wholeTreeFallback");
+        if (diffTargeted.killingTests() + wholeTreeFallback.killingTests() != mutationKillingTests) {
+            throw new IllegalArgumentException(
+                    "diff-targeted and whole-tree-fallback killing tests must sum to all killing tests");
         }
     }
 }

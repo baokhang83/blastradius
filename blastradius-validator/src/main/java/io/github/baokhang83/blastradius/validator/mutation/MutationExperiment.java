@@ -9,6 +9,7 @@ import java.util.Objects;
 public record MutationExperiment(
         CommitPair historicalPair,
         MutationCandidate mutation,
+        MutationCandidateOrigin origin,
         String mutantCommit,
         MutationStatus status,
         String buildFailure,
@@ -21,6 +22,7 @@ public record MutationExperiment(
     public MutationExperiment {
         Objects.requireNonNull(historicalPair, "historicalPair");
         Objects.requireNonNull(mutation, "mutation");
+        Objects.requireNonNull(origin, "origin");
         Objects.requireNonNull(mutantCommit, "mutantCommit");
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(headBaselineFailingTests, "headBaselineFailingTests");

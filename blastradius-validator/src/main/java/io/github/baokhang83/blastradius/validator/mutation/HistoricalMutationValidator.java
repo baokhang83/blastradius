@@ -66,12 +66,16 @@ public final class HistoricalMutationValidator {
                 .collect(Collectors.toSet());
         List<MutationCandidate> candidates = candidateGenerator.generate(headTree, config.classFilter(),
                 changedSourcePaths, config.maxMutationClassesPerPair(), config.maxMutationsPerPair());
+        MutationCandidateOrigin origin = MutationCandidateOrigin.DIFF_TARGETED;
         if (candidates.isEmpty()) {
             // The pair changed no mutable production source (docs/config/test-only, or a changed
             // source with no boolean/operator token). Fall back to the whole-tree scan so the pair
-            // still exercises some mutant rather than silently validating nothing (§III).
+            // still exercises some mutant rather than silently validating nothing (§III). Every
+            // mutant this pair produces from here on asks the weaker "somewhere in the tree"
+            // question, not "in what this PR touched" — tagged so the report can tell them apart.
             candidates = candidateGenerator.generate(headTree, config.classFilter(),
                     config.maxMutationClassesPerPair(), config.maxMutationsPerPair());
+            origin = MutationCandidateOrigin.WHOLE_TREE_FALLBACK;
         }
         // One reactor graph for the whole pair: each mutant changes a single file, so its build
         // only needs the owning module + its dependents (-pl/-am/-amd), not the whole reactor.
@@ -96,20 +100,20 @@ public final class HistoricalMutationValidator {
             GroundTruthResolution mutantResolution =
                     groundTruthResolver.resolve(checkout.workTree(), null, null, modulePath);
             if (buildFailureDetector.isBuildFailure(mutantResolution.initialBuild(), checkout.workTree())) {
-                experiments.add(new MutationExperiment(pair, candidate, mutantCommit, MutationStatus.UNBUILDABLE,
+                experiments.add(new MutationExperiment(pair, candidate, origin, mutantCommit, MutationStatus.UNBUILDABLE,
                         "mutant failed to build (exit " + mutantResolution.initialBuild().exitCode() + ")",
                         headFailures, List.of(), List.of(), List.of(), List.of()));
                 continue;
             }
-            experiments.add(analyzeMutant(pair, candidate, mutantCommit, base, headFailures, headOutcomes,
+            experiments.add(analyzeMutant(pair, candidate, origin, mutantCommit, base, headFailures, headOutcomes,
                     mutantResolution.results(), checkout.workTree()));
         }
         return new PairMutationResult(experiments, candidates.size(), timeSkipped);
     }
 
     private MutationExperiment analyzeMutant(
-            CommitPair pair, MutationCandidate candidate, String mutantCommit, CommitBuild base,
-            List<TestIdentity> headFailures, Map<TestIdentity, Outcome> headOutcomes,
+            CommitPair pair, MutationCandidate candidate, MutationCandidateOrigin origin, String mutantCommit,
+            CommitBuild base, List<TestIdentity> headFailures, Map<TestIdentity, Outcome> headOutcomes,
             List<GroundTruthResult> mutantOutcomes, Path mutantTree) {
         List<ChangedFile> changedFiles = changedFileClassifier.classify(mutantTree, pair.baseCommit(), mutantCommit);
         ReactorScope scope = fallbackSelector.shouldFallback(changedFiles) ? buildReactorScope(mutantTree) : null;
@@ -135,7 +139,7 @@ public final class HistoricalMutationValidator {
             }
         }
         List<TestIdentity> flaky = selection.flakyFailures().stream().map(failure -> failure.test()).toList();
-        return new MutationExperiment(pair, candidate, mutantCommit,
+        return new MutationExperiment(pair, candidate, origin, mutantCommit,
                 killing.isEmpty() ? MutationStatus.SURVIVED : MutationStatus.KILLED,
                 null, headFailures, killing, selected, skipped, flaky);
     }

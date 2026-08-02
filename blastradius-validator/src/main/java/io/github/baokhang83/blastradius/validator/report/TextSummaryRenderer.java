@@ -1,6 +1,7 @@
 package io.github.baokhang83.blastradius.validator.report;
 
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import io.github.baokhang83.blastradius.validator.mutation.MutationOriginCoverage;
 import io.github.baokhang83.blastradius.validator.verdict.FlakyFailure;
 import io.github.baokhang83.blastradius.validator.verdict.WouldMissCase;
 
@@ -61,6 +62,8 @@ public final class TextSummaryRenderer {
             sb.append("  - killing tests selected: ").append(mutationCoverage.selectedKillingTests()).append('\n');
             sb.append("  - killing tests skipped: ").append(mutationCoverage.skippedKillingTests()).append('\n');
             sb.append("  - flaky mutant failures: ").append(mutationCoverage.flakyMutantFailures()).append('\n');
+            appendOriginCoverage(sb, "diff-targeted", mutationCoverage.diffTargeted());
+            appendOriginCoverage(sb, "whole-tree fallback", mutationCoverage.wholeTreeFallback());
             for (var experiment : mutation.experiments()) {
                 sb.append("Mutation ").append(experiment.historicalPair().baseCommit()).append("..")
                         .append(experiment.historicalPair().headCommit()).append(" -> ")
@@ -93,6 +96,18 @@ public final class TextSummaryRenderer {
         }
 
         return sb.toString();
+    }
+
+    /**
+     * Breaks the pooled killing-test counts down by origin: diff-targeted evidence answers
+     * "would selection catch a bug in what this PR touched", whole-tree-fallback evidence the
+     * weaker "would it catch a bug somewhere else entirely" — worth keeping visibly distinct
+     * rather than only ever seeing the pooled total.
+     */
+    private static void appendOriginCoverage(StringBuilder sb, String label, MutationOriginCoverage origin) {
+        sb.append("  - ").append(label).append(": ").append(origin.killingTests()).append(" killing test(s), ")
+                .append(origin.selectedKillingTests()).append(" selected, ")
+                .append(origin.skippedKillingTests()).append(" skipped\n");
     }
 
     private static String testLabel(TestIdentity test) {
