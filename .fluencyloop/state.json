@@ -1,8 +1,8 @@
 {
   "feature": "refactor-mutation-validation-into-historical-run-replay",
   "branch": "feature/refactor-mutation-validation-into-historical-run-replay",
-  "stage": "design",
-  "last_session": "",
+  "stage": "build",
+  "last_session": "docs/fluencyloop/features/refactor-mutation-validation-into-historical-run-replay/sessions/replay-synthetic-mutations-within-every-historical-pair.md",
   "base_ref": "main",
   "updated": "2026-08-02"
 }

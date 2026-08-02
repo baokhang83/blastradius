@@ -7,6 +7,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.baokhang83.blastradius.validator.cli.RunCommand;
 import io.github.baokhang83.blastradius.validator.cli.RunConfig;
+import io.github.baokhang83.blastradius.validator.build.SkippedTests;
+import io.github.baokhang83.blastradius.validator.git.HistoryMode;
+import io.github.baokhang83.blastradius.validator.mutation.MutationValidationConfig;
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -22,6 +25,82 @@ import org.junit.jupiter.api.io.TempDir;
  * real (User Story 1, the MVP).
  */
 class EndToEndVerdictIntegrationTest {
+
+    @Test
+    void mutationValidationFailsWhenTheHistoricalPairWouldSkipAKillingTest(
+            @TempDir Path projectDir, @TempDir Path outDir) throws Exception {
+        Path agentJar = findOwnAgentJar();
+        Path reportFile = outDir.resolve("report.json");
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        fixture.addSystemDependency(null, agentJar);
+        fixture.writeClass("com.example.Shared",
+                "package com.example; public class Shared { public static boolean value() { return true; } }");
+        fixture.writeTest("com.example.AaaWarmupTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                class AaaWarmupTest { @Test void warmsUp() {} }
+                """);
+        fixture.writeTest("com.example.GapTest", """
+                package com.example;
+                import org.junit.jupiter.api.BeforeAll;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertTrue;
+                class GapTest {
+                    static boolean cached;
+                    @BeforeAll static void warmUp() { cached = Shared.value(); }
+                    @Test void detectsFalse() { assertTrue(cached); }
+                }
+                """);
+        fixture.commit("baseline");
+        fixture.writeClass("com.example.Unrelated",
+                "package com.example; public class Unrelated { public int value() { return 1; } }");
+        fixture.commit("real historical change");
+
+        RunConfig config = new RunConfig(projectDir, 1, reportFile, null, false, 1,
+                RunConfig.DEFAULT_BUILD_TIMEOUT_MINUTES, false, HistoryMode.ALL_PARENTS, SkippedTests.none(),
+                new MutationValidationConfig("com.example.Shared", 1, 1, 10));
+        int exitCode = new RunCommand().run(config, agentJar);
+
+        JsonNode report = new ObjectMapper().readTree(reportFile.toFile());
+        assertEquals(1, exitCode);
+        assertEquals("FAIL", report.get("verdict").asText());
+        assertEquals("FAIL", report.get("mutationValidation").get("verdict").asText());
+        assertEquals(1, report.get("mutationValidation").get("coverage").get("skippedKillingTests").asInt());
+        assertEquals("com.example.GapTest", report.get("mutationValidation").get("experiments").get(0)
+                .get("skippedKillingTests").get(0).get("className").asText());
+    }
+
+    @Test
+    void mutationValidationPassesWhenTheHistoricalPairSelectsAKillingTest(
+            @TempDir Path projectDir, @TempDir Path outDir) throws Exception {
+        Path agentJar = findOwnAgentJar();
+        Path reportFile = outDir.resolve("report.json");
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        fixture.addSystemDependency(null, agentJar);
+        fixture.writeClass("com.example.Flag",
+                "package com.example; public class Flag { public boolean value() { return true; } }");
+        fixture.writeTest("com.example.FlagTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.assertTrue;
+                class FlagTest { @Test void detectsFalse() { assertTrue(new Flag().value()); } }
+                """);
+        fixture.commit("baseline");
+        fixture.writeClass("com.example.Unrelated",
+                "package com.example; public class Unrelated { public int value() { return 1; } }");
+        fixture.commit("real historical change");
+
+        RunConfig config = new RunConfig(projectDir, 1, reportFile, null, false, 1,
+                RunConfig.DEFAULT_BUILD_TIMEOUT_MINUTES, false, HistoryMode.ALL_PARENTS, SkippedTests.none(),
+                new MutationValidationConfig("com.example.Flag", 1, 1, 10));
+        int exitCode = new RunCommand().run(config, agentJar);
+
+        JsonNode report = new ObjectMapper().readTree(reportFile.toFile());
+        assertEquals(0, exitCode);
+        assertEquals("PASS", report.get("mutationValidation").get("verdict").asText());
+        assertEquals(1, report.get("mutationValidation").get("coverage").get("selectedKillingTests").asInt());
+        assertEquals(0, report.get("mutationValidation").get("coverage").get("skippedKillingTests").asInt());
+    }
 
     @Test
     void unrelatedChangeAcrossCommitsProducesAPassVerdict(@TempDir Path projectDir, @TempDir Path outDir)
