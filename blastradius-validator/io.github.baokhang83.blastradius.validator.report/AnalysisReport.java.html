@@ -2,6 +2,7 @@
 
 import io.github.baokhang83.blastradius.validator.git.CommitPair;
 import io.github.baokhang83.blastradius.validator.git.HistoryMode;
+import io.github.baokhang83.blastradius.validator.mutation.MutationValidationReport;
 import io.github.baokhang83.blastradius.validator.verdict.FlakyFailure;
 import io.github.baokhang83.blastradius.validator.verdict.Verdict;
 import io.github.baokhang83.blastradius.validator.verdict.WouldMissCase;
@@ -24,11 +25,12 @@ public record AnalysisReport(
         List&lt;WouldMissCase&gt; wouldMissCases,
         List&lt;FlakyFailure&gt; flakyFailures,
         SavingsSummary savingsSummary,
-        List&lt;String&gt; skippedTests) {
+        List&lt;String&gt; skippedTests,
+        MutationValidationReport mutationValidation) {
 
-<span class="fc" id="L29">    public AnalysisReport {</span>
-<span class="pc bpc" id="L30" title="1 of 2 branches missed.">        skippedTests = skippedTests == null ? List.of() : List.copyOf(skippedTests);</span>
-<span class="fc" id="L31">    }</span>
+<span class="fc" id="L31">    public AnalysisReport {</span>
+<span class="pc bpc" id="L32" title="1 of 2 branches missed.">        skippedTests = skippedTests == null ? List.of() : List.copyOf(skippedTests);</span>
+<span class="fc" id="L33">    }</span>
 
     /** Compatibility constructor for callers that do not use explicit test exclusions. */
     public AnalysisReport(
@@ -40,9 +42,24 @@ public record AnalysisReport(
             List&lt;WouldMissCase&gt; wouldMissCases,
             List&lt;FlakyFailure&gt; flakyFailures,
             SavingsSummary savingsSummary) {
-<span class="fc" id="L43">        this(verdict, historyMode, analyzedCommitPairs, excludedCommitPairs, failureCoverage,</span>
-<span class="fc" id="L44">                wouldMissCases, flakyFailures, savingsSummary, List.of());</span>
-<span class="fc" id="L45">    }</span>
+<span class="fc" id="L45">        this(verdict, historyMode, analyzedCommitPairs, excludedCommitPairs, failureCoverage,</span>
+<span class="fc" id="L46">                wouldMissCases, flakyFailures, savingsSummary, List.of(), null);</span>
+<span class="fc" id="L47">    }</span>
+
+    /** Compatibility constructor for callers that do not use mutation validation. */
+    public AnalysisReport(
+            Verdict verdict,
+            HistoryMode historyMode,
+            List&lt;CommitPair&gt; analyzedCommitPairs,
+            List&lt;CommitPair&gt; excludedCommitPairs,
+            FailureCoverage failureCoverage,
+            List&lt;WouldMissCase&gt; wouldMissCases,
+            List&lt;FlakyFailure&gt; flakyFailures,
+            SavingsSummary savingsSummary,
+            List&lt;String&gt; skippedTests) {
+<span class="fc" id="L60">        this(verdict, historyMode, analyzedCommitPairs, excludedCommitPairs, failureCoverage,</span>
+                wouldMissCases, flakyFailures, savingsSummary, skippedTests, null);
+<span class="fc" id="L62">    }</span>
 
     /** Compatibility constructor for callers that do not yet supply the newly-visible fields. */
     public AnalysisReport(
@@ -52,14 +69,14 @@ public record AnalysisReport(
             List&lt;WouldMissCase&gt; wouldMissCases,
             List&lt;FlakyFailure&gt; flakyFailures,
             SavingsSummary savingsSummary) {
-<span class="fc" id="L55">        this(verdict, HistoryMode.ALL_PARENTS, analyzedCommitPairs, excludedCommitPairs,</span>
-<span class="fc" id="L56">                legacyFailureCoverage(wouldMissCases), wouldMissCases, flakyFailures, savingsSummary, List.of());</span>
-<span class="fc" id="L57">    }</span>
+<span class="fc" id="L72">        this(verdict, HistoryMode.ALL_PARENTS, analyzedCommitPairs, excludedCommitPairs,</span>
+<span class="fc" id="L73">                legacyFailureCoverage(wouldMissCases), wouldMissCases, flakyFailures, savingsSummary, List.of(), null);</span>
+<span class="fc" id="L74">    }</span>
 
     private static FailureCoverage legacyFailureCoverage(List&lt;WouldMissCase&gt; wouldMissCases) {
-<span class="fc" id="L60">        int misses = wouldMissCases.size();</span>
-<span class="fc" id="L61">        int pairs = (int) wouldMissCases.stream().map(WouldMissCase::commitPair).distinct().count();</span>
-<span class="fc" id="L62">        return new FailureCoverage(pairs, misses, 0, misses);</span>
+<span class="fc" id="L77">        int misses = wouldMissCases.size();</span>
+<span class="fc" id="L78">        int pairs = (int) wouldMissCases.stream().map(WouldMissCase::commitPair).distinct().count();</span>
+<span class="fc" id="L79">        return new FailureCoverage(pairs, misses, 0, misses);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

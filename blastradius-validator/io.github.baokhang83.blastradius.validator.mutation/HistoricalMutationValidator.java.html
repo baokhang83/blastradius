@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>HistoricalMutationValidator.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.mutation</a> &gt; <span class="el_source">HistoricalMutationValidator.java</span></div><h1>HistoricalMutationValidator.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.mutation;
+
+import io.github.baokhang83.blastradius.core.git.ChangedFile;
+import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
+import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraph;
+import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraphBuilder;
+import io.github.baokhang83.blastradius.core.reactor.ReactorScope;
+import io.github.baokhang83.blastradius.core.reactor.TestModuleIndex;
+import io.github.baokhang83.blastradius.core.selection.FallbackSelector;
+import io.github.baokhang83.blastradius.core.selection.SelectionDecision;
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import io.github.baokhang83.blastradius.validator.build.BuildFailureDetector;
+import io.github.baokhang83.blastradius.validator.build.CommitBuild;
+import io.github.baokhang83.blastradius.validator.build.GroundTruthResolution;
+import io.github.baokhang83.blastradius.validator.build.GroundTruthResolver;
+import io.github.baokhang83.blastradius.validator.build.GroundTruthResult;
+import io.github.baokhang83.blastradius.validator.build.Outcome;
+import io.github.baokhang83.blastradius.validator.git.CommitCheckout;
+import io.github.baokhang83.blastradius.validator.git.CommitPair;
+import io.github.baokhang83.blastradius.validator.selection.PairSelectionAnalyzer;
+import io.github.baokhang83.blastradius.validator.selection.PairSelectionResult;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/** Runs bounded synthetic mutants as evidence for one already-built historical pair. */
+public final class HistoricalMutationValidator {
+
+<span class="fc" id="L34">    private final MutationCandidateGenerator candidateGenerator = new MutationCandidateGenerator();</span>
+<span class="fc" id="L35">    private final ChangedFileClassifier changedFileClassifier = new ChangedFileClassifier();</span>
+<span class="fc" id="L36">    private final FallbackSelector fallbackSelector = new FallbackSelector();</span>
+<span class="fc" id="L37">    private final ReactorModuleGraphBuilder reactorModuleGraphBuilder = new ReactorModuleGraphBuilder();</span>
+<span class="fc" id="L38">    private final PairSelectionAnalyzer pairSelectionAnalyzer = new PairSelectionAnalyzer();</span>
+<span class="fc" id="L39">    private final BuildFailureDetector buildFailureDetector = new BuildFailureDetector();</span>
+    private final GroundTruthResolver groundTruthResolver;
+
+<span class="fc" id="L42">    public HistoricalMutationValidator(GroundTruthResolver groundTruthResolver) {</span>
+<span class="fc" id="L43">        this.groundTruthResolver = groundTruthResolver;</span>
+<span class="fc" id="L44">    }</span>
+
+    public PairMutationResult validate(
+            CommitPair pair, CommitBuild base, CommitBuild head, CommitCheckout checkout,
+            MutationValidationConfig config, long deadlineNanos) {
+<span class="fc" id="L49">        Path headTree = checkout.checkoutCommit(pair.headCommit());</span>
+<span class="fc" id="L50">        List&lt;MutationCandidate&gt; candidates = candidateGenerator.generate(headTree, config.classFilter(),</span>
+<span class="fc" id="L51">                config.maxMutationClassesPerPair(), config.maxMutationsPerPair());</span>
+<span class="fc" id="L52">        List&lt;TestIdentity&gt; headFailures = head.groundTruth().stream()</span>
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">                .filter(result -&gt; result.outcome() == Outcome.CONFIRMED_FAILED)</span>
+<span class="fc" id="L54">                .map(GroundTruthResult::test)</span>
+<span class="fc" id="L55">                .toList();</span>
+<span class="fc" id="L56">        Map&lt;TestIdentity, Outcome&gt; headOutcomes = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L57">        head.groundTruth().forEach(result -&gt; headOutcomes.put(result.test(), result.outcome()));</span>
+<span class="fc" id="L58">        List&lt;MutationExperiment&gt; experiments = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L59">        int timeSkipped = 0;</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        for (int index = 0; index &lt; candidates.size(); index++) {</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">            if (System.nanoTime() &gt;= deadlineNanos) {</span>
+<span class="nc" id="L62">                timeSkipped = candidates.size() - index;</span>
+<span class="nc" id="L63">                break;</span>
+            }
+<span class="fc" id="L65">            MutationCandidate candidate = candidates.get(index);</span>
+<span class="fc" id="L66">            checkout.checkoutCommit(pair.headCommit());</span>
+<span class="fc" id="L67">            String mutantCommit = commitMutation(checkout, candidate);</span>
+<span class="fc" id="L68">            GroundTruthResolution mutantResolution = groundTruthResolver.resolve(checkout.workTree(), null, null);</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">            if (buildFailureDetector.isBuildFailure(mutantResolution.initialBuild(), checkout.workTree())) {</span>
+<span class="nc" id="L70">                experiments.add(new MutationExperiment(pair, candidate, mutantCommit, MutationStatus.UNBUILDABLE,</span>
+<span class="nc" id="L71">                        &quot;mutant failed to build (exit &quot; + mutantResolution.initialBuild().exitCode() + &quot;)&quot;,</span>
+<span class="nc" id="L72">                        headFailures, List.of(), List.of(), List.of(), List.of()));</span>
+<span class="nc" id="L73">                continue;</span>
+            }
+<span class="fc" id="L75">            experiments.add(analyzeMutant(pair, candidate, mutantCommit, base, headFailures, headOutcomes,</span>
+<span class="fc" id="L76">                    mutantResolution.results(), checkout.workTree()));</span>
+        }
+<span class="fc" id="L78">        return new PairMutationResult(experiments, candidates.size(), timeSkipped);</span>
+    }
+
+    private MutationExperiment analyzeMutant(
+            CommitPair pair, MutationCandidate candidate, String mutantCommit, CommitBuild base,
+            List&lt;TestIdentity&gt; headFailures, Map&lt;TestIdentity, Outcome&gt; headOutcomes,
+            List&lt;GroundTruthResult&gt; mutantOutcomes, Path mutantTree) {
+<span class="fc" id="L85">        List&lt;ChangedFile&gt; changedFiles = changedFileClassifier.classify(mutantTree, pair.baseCommit(), mutantCommit);</span>
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">        ReactorScope scope = fallbackSelector.shouldFallback(changedFiles) ? buildReactorScope(mutantTree) : null;</span>
+<span class="fc" id="L87">        CommitPair selectionEdge = CommitPair.analyzed(pair.baseCommit(), mutantCommit, changedFiles);</span>
+<span class="fc" id="L88">        PairSelectionResult selection = pairSelectionAnalyzer.analyze(</span>
+<span class="fc" id="L89">                selectionEdge, base.dependencyRecordSet(), base.groundTruth(), mutantOutcomes, scope);</span>
+<span class="fc" id="L90">        Map&lt;TestIdentity, SelectionDecision&gt; decisions = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L91">        selection.decisions().forEach(decision -&gt; decisions.put(decision.test(), decision));</span>
+<span class="fc" id="L92">        List&lt;TestIdentity&gt; killing = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L93">        List&lt;TestIdentity&gt; selected = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L94">        List&lt;TestIdentity&gt; skipped = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        for (GroundTruthResult outcome : mutantOutcomes) {</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">            if (outcome.outcome() != Outcome.CONFIRMED_FAILED</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">                    || headOutcomes.getOrDefault(outcome.test(), Outcome.PASSED) != Outcome.PASSED) {</span>
+<span class="nc" id="L98">                continue;</span>
+            }
+<span class="fc" id="L100">            killing.add(outcome.test());</span>
+<span class="fc" id="L101">            SelectionDecision decision = decisions.get(outcome.test());</span>
+<span class="pc bpc" id="L102" title="1 of 4 branches missed.">            if (decision != null &amp;&amp; decision.selected()) {</span>
+<span class="fc" id="L103">                selected.add(outcome.test());</span>
+            } else {
+<span class="fc" id="L105">                skipped.add(outcome.test());</span>
+            }
+<span class="fc" id="L107">        }</span>
+<span class="pc" id="L108">        List&lt;TestIdentity&gt; flaky = selection.flakyFailures().stream().map(failure -&gt; failure.test()).toList();</span>
+<span class="fc" id="L109">        return new MutationExperiment(pair, candidate, mutantCommit,</span>
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">                killing.isEmpty() ? MutationStatus.SURVIVED : MutationStatus.KILLED,</span>
+                null, headFailures, killing, selected, skipped, flaky);
+    }
+
+    private ReactorScope buildReactorScope(Path tree) {
+        try {
+<span class="nc" id="L116">            ReactorModuleGraph graph = reactorModuleGraphBuilder.fromRepoTree(tree);</span>
+<span class="nc" id="L117">            return new ReactorScope(graph, TestModuleIndex.fromRepoTree(tree, graph));</span>
+<span class="nc" id="L118">        } catch (RuntimeException e) {</span>
+<span class="nc" id="L119">            return null;</span>
+        }
+    }
+
+    private static String commitMutation(CommitCheckout checkout, MutationCandidate candidate) {
+<span class="fc" id="L124">        Path source = checkout.workTree().resolve(candidate.sourcePath());</span>
+        try {
+<span class="fc" id="L126">            return checkout.commitFile(Path.of(candidate.sourcePath()), candidate.applyTo(Files.readString(source)),</span>
+<span class="fc" id="L127">                    &quot;blastradius mutation: &quot; + candidate.className() + &quot; &quot; + candidate.operator());</span>
+<span class="nc" id="L128">        } catch (IOException e) {</span>
+<span class="nc" id="L129">            throw new UncheckedIOException(&quot;failed to mutate &quot; + candidate.sourcePath(), e);</span>
+        }
+    }
+
+<span class="fc" id="L133">    public record PairMutationResult(List&lt;MutationExperiment&gt; experiments, int generated, int timeLimitSkipped) {}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

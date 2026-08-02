@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>MutationValidationConfig.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.mutation</a> &gt; <span class="el_source">MutationValidationConfig.java</span></div><h1>MutationValidationConfig.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.mutation;
+
+/** Opt-in, bounded mutation settings applied to every eligible historical pair in one run. */
+public record MutationValidationConfig(
+        String classFilter,
+        int maxMutationClassesPerPair,
+        int maxMutationsPerPair,
+        long timeLimitMinutes) {
+
+    public static final int DEFAULT_MAX_CLASSES_PER_PAIR = 10;
+    public static final int DEFAULT_MAX_MUTATIONS_PER_PAIR = 20;
+    public static final long DEFAULT_TIME_LIMIT_MINUTES = 60;
+
+    public static MutationValidationConfig defaults() {
+<span class="fc" id="L15">        return new MutationValidationConfig(</span>
+                null, DEFAULT_MAX_CLASSES_PER_PAIR, DEFAULT_MAX_MUTATIONS_PER_PAIR, DEFAULT_TIME_LIMIT_MINUTES);
+    }
+
+<span class="fc" id="L19">    public MutationValidationConfig {</span>
+<span class="fc bfc" id="L20" title="All 6 branches covered.">        if (maxMutationClassesPerPair &lt; 1 || maxMutationsPerPair &lt; 1 || timeLimitMinutes &lt; 1) {</span>
+<span class="fc" id="L21">            throw new IllegalArgumentException(&quot;mutation validation limits must be positive&quot;);</span>
+        }
+<span class="fc" id="L23">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
