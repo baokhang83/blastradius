@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Enumerates the first, deliberately narrow mutation corpus from every module's
@@ -34,6 +35,28 @@ public final class MutationCandidateGenerator {
     /** Like {@link #generate(Path, String, int)}, with a bound on production classes visited. */
     public List<MutationCandidate> generate(
             Path projectRoot, String classFilter, int maxMutationClasses, int maxMutations) {
+        return generate(projectRoot, classFilter, null, maxMutationClasses, maxMutations);
+    }
+
+    /**
+     * Like {@link #generate(Path, String, int, int)}, but restricts the corpus to production
+     * sources whose repo-relative path is in {@code pathPool} — the changed source files of a
+     * commit pair, so mutants land in the code the commit actually changed rather than the
+     * whole-tree first-yielding class.
+     *
+     * <p>{@code pathPool} is a soundness-preserving <em>narrowing</em>, not a hard requirement:
+     * {@code null} scans the whole tree (the other overloads' behavior). A caller passing an
+     * <em>empty</em> pool gets an empty result — the caller decides whether to fall back to the
+     * whole tree (a docs/config/token-free pair should still exercise some mutant, never silently
+     * generate zero — §III), which keeps that policy where the caller's intent lives rather than
+     * hidden in the generator.
+     *
+     * @param pathPool repo-relative, forward-slashed production source paths to restrict to, or
+     *                 {@code null} for the whole tree
+     */
+    public List<MutationCandidate> generate(
+            Path projectRoot, String classFilter, Set<String> pathPool,
+            int maxMutationClasses, int maxMutations) {
         Objects.requireNonNull(projectRoot, "projectRoot");
         if (maxMutationClasses < 1) {
             throw new IllegalArgumentException(
@@ -47,6 +70,7 @@ public final class MutationCandidateGenerator {
         }
         List<String> sources = collectProductionSources(projectRoot).stream()
                 .sorted()
+                .filter(path -> pathPool == null || pathPool.contains(path))
                 .filter(path -> classFilter == null || classFilter.equals(classNameOf(path)))
                 .toList();
         // maxMutationClasses bounds the classes we actually MUTATE, not the files we look at. A
