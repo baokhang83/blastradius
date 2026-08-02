@@ -18,7 +18,7 @@ no heuristics, no opaque score.
 
 ## Historical validation (superseded for soundness claims)
 
-These three 300-pair analyses used the validator's former traversal-adjacency semantics: each
+These four 300-pair analyses used the validator's former traversal-adjacency semantics: each
 reported pair was adjacent in a `RevWalk`, but was not necessarily a direct Git parent-to-child
 edge. They are retained as historical operational data, including their selection reductions,
 but are superseded as soundness evidence and must be rerun with the current edge semantics before
