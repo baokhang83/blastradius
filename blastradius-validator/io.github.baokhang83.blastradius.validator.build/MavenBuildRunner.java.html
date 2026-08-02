@@ -137,7 +137,24 @@ public final class MavenBuildRunner {
      *                         dependencies, or {@code null} if {@code agentJar} is null
      */
     public BuildResult run(Path projectDir, Path agentJar, Path dependencyRecordOutputFile) {
-<span class="fc" id="L140">        return execute(projectDir, command(null), agentJar, dependencyRecordOutputFile);</span>
+<span class="fc" id="L140">        return run(projectDir, agentJar, dependencyRecordOutputFile, null);</span>
+    }
+
+    /**
+     * Like {@link #run(Path, Path, Path)}, but scopes the full-suite build to {@code modulePath}
+     * (plus its upstream dependencies via {@code -am} &lt;em&gt;and&lt;/em&gt; its downstream dependents via
+     * {@code -amd}) instead of the whole reactor. Used by mutation validation: a synthetic mutant
+     * changes one file in one module, so the only tests whose outcome can change live in that
+     * module or in a module that depends on it. {@code clean} is kept ({@code true}) because each
+     * mutant runs on a freshly re-checked-out tree whose {@code target/} dirs were already wiped;
+     * {@code -amd} is what keeps a legitimately-selected &lt;em&gt;downstream&lt;/em&gt; killing test in scope,
+     * so scoping never fabricates a would-miss (§III).
+     *
+     * @param modulePath the mutated module's repo-relative directory, or {@code null} to build the
+     *                   whole reactor (e.g. the change maps to no single module)
+     */
+    public BuildResult run(Path projectDir, Path agentJar, Path dependencyRecordOutputFile, String modulePath) {
+<span class="fc" id="L157">        return execute(projectDir, command(null, modulePath, true, true), agentJar, dependencyRecordOutputFile);</span>
     }
 
     /**
@@ -148,7 +165,7 @@ public final class MavenBuildRunner {
      * test's module is known.
      */
     public BuildResult runSingleTest(Path projectDir, TestIdentity test) {
-<span class="fc" id="L151">        return runSingleTest(projectDir, test, null);</span>
+<span class="fc" id="L168">        return runSingleTest(projectDir, test, null);</span>
     }
 
     /**
@@ -162,14 +179,14 @@ public final class MavenBuildRunner {
      *                   lives in)
      */
     public BuildResult runSingleTest(Path projectDir, TestIdentity test, Path moduleDir) {
-<span class="pc bpc" id="L165" title="1 of 2 branches missed.">        String selector = test.methodName() == null</span>
-<span class="nc" id="L166">                ? test.className()</span>
-<span class="fc" id="L167">                : test.className() + &quot;#&quot; + test.methodName();</span>
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">        String selector = test.methodName() == null</span>
+<span class="nc" id="L183">                ? test.className()</span>
+<span class="fc" id="L184">                : test.className() + &quot;#&quot; + test.methodName();</span>
         // clean=false: this rerun happens on the same checkout the caller already built
         // once (run()) before any confirmFailure call — see the note on the private
         // command() overload for why skipping clean here is safe and, at N+1 rerun
         // scale, the difference between minutes and hours per candidate.
-<span class="fc" id="L172">        return execute(projectDir, command(selector, relativeModulePath(projectDir, moduleDir), false), null, null);</span>
+<span class="fc" id="L189">        return execute(projectDir, command(selector, relativeModulePath(projectDir, moduleDir), false), null, null);</span>
     }
 
     /**
@@ -179,13 +196,13 @@ public final class MavenBuildRunner {
      *         {@code -pl} would be redundant).
      */
     private static String relativeModulePath(Path projectDir, Path moduleDir) {
-<span class="fc bfc" id="L182" title="All 2 branches covered.">        if (moduleDir == null) {</span>
-<span class="fc" id="L183">            return null;</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">        if (moduleDir == null) {</span>
+<span class="fc" id="L200">            return null;</span>
         }
-<span class="fc" id="L185">        String relative = projectDir.toAbsolutePath().normalize()</span>
-<span class="fc" id="L186">                .relativize(moduleDir.toAbsolutePath().normalize())</span>
-<span class="fc" id="L187">                .toString();</span>
-<span class="fc bfc" id="L188" title="All 2 branches covered.">        return relative.isEmpty() ? null : relative;</span>
+<span class="fc" id="L202">        String relative = projectDir.toAbsolutePath().normalize()</span>
+<span class="fc" id="L203">                .relativize(moduleDir.toAbsolutePath().normalize())</span>
+<span class="fc" id="L204">                .toString();</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">        return relative.isEmpty() ? null : relative;</span>
     }
 
     /**
@@ -196,21 +213,21 @@ public final class MavenBuildRunner {
      * argument list {@link #command} composes.
      */
     String[] withIsolatedRepo(String[] command, Path projectDir) {
-<span class="fc bfc" id="L199" title="All 2 branches covered.">        if (!isolatedRepo) {</span>
-<span class="fc" id="L200">            return command;</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">        if (!isolatedRepo) {</span>
+<span class="fc" id="L217">            return command;</span>
         }
-<span class="fc" id="L202">        Path repo = CommitCheckout.isolatedMavenRepoFor(projectDir);</span>
-<span class="fc" id="L203">        String[] augmented = Arrays.copyOf(command, command.length + 1);</span>
-<span class="fc" id="L204">        augmented[command.length] = &quot;-Dmaven.repo.local=&quot; + repo;</span>
-<span class="fc" id="L205">        return augmented;</span>
+<span class="fc" id="L219">        Path repo = CommitCheckout.isolatedMavenRepoFor(projectDir);</span>
+<span class="fc" id="L220">        String[] augmented = Arrays.copyOf(command, command.length + 1);</span>
+<span class="fc" id="L221">        augmented[command.length] = &quot;-Dmaven.repo.local=&quot; + repo;</span>
+<span class="fc" id="L222">        return augmented;</span>
     }
 
     private BuildResult execute(Path projectDir, String[] command, Path agentJar, Path dependencyRecordOutputFile) {
         try {
-<span class="fc" id="L210">            ProcessBuilder pb = new ProcessBuilder(withIsolatedRepo(command, projectDir))</span>
-<span class="fc" id="L211">                    .directory(projectDir.toFile())</span>
-<span class="fc" id="L212">                    .redirectErrorStream(true);</span>
-<span class="fc bfc" id="L213" title="All 2 branches covered.">            if (agentJar != null) {</span>
+<span class="fc" id="L227">            ProcessBuilder pb = new ProcessBuilder(withIsolatedRepo(command, projectDir))</span>
+<span class="fc" id="L228">                    .directory(projectDir.toFile())</span>
+<span class="fc" id="L229">                    .redirectErrorStream(true);</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">            if (agentJar != null) {</span>
                 // JAVA_TOOL_OPTIONS is read directly by every JVM launch (Maven's own
                 // process AND any forked Surefire test JVMs it spawns), independent of
                 // Maven's argLine property — unlike -DargLine, which real target
@@ -221,32 +238,32 @@ public final class MavenBuildRunner {
                 // runs any JUnit test, so DependencyTrackingAgent's shutdown hook sees
                 // an empty record and skips writing rather than clobbering the real
                 // data the forked test JVM already wrote.
-<span class="fc" id="L224">                String agentOpt = &quot;-javaagent:&quot; + agentJar.toAbsolutePath() + &quot;=&quot;</span>
-<span class="fc" id="L225">                        + dependencyRecordOutputFile.toAbsolutePath();</span>
-<span class="pc" id="L226">                pb.environment().merge(&quot;JAVA_TOOL_OPTIONS&quot;, agentOpt, (existing, added) -&gt; existing + &quot; &quot; + added);</span>
+<span class="fc" id="L241">                String agentOpt = &quot;-javaagent:&quot; + agentJar.toAbsolutePath() + &quot;=&quot;</span>
+<span class="fc" id="L242">                        + dependencyRecordOutputFile.toAbsolutePath();</span>
+<span class="pc" id="L243">                pb.environment().merge(&quot;JAVA_TOOL_OPTIONS&quot;, agentOpt, (existing, added) -&gt; existing + &quot; &quot; + added);</span>
             }
-<span class="fc" id="L228">            Process process = pb.start();</span>
+<span class="fc" id="L245">            Process process = pb.start();</span>
             // Read stdout on a separate thread: the descendant-tracking poll below must
             // run concurrently, not after, or a chatty child can fill the OS pipe buffer
             // and block forever with nobody draining it.
-<span class="fc" id="L232">            byte[][] outputHolder = new byte[1][];</span>
-<span class="fc" id="L233">            Thread outputReader = new Thread(() -&gt; {</span>
+<span class="fc" id="L249">            byte[][] outputHolder = new byte[1][];</span>
+<span class="fc" id="L250">            Thread outputReader = new Thread(() -&gt; {</span>
                 try {
-<span class="fc" id="L235">                    outputHolder[0] = process.getInputStream().readAllBytes();</span>
-<span class="nc" id="L236">                } catch (IOException e) {</span>
-<span class="nc" id="L237">                    outputHolder[0] = new byte[0];</span>
-<span class="fc" id="L238">                }</span>
-<span class="fc" id="L239">            });</span>
-<span class="fc" id="L240">            outputReader.start();</span>
+<span class="fc" id="L252">                    outputHolder[0] = process.getInputStream().readAllBytes();</span>
+<span class="nc" id="L253">                } catch (IOException e) {</span>
+<span class="nc" id="L254">                    outputHolder[0] = new byte[0];</span>
+<span class="fc" id="L255">                }</span>
+<span class="fc" id="L256">            });</span>
+<span class="fc" id="L257">            outputReader.start();</span>
 
-<span class="fc" id="L242">            Set&lt;ProcessHandle&gt; descendants =</span>
-<span class="fc" id="L243">                    awaitDescendantsWhileAlive(process, Duration.ofMinutes(timeoutMinutes));</span>
-<span class="fc" id="L244">            outputReader.join();</span>
+<span class="fc" id="L259">            Set&lt;ProcessHandle&gt; descendants =</span>
+<span class="fc" id="L260">                    awaitDescendantsWhileAlive(process, Duration.ofMinutes(timeoutMinutes));</span>
+<span class="fc" id="L261">            outputReader.join();</span>
 
-<span class="pc bpc" id="L246" title="1 of 2 branches missed.">            if (process.isAlive()) {</span>
-<span class="nc" id="L247">                process.destroyForcibly();</span>
-<span class="nc" id="L248">                descendants.forEach(ProcessHandle::destroyForcibly);</span>
-<span class="nc" id="L249">                throw new IllegalStateException(</span>
+<span class="pc bpc" id="L263" title="1 of 2 branches missed.">            if (process.isAlive()) {</span>
+<span class="nc" id="L264">                process.destroyForcibly();</span>
+<span class="nc" id="L265">                descendants.forEach(ProcessHandle::destroyForcibly);</span>
+<span class="nc" id="L266">                throw new IllegalStateException(</span>
                         &quot;mvn test timed out against &quot; + projectDir + &quot; after &quot; + timeoutMinutes + &quot;m&quot;);
             }
             // mvn itself exiting is not proof every process it spawned has: Surefire can
@@ -255,15 +272,15 @@ public final class MavenBuildRunner {
             // to exit (found running against apache/shenyu). An orphaned fork left alive
             // past this point hasn't run DependencyTrackingAgent's shutdown hook yet, so
             // reading its output immediately would race it and find nothing at all.
-<span class="fc" id="L258">            reapStragglers(descendants, DESCENDANT_GRACE_PERIOD);</span>
+<span class="fc" id="L275">            reapStragglers(descendants, DESCENDANT_GRACE_PERIOD);</span>
 
-<span class="fc" id="L260">            String output = new String(outputHolder[0], StandardCharsets.UTF_8);</span>
-<span class="fc" id="L261">            return new BuildResult(process.exitValue(), output);</span>
-<span class="nc" id="L262">        } catch (IOException e) {</span>
-<span class="nc" id="L263">            throw new UncheckedIOException(&quot;failed to invoke mvn test against &quot; + projectDir, e);</span>
-<span class="nc" id="L264">        } catch (InterruptedException e) {</span>
-<span class="nc" id="L265">            Thread.currentThread().interrupt();</span>
-<span class="nc" id="L266">            throw new IllegalStateException(&quot;interrupted while waiting for mvn test against &quot; + projectDir, e);</span>
+<span class="fc" id="L277">            String output = new String(outputHolder[0], StandardCharsets.UTF_8);</span>
+<span class="fc" id="L278">            return new BuildResult(process.exitValue(), output);</span>
+<span class="nc" id="L279">        } catch (IOException e) {</span>
+<span class="nc" id="L280">            throw new UncheckedIOException(&quot;failed to invoke mvn test against &quot; + projectDir, e);</span>
+<span class="nc" id="L281">        } catch (InterruptedException e) {</span>
+<span class="nc" id="L282">            Thread.currentThread().interrupt();</span>
+<span class="nc" id="L283">            throw new IllegalStateException(&quot;interrupted while waiting for mvn test against &quot; + projectDir, e);</span>
         }
     }
 
@@ -276,14 +293,14 @@ public final class MavenBuildRunner {
      * already exited can miss a straggler entirely.
      */
     static Set&lt;ProcessHandle&gt; awaitDescendantsWhileAlive(Process process, Duration timeout) throws InterruptedException {
-<span class="fc" id="L279">        Set&lt;ProcessHandle&gt; descendants = new HashSet&lt;&gt;();</span>
-<span class="fc" id="L280">        Instant deadline = Instant.now().plus(timeout);</span>
-<span class="pc bpc" id="L281" title="1 of 4 branches missed.">        while (process.isAlive() &amp;&amp; Instant.now().isBefore(deadline)) {</span>
-<span class="fc" id="L282">            process.toHandle().descendants().forEach(descendants::add);</span>
-<span class="fc" id="L283">            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());</span>
+<span class="fc" id="L296">        Set&lt;ProcessHandle&gt; descendants = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L297">        Instant deadline = Instant.now().plus(timeout);</span>
+<span class="pc bpc" id="L298" title="1 of 4 branches missed.">        while (process.isAlive() &amp;&amp; Instant.now().isBefore(deadline)) {</span>
+<span class="fc" id="L299">            process.toHandle().descendants().forEach(descendants::add);</span>
+<span class="fc" id="L300">            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());</span>
         }
-<span class="fc" id="L285">        process.toHandle().descendants().forEach(descendants::add);</span>
-<span class="fc" id="L286">        return descendants;</span>
+<span class="fc" id="L302">        process.toHandle().descendants().forEach(descendants::add);</span>
+<span class="fc" id="L303">        return descendants;</span>
     }
 
     /**
@@ -294,28 +311,32 @@ public final class MavenBuildRunner {
      * {@code destroyForcibly()} so no orphaned Surefire fork is left running indefinitely.
      */
     static void reapStragglers(Set&lt;ProcessHandle&gt; descendants, Duration gracePeriod) throws InterruptedException {
-<span class="fc" id="L297">        Instant deadline = Instant.now().plus(gracePeriod);</span>
-<span class="pc bpc" id="L298" title="3 of 4 branches missed.">        while (descendants.stream().anyMatch(ProcessHandle::isAlive) &amp;&amp; Instant.now().isBefore(deadline)) {</span>
-<span class="nc" id="L299">            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());</span>
+<span class="fc" id="L314">        Instant deadline = Instant.now().plus(gracePeriod);</span>
+<span class="pc bpc" id="L315" title="3 of 4 branches missed.">        while (descendants.stream().anyMatch(ProcessHandle::isAlive) &amp;&amp; Instant.now().isBefore(deadline)) {</span>
+<span class="nc" id="L316">            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());</span>
         }
-<span class="fc" id="L301">        descendants.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroy);</span>
+<span class="fc" id="L318">        descendants.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroy);</span>
 
-<span class="fc" id="L303">        Instant killDeadline = Instant.now().plus(DESCENDANT_KILL_GRACE_PERIOD);</span>
-<span class="pc bpc" id="L304" title="3 of 4 branches missed.">        while (descendants.stream().anyMatch(ProcessHandle::isAlive) &amp;&amp; Instant.now().isBefore(killDeadline)) {</span>
-<span class="nc" id="L305">            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());</span>
+<span class="fc" id="L320">        Instant killDeadline = Instant.now().plus(DESCENDANT_KILL_GRACE_PERIOD);</span>
+<span class="pc bpc" id="L321" title="3 of 4 branches missed.">        while (descendants.stream().anyMatch(ProcessHandle::isAlive) &amp;&amp; Instant.now().isBefore(killDeadline)) {</span>
+<span class="nc" id="L322">            Thread.sleep(DESCENDANT_POLL_INTERVAL.toMillis());</span>
         }
-<span class="fc" id="L307">        descendants.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroyForcibly);</span>
-<span class="fc" id="L308">    }</span>
+<span class="fc" id="L324">        descendants.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroyForcibly);</span>
+<span class="fc" id="L325">    }</span>
 
     String[] command(String testSelector) {
-<span class="fc" id="L311">        return command(testSelector, null, true);</span>
+<span class="fc" id="L328">        return command(testSelector, null, true);</span>
     }
 
     String[] command(String testSelector, String modulePath) {
-<span class="fc" id="L315">        return command(testSelector, modulePath, true);</span>
+<span class="fc" id="L332">        return command(testSelector, modulePath, true);</span>
     }
 
     String[] command(String testSelector, String modulePath, boolean clean) {
+<span class="fc" id="L336">        return command(testSelector, modulePath, clean, false);</span>
+    }
+
+    String[] command(String testSelector, String modulePath, boolean clean, boolean alsoMakeDependents) {
         // `clean` is required for the FIRST build of a checkout, not cosmetic:
         // CommitCheckout reuses one scratch working copy across every commit in the
         // window, and `target/` is untracked — a previous commit's build artifacts
@@ -330,18 +351,18 @@ public final class MavenBuildRunner {
         // instead of recompiling the whole module + its -am dependencies from scratch
         // on every one of the N+1 reruns. Surefire still overwrites each rerun test
         // class's own report file, so parsing stays correct without a clean.
-<span class="fc" id="L333">        List&lt;String&gt; args = new ArrayList&lt;&gt;(List.of(MavenLauncher.resolve(), &quot;-B&quot;, &quot;--no-transfer-progress&quot;));</span>
-<span class="fc bfc" id="L334" title="All 2 branches covered.">        if (clean) {</span>
-<span class="fc" id="L335">            args.add(&quot;clean&quot;);</span>
+<span class="fc" id="L354">        List&lt;String&gt; args = new ArrayList&lt;&gt;(List.of(MavenLauncher.resolve(), &quot;-B&quot;, &quot;--no-transfer-progress&quot;));</span>
+<span class="fc bfc" id="L355" title="All 2 branches covered.">        if (clean) {</span>
+<span class="fc" id="L356">            args.add(&quot;clean&quot;);</span>
         }
-<span class="fc" id="L337">        args.add(&quot;test&quot;);</span>
-<span class="fc bfc" id="L338" title="All 2 branches covered.">        if (parallelThreads != null) {</span>
-<span class="fc" id="L339">            args.add(&quot;-T&quot;);</span>
-<span class="fc" id="L340">            args.add(String.valueOf(parallelThreads));</span>
+<span class="fc" id="L358">        args.add(&quot;test&quot;);</span>
+<span class="fc bfc" id="L359" title="All 2 branches covered.">        if (parallelThreads != null) {</span>
+<span class="fc" id="L360">            args.add(&quot;-T&quot;);</span>
+<span class="fc" id="L361">            args.add(String.valueOf(parallelThreads));</span>
         }
-<span class="fc" id="L342">        String effectiveSelector = skippedTests.appendTo(testSelector);</span>
-<span class="fc bfc" id="L343" title="All 2 branches covered.">        if (effectiveSelector != null) {</span>
-<span class="fc" id="L344">            args.add(&quot;-Dtest=&quot; + effectiveSelector);</span>
+<span class="fc" id="L363">        String effectiveSelector = skippedTests.appendTo(testSelector);</span>
+<span class="fc bfc" id="L364" title="All 2 branches covered.">        if (effectiveSelector != null) {</span>
+<span class="fc" id="L365">            args.add(&quot;-Dtest=&quot; + effectiveSelector);</span>
             // Without this, a multi-module reactor aborts the whole build at the first
             // module that has test sources but none matching testSelector (found running
             // against apache/shenyu, whose shenyu-common module has no test named after
@@ -349,10 +370,10 @@ public final class MavenBuildRunner {
             // confirmFailure (FR-013) always reads back no report and misclassifies a
             // genuinely flaky test as CONFIRMED_FAILED. Two properties because Surefire
             // has used both names for this switch across versions.
-<span class="fc" id="L352">            args.add(&quot;-DfailIfNoTests=false&quot;);</span>
-<span class="fc" id="L353">            args.add(&quot;-Dsurefire.failIfNoSpecifiedTests=false&quot;);</span>
+<span class="fc" id="L373">            args.add(&quot;-DfailIfNoTests=false&quot;);</span>
+<span class="fc" id="L374">            args.add(&quot;-Dsurefire.failIfNoSpecifiedTests=false&quot;);</span>
         }
-<span class="fc bfc" id="L355" title="All 2 branches covered.">        if (modulePath != null) {</span>
+<span class="fc bfc" id="L376" title="All 2 branches covered.">        if (modulePath != null) {</span>
             // Scopes the rebuild to just the module that actually contains testSelector
             // (plus its upstream dependencies via -am) instead of walking every module in
             // the reactor. Without this, confirming one flaky test in a large multi-module
@@ -361,17 +382,27 @@ public final class MavenBuildRunner {
             // ~230-candidate mapper suite, that turned a ~30 minute validator run into
             // many hours once the failIfNoTests fix above stopped the (wrong but fast)
             // early abort.
-<span class="fc" id="L364">            args.add(&quot;-pl&quot;);</span>
-<span class="fc" id="L365">            args.add(modulePath);</span>
-<span class="fc" id="L366">            args.add(&quot;-am&quot;);</span>
+<span class="fc" id="L385">            args.add(&quot;-pl&quot;);</span>
+<span class="fc" id="L386">            args.add(modulePath);</span>
+<span class="fc" id="L387">            args.add(&quot;-am&quot;);</span>
+<span class="fc bfc" id="L388" title="All 2 branches covered.">            if (alsoMakeDependents) {</span>
+                // -amd (also-make-dependents): also build every module that depends on this one.
+                // A single-file mutation in modulePath can break a test in a downstream module
+                // that exercises the mutated code through modulePath's API; without -amd that
+                // module is never built, so its (correctly selected) killing test never runs and
+                // mutation validation would misreport it as a skipped killer (§III). Meaningless
+                // for the single-test confirmFailure rerun (which names one test in one module),
+                // so it stays off there.
+<span class="fc" id="L396">                args.add(&quot;-amd&quot;);</span>
+            }
         }
-<span class="fc bfc" id="L368" title="All 2 branches covered.">        if (skipBuildExtras) {</span>
+<span class="fc bfc" id="L399" title="All 2 branches covered.">        if (skipBuildExtras) {</span>
             // Soundness-neutral: coverage/lint/license/resource-bundling plugins don't decide
             // which tests run or whether they pass (§III). Applied to single-test confirmFailure
             // reruns too — same rationale, and it keeps those reruns cheap.
-<span class="fc" id="L372">            args.addAll(BUILD_EXTRA_SKIPS);</span>
+<span class="fc" id="L403">            args.addAll(BUILD_EXTRA_SKIPS);</span>
         }
-<span class="fc" id="L374">        return args.toArray(new String[0]);</span>
+<span class="fc" id="L405">        return args.toArray(new String[0]);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
