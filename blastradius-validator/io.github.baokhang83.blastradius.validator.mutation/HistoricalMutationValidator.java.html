@@ -2,6 +2,7 @@
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.core.git.ChangedFileClassifier;
+import io.github.baokhang83.blastradius.core.git.FileKind;
 import io.github.baokhang83.blastradius.core.reactor.ModuleId;
 import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraph;
 import io.github.baokhang83.blastradius.core.reactor.ReactorModuleGraphBuilder;
@@ -28,102 +29,128 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** Runs bounded synthetic mutants as evidence for one already-built historical pair. */
 public final class HistoricalMutationValidator {
 
-<span class="fc" id="L35">    private final MutationCandidateGenerator candidateGenerator = new MutationCandidateGenerator();</span>
-<span class="fc" id="L36">    private final ChangedFileClassifier changedFileClassifier = new ChangedFileClassifier();</span>
-<span class="fc" id="L37">    private final FallbackSelector fallbackSelector = new FallbackSelector();</span>
-<span class="fc" id="L38">    private final ReactorModuleGraphBuilder reactorModuleGraphBuilder = new ReactorModuleGraphBuilder();</span>
-<span class="fc" id="L39">    private final PairSelectionAnalyzer pairSelectionAnalyzer = new PairSelectionAnalyzer();</span>
-<span class="fc" id="L40">    private final BuildFailureDetector buildFailureDetector = new BuildFailureDetector();</span>
+    /** Only production sources are mutable; a changed test or Kotlin file carries no candidate. */
+    private static final String PRODUCTION_SOURCE_MARKER = &quot;src/main/java/&quot;;
+
+<span class="fc" id="L41">    private final MutationCandidateGenerator candidateGenerator = new MutationCandidateGenerator();</span>
+<span class="fc" id="L42">    private final ChangedFileClassifier changedFileClassifier = new ChangedFileClassifier();</span>
+<span class="fc" id="L43">    private final FallbackSelector fallbackSelector = new FallbackSelector();</span>
+<span class="fc" id="L44">    private final ReactorModuleGraphBuilder reactorModuleGraphBuilder = new ReactorModuleGraphBuilder();</span>
+<span class="fc" id="L45">    private final PairSelectionAnalyzer pairSelectionAnalyzer = new PairSelectionAnalyzer();</span>
+<span class="fc" id="L46">    private final BuildFailureDetector buildFailureDetector = new BuildFailureDetector();</span>
     private final GroundTruthResolver groundTruthResolver;
 
-<span class="fc" id="L43">    public HistoricalMutationValidator(GroundTruthResolver groundTruthResolver) {</span>
-<span class="fc" id="L44">        this.groundTruthResolver = groundTruthResolver;</span>
-<span class="fc" id="L45">    }</span>
+<span class="fc" id="L49">    public HistoricalMutationValidator(GroundTruthResolver groundTruthResolver) {</span>
+<span class="fc" id="L50">        this.groundTruthResolver = groundTruthResolver;</span>
+<span class="fc" id="L51">    }</span>
 
     public PairMutationResult validate(
             CommitPair pair, CommitBuild base, CommitBuild head, CommitCheckout checkout,
             MutationValidationConfig config, long deadlineNanos) {
-<span class="fc" id="L50">        Path headTree = checkout.checkoutCommit(pair.headCommit());</span>
-<span class="fc" id="L51">        List&lt;MutationCandidate&gt; candidates = candidateGenerator.generate(headTree, config.classFilter(),</span>
-<span class="fc" id="L52">                config.maxMutationClassesPerPair(), config.maxMutationsPerPair());</span>
+<span class="fc" id="L56">        Path headTree = checkout.checkoutCommit(pair.headCommit());</span>
+        // Mutate the code THIS pair changed, not the whole-tree first-yielding class: a real
+        // regression lives in the changed surface, and the changed module's -amd fanout is
+        // typically cheaper to build than a low-level module's. ChangedFile.path is repo-relative,
+        // the same form MutationCandidate.sourcePath uses, so the pool is a direct set-membership.
+<span class="fc" id="L61">        Set&lt;String&gt; changedSourcePaths = changedFileClassifier.classify(</span>
+<span class="fc" id="L62">                        headTree, pair.baseCommit(), pair.headCommit()).stream()</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">                .filter(changed -&gt; changed.kind() == FileKind.JAVA_SOURCE)</span>
+<span class="fc" id="L64">                .map(ChangedFile::path)</span>
+<span class="fc" id="L65">                .filter(path -&gt; path.contains(PRODUCTION_SOURCE_MARKER))</span>
+<span class="fc" id="L66">                .collect(Collectors.toSet());</span>
+<span class="fc" id="L67">        List&lt;MutationCandidate&gt; candidates = candidateGenerator.generate(headTree, config.classFilter(),</span>
+<span class="fc" id="L68">                changedSourcePaths, config.maxMutationClassesPerPair(), config.maxMutationsPerPair());</span>
+<span class="fc" id="L69">        MutationCandidateOrigin origin = MutationCandidateOrigin.DIFF_TARGETED;</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">        if (candidates.isEmpty()) {</span>
+            // The pair changed no mutable production source (docs/config/test-only, or a changed
+            // source with no boolean/operator token). Fall back to the whole-tree scan so the pair
+            // still exercises some mutant rather than silently validating nothing (§III). Every
+            // mutant this pair produces from here on asks the weaker &quot;somewhere in the tree&quot;
+            // question, not &quot;in what this PR touched&quot; — tagged so the report can tell them apart.
+<span class="fc" id="L76">            candidates = candidateGenerator.generate(headTree, config.classFilter(),</span>
+<span class="fc" id="L77">                    config.maxMutationClassesPerPair(), config.maxMutationsPerPair());</span>
+<span class="fc" id="L78">            origin = MutationCandidateOrigin.WHOLE_TREE_FALLBACK;</span>
+        }
         // One reactor graph for the whole pair: each mutant changes a single file, so its build
         // only needs the owning module + its dependents (-pl/-am/-amd), not the whole reactor.
-<span class="fc" id="L55">        ReactorModuleGraph moduleGraph = buildModuleGraph(headTree);</span>
-<span class="fc" id="L56">        List&lt;TestIdentity&gt; headFailures = head.groundTruth().stream()</span>
-<span class="pc bpc" id="L57" title="1 of 2 branches missed.">                .filter(result -&gt; result.outcome() == Outcome.CONFIRMED_FAILED)</span>
-<span class="fc" id="L58">                .map(GroundTruthResult::test)</span>
-<span class="fc" id="L59">                .toList();</span>
-<span class="fc" id="L60">        Map&lt;TestIdentity, Outcome&gt; headOutcomes = new HashMap&lt;&gt;();</span>
-<span class="fc" id="L61">        head.groundTruth().forEach(result -&gt; headOutcomes.put(result.test(), result.outcome()));</span>
-<span class="fc" id="L62">        List&lt;MutationExperiment&gt; experiments = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L63">        int timeSkipped = 0;</span>
-<span class="fc bfc" id="L64" title="All 2 branches covered.">        for (int index = 0; index &lt; candidates.size(); index++) {</span>
-<span class="pc bpc" id="L65" title="1 of 2 branches missed.">            if (System.nanoTime() &gt;= deadlineNanos) {</span>
-<span class="nc" id="L66">                timeSkipped = candidates.size() - index;</span>
-<span class="nc" id="L67">                break;</span>
+<span class="fc" id="L82">        ReactorModuleGraph moduleGraph = buildModuleGraph(headTree);</span>
+<span class="fc" id="L83">        List&lt;TestIdentity&gt; headFailures = head.groundTruth().stream()</span>
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">                .filter(result -&gt; result.outcome() == Outcome.CONFIRMED_FAILED)</span>
+<span class="fc" id="L85">                .map(GroundTruthResult::test)</span>
+<span class="fc" id="L86">                .toList();</span>
+<span class="fc" id="L87">        Map&lt;TestIdentity, Outcome&gt; headOutcomes = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L88">        head.groundTruth().forEach(result -&gt; headOutcomes.put(result.test(), result.outcome()));</span>
+<span class="fc" id="L89">        List&lt;MutationExperiment&gt; experiments = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L90">        int timeSkipped = 0;</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">        for (int index = 0; index &lt; candidates.size(); index++) {</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">            if (System.nanoTime() &gt;= deadlineNanos) {</span>
+<span class="nc" id="L93">                timeSkipped = candidates.size() - index;</span>
+<span class="nc" id="L94">                break;</span>
             }
-<span class="fc" id="L69">            MutationCandidate candidate = candidates.get(index);</span>
-<span class="fc" id="L70">            checkout.checkoutCommit(pair.headCommit());</span>
-<span class="fc" id="L71">            String mutantCommit = commitMutation(checkout, candidate);</span>
-<span class="fc" id="L72">            String modulePath = modulePathFor(moduleGraph, candidate.sourcePath());</span>
-<span class="fc" id="L73">            GroundTruthResolution mutantResolution =</span>
-<span class="fc" id="L74">                    groundTruthResolver.resolve(checkout.workTree(), null, null, modulePath);</span>
-<span class="pc bpc" id="L75" title="1 of 2 branches missed.">            if (buildFailureDetector.isBuildFailure(mutantResolution.initialBuild(), checkout.workTree())) {</span>
-<span class="nc" id="L76">                experiments.add(new MutationExperiment(pair, candidate, mutantCommit, MutationStatus.UNBUILDABLE,</span>
-<span class="nc" id="L77">                        &quot;mutant failed to build (exit &quot; + mutantResolution.initialBuild().exitCode() + &quot;)&quot;,</span>
-<span class="nc" id="L78">                        headFailures, List.of(), List.of(), List.of(), List.of()));</span>
-<span class="nc" id="L79">                continue;</span>
+<span class="fc" id="L96">            MutationCandidate candidate = candidates.get(index);</span>
+<span class="fc" id="L97">            checkout.checkoutCommit(pair.headCommit());</span>
+<span class="fc" id="L98">            String mutantCommit = commitMutation(checkout, candidate);</span>
+<span class="fc" id="L99">            String modulePath = modulePathFor(moduleGraph, candidate.sourcePath());</span>
+<span class="fc" id="L100">            GroundTruthResolution mutantResolution =</span>
+<span class="fc" id="L101">                    groundTruthResolver.resolve(checkout.workTree(), null, null, modulePath);</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">            if (buildFailureDetector.isBuildFailure(mutantResolution.initialBuild(), checkout.workTree())) {</span>
+<span class="nc" id="L103">                experiments.add(new MutationExperiment(pair, candidate, origin, mutantCommit, MutationStatus.UNBUILDABLE,</span>
+<span class="nc" id="L104">                        &quot;mutant failed to build (exit &quot; + mutantResolution.initialBuild().exitCode() + &quot;)&quot;,</span>
+<span class="nc" id="L105">                        headFailures, List.of(), List.of(), List.of(), List.of()));</span>
+<span class="nc" id="L106">                continue;</span>
             }
-<span class="fc" id="L81">            experiments.add(analyzeMutant(pair, candidate, mutantCommit, base, headFailures, headOutcomes,</span>
-<span class="fc" id="L82">                    mutantResolution.results(), checkout.workTree()));</span>
+<span class="fc" id="L108">            experiments.add(analyzeMutant(pair, candidate, origin, mutantCommit, base, headFailures, headOutcomes,</span>
+<span class="fc" id="L109">                    mutantResolution.results(), checkout.workTree()));</span>
         }
-<span class="fc" id="L84">        return new PairMutationResult(experiments, candidates.size(), timeSkipped);</span>
+<span class="fc" id="L111">        return new PairMutationResult(experiments, candidates.size(), timeSkipped);</span>
     }
 
     private MutationExperiment analyzeMutant(
-            CommitPair pair, MutationCandidate candidate, String mutantCommit, CommitBuild base,
-            List&lt;TestIdentity&gt; headFailures, Map&lt;TestIdentity, Outcome&gt; headOutcomes,
+            CommitPair pair, MutationCandidate candidate, MutationCandidateOrigin origin, String mutantCommit,
+            CommitBuild base, List&lt;TestIdentity&gt; headFailures, Map&lt;TestIdentity, Outcome&gt; headOutcomes,
             List&lt;GroundTruthResult&gt; mutantOutcomes, Path mutantTree) {
-<span class="fc" id="L91">        List&lt;ChangedFile&gt; changedFiles = changedFileClassifier.classify(mutantTree, pair.baseCommit(), mutantCommit);</span>
-<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        ReactorScope scope = fallbackSelector.shouldFallback(changedFiles) ? buildReactorScope(mutantTree) : null;</span>
-<span class="fc" id="L93">        CommitPair selectionEdge = CommitPair.analyzed(pair.baseCommit(), mutantCommit, changedFiles);</span>
-<span class="fc" id="L94">        PairSelectionResult selection = pairSelectionAnalyzer.analyze(</span>
-<span class="fc" id="L95">                selectionEdge, base.dependencyRecordSet(), base.groundTruth(), mutantOutcomes, scope);</span>
-<span class="fc" id="L96">        Map&lt;TestIdentity, SelectionDecision&gt; decisions = new HashMap&lt;&gt;();</span>
-<span class="fc" id="L97">        selection.decisions().forEach(decision -&gt; decisions.put(decision.test(), decision));</span>
-<span class="fc" id="L98">        List&lt;TestIdentity&gt; killing = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L99">        List&lt;TestIdentity&gt; selected = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L100">        List&lt;TestIdentity&gt; skipped = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L101" title="All 2 branches covered.">        for (GroundTruthResult outcome : mutantOutcomes) {</span>
-<span class="fc bfc" id="L102" title="All 2 branches covered.">            if (outcome.outcome() != Outcome.CONFIRMED_FAILED</span>
-<span class="pc bpc" id="L103" title="1 of 2 branches missed.">                    || headOutcomes.getOrDefault(outcome.test(), Outcome.PASSED) != Outcome.PASSED) {</span>
-<span class="nc" id="L104">                continue;</span>
+<span class="fc" id="L118">        List&lt;ChangedFile&gt; changedFiles = changedFileClassifier.classify(mutantTree, pair.baseCommit(), mutantCommit);</span>
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">        ReactorScope scope = fallbackSelector.shouldFallback(changedFiles) ? buildReactorScope(mutantTree) : null;</span>
+<span class="fc" id="L120">        CommitPair selectionEdge = CommitPair.analyzed(pair.baseCommit(), mutantCommit, changedFiles);</span>
+<span class="fc" id="L121">        PairSelectionResult selection = pairSelectionAnalyzer.analyze(</span>
+<span class="fc" id="L122">                selectionEdge, base.dependencyRecordSet(), base.groundTruth(), mutantOutcomes, scope);</span>
+<span class="fc" id="L123">        Map&lt;TestIdentity, SelectionDecision&gt; decisions = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L124">        selection.decisions().forEach(decision -&gt; decisions.put(decision.test(), decision));</span>
+<span class="fc" id="L125">        List&lt;TestIdentity&gt; killing = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L126">        List&lt;TestIdentity&gt; selected = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L127">        List&lt;TestIdentity&gt; skipped = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">        for (GroundTruthResult outcome : mutantOutcomes) {</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">            if (outcome.outcome() != Outcome.CONFIRMED_FAILED</span>
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">                    || headOutcomes.getOrDefault(outcome.test(), Outcome.PASSED) != Outcome.PASSED) {</span>
+<span class="nc" id="L131">                continue;</span>
             }
-<span class="fc" id="L106">            killing.add(outcome.test());</span>
-<span class="fc" id="L107">            SelectionDecision decision = decisions.get(outcome.test());</span>
-<span class="pc bpc" id="L108" title="1 of 4 branches missed.">            if (decision != null &amp;&amp; decision.selected()) {</span>
-<span class="fc" id="L109">                selected.add(outcome.test());</span>
+<span class="fc" id="L133">            killing.add(outcome.test());</span>
+<span class="fc" id="L134">            SelectionDecision decision = decisions.get(outcome.test());</span>
+<span class="pc bpc" id="L135" title="1 of 4 branches missed.">            if (decision != null &amp;&amp; decision.selected()) {</span>
+<span class="fc" id="L136">                selected.add(outcome.test());</span>
             } else {
-<span class="fc" id="L111">                skipped.add(outcome.test());</span>
+<span class="fc" id="L138">                skipped.add(outcome.test());</span>
             }
-<span class="fc" id="L113">        }</span>
-<span class="pc" id="L114">        List&lt;TestIdentity&gt; flaky = selection.flakyFailures().stream().map(failure -&gt; failure.test()).toList();</span>
-<span class="fc" id="L115">        return new MutationExperiment(pair, candidate, mutantCommit,</span>
-<span class="pc bpc" id="L116" title="1 of 2 branches missed.">                killing.isEmpty() ? MutationStatus.SURVIVED : MutationStatus.KILLED,</span>
+<span class="fc" id="L140">        }</span>
+<span class="pc" id="L141">        List&lt;TestIdentity&gt; flaky = selection.flakyFailures().stream().map(failure -&gt; failure.test()).toList();</span>
+<span class="fc" id="L142">        return new MutationExperiment(pair, candidate, origin, mutantCommit,</span>
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">                killing.isEmpty() ? MutationStatus.SURVIVED : MutationStatus.KILLED,</span>
                 null, headFailures, killing, selected, skipped, flaky);
     }
 
     private ReactorModuleGraph buildModuleGraph(Path tree) {
         try {
-<span class="fc" id="L122">            return reactorModuleGraphBuilder.fromRepoTree(tree);</span>
-<span class="nc" id="L123">        } catch (RuntimeException e) {</span>
+<span class="fc" id="L149">            return reactorModuleGraphBuilder.fromRepoTree(tree);</span>
+<span class="nc" id="L150">        } catch (RuntimeException e) {</span>
             // A graph we can't build means we can't safely narrow scope — fall back to whole-reactor
             // builds (modulePathFor returns null for every candidate), never guess narrower (§III).
-<span class="nc" id="L126">            return null;</span>
+<span class="nc" id="L153">            return null;</span>
         }
     }
 
@@ -133,34 +160,34 @@ public final class HistoricalMutationValidator {
      * or the owning module is the reactor root itself (where {@code -pl} would be redundant).
      */
     private static String modulePathFor(ReactorModuleGraph moduleGraph, String sourcePath) {
-<span class="pc bpc" id="L136" title="1 of 2 branches missed.">        if (moduleGraph == null) {</span>
-<span class="nc" id="L137">            return null;</span>
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">        if (moduleGraph == null) {</span>
+<span class="nc" id="L164">            return null;</span>
         }
-<span class="fc" id="L139">        return moduleGraph.moduleOf(sourcePath)</span>
-<span class="fc" id="L140">                .map(ModuleId::relativePath)</span>
-<span class="pc bnc" id="L141" title="All 2 branches missed.">                .filter(relativePath -&gt; !relativePath.isEmpty())</span>
-<span class="fc" id="L142">                .orElse(null);</span>
+<span class="fc" id="L166">        return moduleGraph.moduleOf(sourcePath)</span>
+<span class="fc" id="L167">                .map(ModuleId::relativePath)</span>
+<span class="pc bnc" id="L168" title="All 2 branches missed.">                .filter(relativePath -&gt; !relativePath.isEmpty())</span>
+<span class="fc" id="L169">                .orElse(null);</span>
     }
 
     private ReactorScope buildReactorScope(Path tree) {
         try {
-<span class="nc" id="L147">            ReactorModuleGraph graph = reactorModuleGraphBuilder.fromRepoTree(tree);</span>
-<span class="nc" id="L148">            return new ReactorScope(graph, TestModuleIndex.fromRepoTree(tree, graph));</span>
-<span class="nc" id="L149">        } catch (RuntimeException e) {</span>
-<span class="nc" id="L150">            return null;</span>
+<span class="nc" id="L174">            ReactorModuleGraph graph = reactorModuleGraphBuilder.fromRepoTree(tree);</span>
+<span class="nc" id="L175">            return new ReactorScope(graph, TestModuleIndex.fromRepoTree(tree, graph));</span>
+<span class="nc" id="L176">        } catch (RuntimeException e) {</span>
+<span class="nc" id="L177">            return null;</span>
         }
     }
 
     private static String commitMutation(CommitCheckout checkout, MutationCandidate candidate) {
-<span class="fc" id="L155">        Path source = checkout.workTree().resolve(candidate.sourcePath());</span>
+<span class="fc" id="L182">        Path source = checkout.workTree().resolve(candidate.sourcePath());</span>
         try {
-<span class="fc" id="L157">            return checkout.commitFile(Path.of(candidate.sourcePath()), candidate.applyTo(Files.readString(source)),</span>
-<span class="fc" id="L158">                    &quot;blastradius mutation: &quot; + candidate.className() + &quot; &quot; + candidate.operator());</span>
-<span class="nc" id="L159">        } catch (IOException e) {</span>
-<span class="nc" id="L160">            throw new UncheckedIOException(&quot;failed to mutate &quot; + candidate.sourcePath(), e);</span>
+<span class="fc" id="L184">            return checkout.commitFile(Path.of(candidate.sourcePath()), candidate.applyTo(Files.readString(source)),</span>
+<span class="fc" id="L185">                    &quot;blastradius mutation: &quot; + candidate.className() + &quot; &quot; + candidate.operator());</span>
+<span class="nc" id="L186">        } catch (IOException e) {</span>
+<span class="nc" id="L187">            throw new UncheckedIOException(&quot;failed to mutate &quot; + candidate.sourcePath(), e);</span>
         }
     }
 
-<span class="fc" id="L164">    public record PairMutationResult(List&lt;MutationExperiment&gt; experiments, int generated, int timeLimitSkipped) {}</span>
+<span class="fc" id="L191">    public record PairMutationResult(List&lt;MutationExperiment&gt; experiments, int generated, int timeLimitSkipped) {}</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

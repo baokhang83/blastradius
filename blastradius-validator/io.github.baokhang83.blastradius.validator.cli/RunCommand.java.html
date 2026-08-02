@@ -147,13 +147,19 @@ public final class RunCommand {
 <span class="fc" id="L147">                reportWriter.write(config.reportOutputPath(), report);</span>
 
 <span class="fc" id="L149">                progress.summary(report.verdict().name(), System.currentTimeMillis() - runStart);</span>
-<span class="fc bfc" id="L150" title="All 2 branches covered.">                return report.verdict() == Verdict.PASS ? 0 : 1;</span>
+<span class="pc bpc" id="L150" title="1 of 3 branches missed.">                return switch (report.verdict()) {</span>
+<span class="fc" id="L151">                    case PASS -&gt; 0;</span>
+<span class="fc" id="L152">                    case FAIL -&gt; 1;</span>
+                    // Distinct from 2, which means the tool itself errored (see the catch below):
+                    // this is a clean run that simply never confirmed a killed mutant.
+<span class="pc" id="L155">                    case INCONCLUSIVE -&gt; 3;</span>
+                };
             } finally {
-<span class="fc" id="L152">                executor.shutdownNow();</span>
+<span class="fc" id="L158">                executor.shutdownNow();</span>
             }
-<span class="fc" id="L154">        } catch (Exception e) {</span>
-<span class="fc" id="L155">            System.err.println(&quot;blastradius-validator: &quot; + e.getMessage());</span>
-<span class="fc" id="L156">            return 2;</span>
+<span class="fc" id="L160">        } catch (Exception e) {</span>
+<span class="fc" id="L161">            System.err.println(&quot;blastradius-validator: &quot; + e.getMessage());</span>
+<span class="fc" id="L162">            return 2;</span>
         }
     }
 
@@ -171,15 +177,15 @@ public final class RunCommand {
     private Map&lt;BuildKey, BuildOutcome&gt; buildAllCommits(
             List&lt;CommitPair&gt; window, boolean fastGroundTruth, Path agentJar,
             CheckoutPool pool, ExecutorService executor, BuildCache cache) throws InterruptedException {
-<span class="fc" id="L174">        List&lt;BuildKey&gt; keys = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L175" title="All 2 branches covered.">        for (CommitPair pair : window) {</span>
-<span class="fc" id="L176">            keys.add(new BuildKey(pair.baseCommit(), true));</span>
-<span class="fc" id="L177">            keys.add(new BuildKey(pair.headCommit(), fastGroundTruth));</span>
-<span class="fc" id="L178">        }</span>
-<span class="fc" id="L179">        CommitBuildService service = new CommitBuildService(</span>
+<span class="fc" id="L180">        List&lt;BuildKey&gt; keys = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">        for (CommitPair pair : window) {</span>
+<span class="fc" id="L182">            keys.add(new BuildKey(pair.baseCommit(), true));</span>
+<span class="fc" id="L183">            keys.add(new BuildKey(pair.headCommit(), fastGroundTruth));</span>
+<span class="fc" id="L184">        }</span>
+<span class="fc" id="L185">        CommitBuildService service = new CommitBuildService(</span>
                 pool, executor, progress, cache,
-<span class="fc" id="L181">                (checkout, sha, agentAttached) -&gt; buildCommit(checkout, sha, agentAttached, agentJar));</span>
-<span class="fc" id="L182">        return service.buildAll(keys);</span>
+<span class="fc" id="L187">                (checkout, sha, agentAttached) -&gt; buildCommit(checkout, sha, agentAttached, agentJar));</span>
+<span class="fc" id="L188">        return service.buildAll(keys);</span>
     }
 
     /**
@@ -192,77 +198,85 @@ public final class RunCommand {
             List&lt;CommitPair&gt; window, RunConfig config, Map&lt;BuildKey, BuildOutcome&gt; outcomes,
             BuildCache cache, CheckoutPool pool, long mutationDeadlineNanos)
             throws InterruptedException {
-<span class="fc" id="L195">        List&lt;CommitPair&gt; analyzedPairs = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L196">        List&lt;CommitPair&gt; excludedPairs = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L197">        List&lt;WouldMissCase&gt; allMisses = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L198">        List&lt;SelectionDecision&gt; allDecisions = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L199">        List&lt;FlakyFailure&gt; allFlaky = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L200">        FailureCoverage failureCoverage = FailureCoverage.empty();</span>
-<span class="fc" id="L201">        List&lt;MutationExperiment&gt; mutationExperiments = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L202">        int generatedMutations = 0;</span>
-<span class="fc" id="L203">        int timeLimitSkippedMutations = 0;</span>
-<span class="fc bfc" id="L204" title="All 2 branches covered.">        HistoricalMutationValidator mutationValidator = config.mutationValidation() == null</span>
-<span class="fc" id="L205">                ? null : new HistoricalMutationValidator(groundTruthResolver);</span>
+<span class="fc" id="L201">        List&lt;CommitPair&gt; analyzedPairs = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L202">        List&lt;CommitPair&gt; excludedPairs = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L203">        List&lt;WouldMissCase&gt; allMisses = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L204">        List&lt;SelectionDecision&gt; allDecisions = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L205">        List&lt;FlakyFailure&gt; allFlaky = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L206">        FailureCoverage failureCoverage = FailureCoverage.empty();</span>
+<span class="fc" id="L207">        List&lt;MutationExperiment&gt; mutationExperiments = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L208">        int generatedMutations = 0;</span>
+<span class="fc" id="L209">        int timeLimitSkippedMutations = 0;</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">        HistoricalMutationValidator mutationValidator = config.mutationValidation() == null</span>
+<span class="fc" id="L211">                ? null : new HistoricalMutationValidator(groundTruthResolver);</span>
         // Reactor scope per HEAD commit: a repeated head across the window repays neither the
         // checkout nor the tree walk. Only populated for pairs with a NON_SOURCE change.
-<span class="fc" id="L208">        Map&lt;String, ReactorScope&gt; reactorScopeCache = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L214">        Map&lt;String, ReactorScope&gt; reactorScopeCache = new HashMap&lt;&gt;();</span>
 
-<span class="fc" id="L210">        CommitCheckout scopeCheckout = pool.borrow();</span>
+<span class="fc" id="L216">        CommitCheckout scopeCheckout = pool.borrow();</span>
         try {
-<span class="fc" id="L212">            int pairIndex = 0;</span>
-<span class="fc bfc" id="L213" title="All 2 branches covered.">            for (CommitPair pair : window) {</span>
-<span class="fc" id="L214">                pairIndex++;</span>
-<span class="fc" id="L215">                long pairStart = System.currentTimeMillis();</span>
+<span class="fc" id="L218">            int pairIndex = 0;</span>
+<span class="fc bfc" id="L219" title="All 2 branches covered.">            for (CommitPair pair : window) {</span>
+<span class="fc" id="L220">                pairIndex++;</span>
+<span class="fc" id="L221">                long pairStart = System.currentTimeMillis();</span>
                 PairAnalysis analysis;
                 try {
-<span class="fc" id="L218">                    analysis = analyzePair(</span>
-<span class="fc" id="L219">                            pair, config.projectPath(), outcomes, cache, config.fastGroundTruth(),</span>
+<span class="fc" id="L224">                    analysis = analyzePair(</span>
+<span class="fc" id="L225">                            pair, config.projectPath(), outcomes, cache, config.fastGroundTruth(),</span>
                             scopeCheckout, reactorScopeCache);
-<span class="nc" id="L221">                } catch (Exception e) {</span>
-<span class="nc" id="L222">                    analysis = excluded(pair, &quot;analysis failed: &quot; + e.getMessage());</span>
-<span class="fc" id="L223">                }</span>
-<span class="fc bfc" id="L224" title="All 4 branches covered.">                if (analysis.pair().status() != PairStatus.EXCLUDED &amp;&amp; mutationValidator != null) {</span>
+<span class="nc" id="L227">                } catch (Exception e) {</span>
+<span class="nc" id="L228">                    analysis = excluded(pair, &quot;analysis failed: &quot; + e.getMessage());</span>
+<span class="fc" id="L229">                }</span>
+<span class="fc bfc" id="L230" title="All 4 branches covered.">                if (analysis.pair().status() != PairStatus.EXCLUDED &amp;&amp; mutationValidator != null) {</span>
                     try {
-<span class="fc" id="L226">                        CommitBuild base = cache.load(new BuildKey(pair.baseCommit(), true)).orElseThrow();</span>
-<span class="fc" id="L227">                        CommitBuild head = cache.load(new BuildKey(pair.headCommit(), config.fastGroundTruth())).orElseThrow();</span>
-<span class="fc" id="L228">                        HistoricalMutationValidator.PairMutationResult mutation = mutationValidator.validate(</span>
-<span class="fc" id="L229">                                pair, base, head, scopeCheckout, config.mutationValidation(), mutationDeadlineNanos);</span>
-<span class="fc" id="L230">                        mutationExperiments.addAll(mutation.experiments());</span>
-<span class="fc" id="L231">                        generatedMutations += mutation.generated();</span>
-<span class="fc" id="L232">                        timeLimitSkippedMutations += mutation.timeLimitSkipped();</span>
-<span class="nc" id="L233">                    } catch (Exception e) {</span>
-<span class="nc" id="L234">                        analysis = excluded(pair, &quot;mutation validation failed: &quot; + e.getMessage());</span>
-<span class="fc" id="L235">                    }</span>
+<span class="fc" id="L232">                        CommitBuild base = cache.load(new BuildKey(pair.baseCommit(), true)).orElseThrow();</span>
+<span class="fc" id="L233">                        CommitBuild head = cache.load(new BuildKey(pair.headCommit(), config.fastGroundTruth())).orElseThrow();</span>
+<span class="fc" id="L234">                        HistoricalMutationValidator.PairMutationResult mutation = mutationValidator.validate(</span>
+<span class="fc" id="L235">                                pair, base, head, scopeCheckout, config.mutationValidation(), mutationDeadlineNanos);</span>
+<span class="fc" id="L236">                        mutationExperiments.addAll(mutation.experiments());</span>
+<span class="fc" id="L237">                        generatedMutations += mutation.generated();</span>
+<span class="fc" id="L238">                        timeLimitSkippedMutations += mutation.timeLimitSkipped();</span>
+<span class="nc" id="L239">                    } catch (Exception e) {</span>
+<span class="nc" id="L240">                        analysis = excluded(pair, &quot;mutation validation failed: &quot; + e.getMessage());</span>
+<span class="fc" id="L241">                    }</span>
                 }
-<span class="fc" id="L237">                long pairMillis = System.currentTimeMillis() - pairStart;</span>
-<span class="fc bfc" id="L238" title="All 2 branches covered.">                if (analysis.pair().status() == PairStatus.EXCLUDED) {</span>
-<span class="fc" id="L239">                    excludedPairs.add(analysis.pair());</span>
-<span class="fc" id="L240">                    progress.pairExcluded(pairIndex, window.size(), analysis.pair().exclusionReason());</span>
+<span class="fc" id="L243">                long pairMillis = System.currentTimeMillis() - pairStart;</span>
+<span class="fc bfc" id="L244" title="All 2 branches covered.">                if (analysis.pair().status() == PairStatus.EXCLUDED) {</span>
+<span class="fc" id="L245">                    excludedPairs.add(analysis.pair());</span>
+<span class="fc" id="L246">                    progress.pairExcluded(pairIndex, window.size(), analysis.pair().exclusionReason());</span>
                 } else {
-<span class="fc" id="L242">                    analyzedPairs.add(analysis.pair());</span>
-<span class="fc" id="L243">                    allMisses.addAll(analysis.misses());</span>
-<span class="fc" id="L244">                    allDecisions.addAll(analysis.decisions());</span>
-<span class="fc" id="L245">                    allFlaky.addAll(analysis.flakyFailures());</span>
-<span class="fc" id="L246">                    failureCoverage = failureCoverage.plus(analysis.failureCoverage());</span>
-<span class="fc" id="L247">                    progress.pairCompleted(pairIndex, window.size(), analysis.misses().size(), pairMillis);</span>
+<span class="fc" id="L248">                    analyzedPairs.add(analysis.pair());</span>
+<span class="fc" id="L249">                    allMisses.addAll(analysis.misses());</span>
+<span class="fc" id="L250">                    allDecisions.addAll(analysis.decisions());</span>
+<span class="fc" id="L251">                    allFlaky.addAll(analysis.flakyFailures());</span>
+<span class="fc" id="L252">                    failureCoverage = failureCoverage.plus(analysis.failureCoverage());</span>
+<span class="fc" id="L253">                    progress.pairCompleted(pairIndex, window.size(), analysis.misses().size(), pairMillis);</span>
                 }
-<span class="fc" id="L249">            }</span>
+<span class="fc" id="L255">            }</span>
         } finally {
-<span class="fc" id="L251">            pool.release(scopeCheckout);</span>
+<span class="fc" id="L257">            pool.release(scopeCheckout);</span>
         }
 
-<span class="fc" id="L254">        Verdict historyVerdict = verdictCalculator.calculate(allMisses);</span>
-<span class="fc bfc" id="L255" title="All 2 branches covered.">        MutationValidationReport mutationValidation = mutationValidator == null ? null</span>
-<span class="fc" id="L256">                : MutationValidationReport.from(mutationExperiments, generatedMutations, timeLimitSkippedMutations);</span>
-        Verdict verdict = historyVerdict == Verdict.FAIL
-<span class="fc bfc" id="L258" title="All 6 branches covered.">                || mutationValidation != null &amp;&amp; mutationValidation.verdict() == Verdict.FAIL</span>
-<span class="fc" id="L259">                ? Verdict.FAIL : Verdict.PASS;</span>
-<span class="fc" id="L260">        SavingsSummary savingsSummary = savingsSummaryAggregator.aggregate(allDecisions);</span>
-<span class="fc" id="L261">        return new AnalysisReport(verdict, config.historyMode(), analyzedPairs, excludedPairs, failureCoverage,</span>
-<span class="fc" id="L262">                allMisses, allFlaky, savingsSummary, config.skippedTests().classes(), mutationValidation);</span>
+<span class="fc" id="L260">        Verdict historyVerdict = verdictCalculator.calculate(allMisses);</span>
+<span class="fc bfc" id="L261" title="All 2 branches covered.">        MutationValidationReport mutationValidation = mutationValidator == null ? null</span>
+<span class="fc" id="L262">                : MutationValidationReport.from(mutationExperiments, generatedMutations, timeLimitSkippedMutations);</span>
+        // Precedence FAIL &gt; INCONCLUSIVE &gt; PASS: a confirmed miss always wins regardless of how
+        // much mutation evidence backs it, but absent that, an INCONCLUSIVE mutation leg (no
+        // mutant was actually killed) must not be swallowed into an unearned overall PASS (§III).
+        Verdict verdict;
+<span class="fc bfc" id="L267" title="All 6 branches covered.">        if (historyVerdict == Verdict.FAIL || mutationValidation != null &amp;&amp; mutationValidation.verdict() == Verdict.FAIL) {</span>
+<span class="fc" id="L268">            verdict = Verdict.FAIL;</span>
+<span class="pc bpc" id="L269" title="1 of 4 branches missed.">        } else if (mutationValidation != null &amp;&amp; mutationValidation.verdict() == Verdict.INCONCLUSIVE) {</span>
+<span class="nc" id="L270">            verdict = Verdict.INCONCLUSIVE;</span>
+        } else {
+<span class="fc" id="L272">            verdict = Verdict.PASS;</span>
+        }
+<span class="fc" id="L274">        SavingsSummary savingsSummary = savingsSummaryAggregator.aggregate(allDecisions);</span>
+<span class="fc" id="L275">        return new AnalysisReport(verdict, config.historyMode(), analyzedPairs, excludedPairs, failureCoverage,</span>
+<span class="fc" id="L276">                allMisses, allFlaky, savingsSummary, config.skippedTests().classes(), mutationValidation);</span>
     }
 
-<span class="fc" id="L265">    private record PairAnalysis(</span>
+<span class="fc" id="L279">    private record PairAnalysis(</span>
             CommitPair pair,
             List&lt;WouldMissCase&gt; misses,
             FailureCoverage failureCoverage,
@@ -277,27 +291,27 @@ public final class RunCommand {
         // matches how phase 1 enumerated its key (with in fast mode, without in safe mode).
         // Phase 1 returned only a pass/fail marker per key; the heavy payload is loaded from the
         // cache here, on demand, so the whole window's builds are never all resident at once.
-<span class="fc" id="L280">        BuildKey baseKey = new BuildKey(pair.baseCommit(), true);</span>
-<span class="fc bfc" id="L281" title="All 2 branches covered.">        if (outcomes.get(baseKey).failed()) {</span>
-<span class="fc" id="L282">            return excluded(pair, outcomes.get(baseKey).failureReason());</span>
+<span class="fc" id="L294">        BuildKey baseKey = new BuildKey(pair.baseCommit(), true);</span>
+<span class="fc bfc" id="L295" title="All 2 branches covered.">        if (outcomes.get(baseKey).failed()) {</span>
+<span class="fc" id="L296">            return excluded(pair, outcomes.get(baseKey).failureReason());</span>
         }
-<span class="fc" id="L284">        BuildKey headKey = new BuildKey(pair.headCommit(), fastGroundTruth);</span>
-<span class="fc bfc" id="L285" title="All 2 branches covered.">        if (outcomes.get(headKey).failed()) {</span>
-<span class="fc" id="L286">            return excluded(pair, outcomes.get(headKey).failureReason());</span>
+<span class="fc" id="L298">        BuildKey headKey = new BuildKey(pair.headCommit(), fastGroundTruth);</span>
+<span class="fc bfc" id="L299" title="All 2 branches covered.">        if (outcomes.get(headKey).failed()) {</span>
+<span class="fc" id="L300">            return excluded(pair, outcomes.get(headKey).failureReason());</span>
         }
-<span class="fc" id="L288">        CommitBuild base = cache.load(baseKey)</span>
-<span class="pc" id="L289">                .orElseThrow(() -&gt; new IllegalStateException(</span>
-<span class="nc" id="L290">                        &quot;build cache miss for &quot; + pair.baseCommit() + &quot; despite a successful build outcome&quot;));</span>
-<span class="fc" id="L291">        CommitBuild head = cache.load(headKey)</span>
-<span class="pc" id="L292">                .orElseThrow(() -&gt; new IllegalStateException(</span>
-<span class="nc" id="L293">                        &quot;build cache miss for &quot; + pair.headCommit() + &quot; despite a successful build outcome&quot;));</span>
-<span class="fc" id="L294">        DependencyRecordSet baseRecordSet = base.dependencyRecordSet();</span>
-<span class="fc" id="L295">        List&lt;GroundTruthResult&gt; baseGroundTruth = base.groundTruth();</span>
-<span class="fc" id="L296">        List&lt;GroundTruthResult&gt; groundTruth = head.groundTruth();</span>
+<span class="fc" id="L302">        CommitBuild base = cache.load(baseKey)</span>
+<span class="pc" id="L303">                .orElseThrow(() -&gt; new IllegalStateException(</span>
+<span class="nc" id="L304">                        &quot;build cache miss for &quot; + pair.baseCommit() + &quot; despite a successful build outcome&quot;));</span>
+<span class="fc" id="L305">        CommitBuild head = cache.load(headKey)</span>
+<span class="pc" id="L306">                .orElseThrow(() -&gt; new IllegalStateException(</span>
+<span class="nc" id="L307">                        &quot;build cache miss for &quot; + pair.headCommit() + &quot; despite a successful build outcome&quot;));</span>
+<span class="fc" id="L308">        DependencyRecordSet baseRecordSet = base.dependencyRecordSet();</span>
+<span class="fc" id="L309">        List&lt;GroundTruthResult&gt; baseGroundTruth = base.groundTruth();</span>
+<span class="fc" id="L310">        List&lt;GroundTruthResult&gt; groundTruth = head.groundTruth();</span>
 
         // Changed files, classified, against the real target repo's git history.
-<span class="fc" id="L299">        List&lt;ChangedFile&gt; changedFiles =</span>
-<span class="fc" id="L300">                changedFileClassifier.classify(targetRepo, pair.baseCommit(), pair.headCommit());</span>
+<span class="fc" id="L313">        List&lt;ChangedFile&gt; changedFiles =</span>
+<span class="fc" id="L314">                changedFileClassifier.classify(targetRepo, pair.baseCommit(), pair.headCommit());</span>
 
         // Reactor scope for the NON_SOURCE fallback: built from the HEAD tree so module layout
         // and inter-module edges reflect the commit selection runs against. Phase 1's concurrent
@@ -309,17 +323,17 @@ public final class RunCommand {
         // the scope solely inside its fallback branch, so on a source-only pair (the common case)
         // the two full-tree scans would be pure waste — a null scope is behaviorally identical
         // there (see SelectionEngine#selectAll).
-<span class="fc" id="L312">        ReactorScope reactorScope = null;</span>
-<span class="pc bpc" id="L313" title="1 of 2 branches missed.">        if (fallbackSelector.shouldFallback(changedFiles)) {</span>
-<span class="nc" id="L314">            reactorScope = reactorScopeCache.computeIfAbsent(</span>
-<span class="nc" id="L315">                    pair.headCommit(), sha -&gt; buildReactorScope(scopeCheckout.checkoutCommit(sha)));</span>
+<span class="fc" id="L326">        ReactorScope reactorScope = null;</span>
+<span class="pc bpc" id="L327" title="1 of 2 branches missed.">        if (fallbackSelector.shouldFallback(changedFiles)) {</span>
+<span class="nc" id="L328">            reactorScope = reactorScopeCache.computeIfAbsent(</span>
+<span class="nc" id="L329">                    pair.headCommit(), sha -&gt; buildReactorScope(scopeCheckout.checkoutCommit(sha)));</span>
         }
 
-<span class="fc" id="L318">        CommitPair enrichedPair = CommitPair.analyzed(pair.baseCommit(), pair.headCommit(), changedFiles);</span>
-<span class="fc" id="L319">        PairSelectionResult result = pairSelectionAnalyzer.analyze(</span>
+<span class="fc" id="L332">        CommitPair enrichedPair = CommitPair.analyzed(pair.baseCommit(), pair.headCommit(), changedFiles);</span>
+<span class="fc" id="L333">        PairSelectionResult result = pairSelectionAnalyzer.analyze(</span>
                 enrichedPair, baseRecordSet, baseGroundTruth, groundTruth, reactorScope);
-<span class="fc" id="L321">        return new PairAnalysis(enrichedPair, result.failureComparison().wouldMissCases(),</span>
-<span class="fc" id="L322">                result.failureComparison().coverage(), result.decisions(), result.flakyFailures());</span>
+<span class="fc" id="L335">        return new PairAnalysis(enrichedPair, result.failureComparison().wouldMissCases(),</span>
+<span class="fc" id="L336">                result.failureComparison().coverage(), result.decisions(), result.flakyFailures());</span>
     }
 
     /**
@@ -336,24 +350,24 @@ public final class RunCommand {
      * result rather than an exception, so the referencing pair is excluded (FR-009).
      */
     private CommitBuild buildCommit(CommitCheckout checkout, String sha, boolean agentAttached, Path agentJar) {
-<span class="fc" id="L339">        Path workDir = checkout.checkoutCommit(sha);</span>
-<span class="fc" id="L340">        Path depsFile = null;</span>
-<span class="fc bfc" id="L341" title="All 2 branches covered.">        if (agentAttached) {</span>
+<span class="fc" id="L353">        Path workDir = checkout.checkoutCommit(sha);</span>
+<span class="fc" id="L354">        Path depsFile = null;</span>
+<span class="fc bfc" id="L355" title="All 2 branches covered.">        if (agentAttached) {</span>
             try {
-<span class="fc" id="L343">                depsFile = Files.createTempFile(&quot;blastradius-commit-deps-&quot;, &quot;.json&quot;);</span>
-<span class="nc" id="L344">            } catch (IOException e) {</span>
-<span class="nc" id="L345">                throw new UncheckedIOException(e);</span>
-<span class="fc" id="L346">            }</span>
+<span class="fc" id="L357">                depsFile = Files.createTempFile(&quot;blastradius-commit-deps-&quot;, &quot;.json&quot;);</span>
+<span class="nc" id="L358">            } catch (IOException e) {</span>
+<span class="nc" id="L359">                throw new UncheckedIOException(e);</span>
+<span class="fc" id="L360">            }</span>
         }
-<span class="fc" id="L348">        GroundTruthResolution resolution = groundTruthResolver.resolve(</span>
-<span class="fc bfc" id="L349" title="All 2 branches covered.">                workDir, agentAttached ? agentJar : null, depsFile);</span>
-<span class="fc bfc" id="L350" title="All 2 branches covered.">        if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), workDir)) {</span>
-<span class="fc" id="L351">            return CommitBuild.failed(&quot;commit &quot; + sha + &quot; failed to build (exit &quot;</span>
-<span class="fc" id="L352">                    + resolution.initialBuild().exitCode() + &quot;):\n&quot;</span>
-<span class="fc" id="L353">                    + tail(resolution.initialBuild().output(), 4000));</span>
+<span class="fc" id="L362">        GroundTruthResolution resolution = groundTruthResolver.resolve(</span>
+<span class="fc bfc" id="L363" title="All 2 branches covered.">                workDir, agentAttached ? agentJar : null, depsFile);</span>
+<span class="fc bfc" id="L364" title="All 2 branches covered.">        if (buildFailureDetector.isBuildFailure(resolution.initialBuild(), workDir)) {</span>
+<span class="fc" id="L365">            return CommitBuild.failed(&quot;commit &quot; + sha + &quot; failed to build (exit &quot;</span>
+<span class="fc" id="L366">                    + resolution.initialBuild().exitCode() + &quot;):\n&quot;</span>
+<span class="fc" id="L367">                    + tail(resolution.initialBuild().output(), 4000));</span>
         }
-<span class="fc bfc" id="L355" title="All 2 branches covered.">        DependencyRecordSet recordSet = agentAttached ? new DependencyRecordReader().readAll(depsFile) : null;</span>
-<span class="fc" id="L356">        return CommitBuild.succeeded(recordSet, resolution.results());</span>
+<span class="fc bfc" id="L369" title="All 2 branches covered.">        DependencyRecordSet recordSet = agentAttached ? new DependencyRecordReader().readAll(depsFile) : null;</span>
+<span class="fc" id="L370">        return CommitBuild.succeeded(recordSet, resolution.results());</span>
     }
 
     /**
@@ -363,10 +377,10 @@ public final class RunCommand {
      * at the very end, so the tail is where the signal is.
      */
     private static String tail(String text, int maxChars) {
-<span class="pc bpc" id="L366" title="2 of 4 branches missed.">        if (text == null || text.isEmpty()) {</span>
-<span class="nc" id="L367">            return &quot;(no build output captured)&quot;;</span>
+<span class="pc bpc" id="L380" title="2 of 4 branches missed.">        if (text == null || text.isEmpty()) {</span>
+<span class="nc" id="L381">            return &quot;(no build output captured)&quot;;</span>
         }
-<span class="pc bpc" id="L369" title="1 of 2 branches missed.">        return text.length() &lt;= maxChars ? text : &quot;...&quot; + text.substring(text.length() - maxChars);</span>
+<span class="pc bpc" id="L383" title="1 of 2 branches missed.">        return text.length() &lt;= maxChars ? text : &quot;...&quot; + text.substring(text.length() - maxChars);</span>
     }
 
     /**
@@ -379,16 +393,16 @@ public final class RunCommand {
      */
     private ReactorScope buildReactorScope(Path headTree) {
         try {
-<span class="nc" id="L382">            ReactorModuleGraph graph = reactorModuleGraphBuilder.fromRepoTree(headTree);</span>
-<span class="nc" id="L383">            return new ReactorScope(graph, TestModuleIndex.fromRepoTree(headTree, graph));</span>
-<span class="nc" id="L384">        } catch (RuntimeException e) {</span>
-<span class="nc" id="L385">            return null;</span>
+<span class="nc" id="L396">            ReactorModuleGraph graph = reactorModuleGraphBuilder.fromRepoTree(headTree);</span>
+<span class="nc" id="L397">            return new ReactorScope(graph, TestModuleIndex.fromRepoTree(headTree, graph));</span>
+<span class="nc" id="L398">        } catch (RuntimeException e) {</span>
+<span class="nc" id="L399">            return null;</span>
         }
     }
 
     private static PairAnalysis excluded(CommitPair pair, String reason) {
-<span class="fc" id="L390">        CommitPair excludedPair = CommitPair.excluded(pair.baseCommit(), pair.headCommit(), reason);</span>
-<span class="fc" id="L391">        return new PairAnalysis(excludedPair, List.of(), FailureCoverage.empty(), List.of(), List.of());</span>
+<span class="fc" id="L404">        CommitPair excludedPair = CommitPair.excluded(pair.baseCommit(), pair.headCommit(), reason);</span>
+<span class="fc" id="L405">        return new PairAnalysis(excludedPair, List.of(), FailureCoverage.empty(), List.of(), List.of());</span>
     }
 
     /**
@@ -399,18 +413,18 @@ public final class RunCommand {
      * cross-contaminating — a cache.
      */
     private static Path buildCacheDirectory(Path reportOutputPath) {
-<span class="fc" id="L402">        Path report = reportOutputPath.toAbsolutePath();</span>
-<span class="fc" id="L403">        Path parent = report.getParent();</span>
-<span class="fc" id="L404">        String name = report.getFileName().toString() + &quot;.blastradius-build-cache&quot;;</span>
-<span class="pc bpc" id="L405" title="1 of 2 branches missed.">        return parent == null ? Path.of(name) : parent.resolve(name);</span>
+<span class="fc" id="L416">        Path report = reportOutputPath.toAbsolutePath();</span>
+<span class="fc" id="L417">        Path parent = report.getParent();</span>
+<span class="fc" id="L418">        String name = report.getFileName().toString() + &quot;.blastradius-build-cache&quot;;</span>
+<span class="pc bpc" id="L419" title="1 of 2 branches missed.">        return parent == null ? Path.of(name) : parent.resolve(name);</span>
     }
 
     private static Path locateOwnJar() {
         try {
-<span class="nc" id="L410">            URI uri = RunCommand.class.getProtectionDomain().getCodeSource().getLocation().toURI();</span>
-<span class="nc" id="L411">            return Path.of(uri);</span>
-<span class="nc" id="L412">        } catch (Exception e) {</span>
-<span class="nc" id="L413">            throw new IllegalStateException(&quot;could not locate this tool's own jar for -javaagent attachment&quot;, e);</span>
+<span class="nc" id="L424">            URI uri = RunCommand.class.getProtectionDomain().getCodeSource().getLocation().toURI();</span>
+<span class="nc" id="L425">            return Path.of(uri);</span>
+<span class="nc" id="L426">        } catch (Exception e) {</span>
+<span class="nc" id="L427">            throw new IllegalStateException(&quot;could not locate this tool's own jar for -javaagent attachment&quot;, e);</span>
         }
     }
 }

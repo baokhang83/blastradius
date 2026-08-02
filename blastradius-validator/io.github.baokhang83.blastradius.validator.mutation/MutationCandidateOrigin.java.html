@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>MutationCandidateOrigin.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.mutation</a> &gt; <span class="el_source">MutationCandidateOrigin.java</span></div><h1>MutationCandidateOrigin.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.mutation;
+
+/**
+ * Which candidate pool a mutant came from — see
+ * {@link HistoricalMutationValidator#validate}. A pair's mutants are either all
+ * {@link #DIFF_TARGETED} (mutated within the commit's own changed production sources) or all
+ * {@link #WHOLE_TREE_FALLBACK} (the diff carried no mutable production source, so the validator
+ * fell back to the whole-tree scan rather than validating nothing — see the constitution's
+ * narrowed-corpus-must-fall-back principle). The two ask different questions — &quot;would selection
+ * catch a bug in what this PR touched&quot; vs. &quot;would it catch a bug somewhere else entirely&quot; — so
+ * evidence from each is worth reporting separately rather than only as a pooled total.
+ */
+<span class="fc" id="L13">public enum MutationCandidateOrigin {</span>
+<span class="fc" id="L14">    DIFF_TARGETED,</span>
+<span class="fc" id="L15">    WHOLE_TREE_FALLBACK</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

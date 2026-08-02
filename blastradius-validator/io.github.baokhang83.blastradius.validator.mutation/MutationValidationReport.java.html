@@ -13,21 +13,37 @@ public record MutationValidationReport(
 
     public static MutationValidationReport from(
             List&lt;MutationExperiment&gt; experiments, int generatedMutations, int timeLimitSkippedMutations) {
-<span class="pc bpc" id="L16" title="1 of 2 branches missed.">        int unbuildable = (int) experiments.stream().filter(e -&gt; e.status() == MutationStatus.UNBUILDABLE).count();</span>
+<span class="fc bfc" id="L16" title="All 2 branches covered.">        int unbuildable = (int) experiments.stream().filter(e -&gt; e.status() == MutationStatus.UNBUILDABLE).count();</span>
 <span class="fc" id="L17">        int compilable = experiments.size() - unbuildable;</span>
 <span class="fc" id="L18">        int baselineClean = (int) experiments.stream()</span>
-<span class="pc bpc" id="L19" title="1 of 2 branches missed.">                .filter(e -&gt; e.status() != MutationStatus.UNBUILDABLE)</span>
+<span class="fc bfc" id="L19" title="All 2 branches covered.">                .filter(e -&gt; e.status() != MutationStatus.UNBUILDABLE)</span>
 <span class="fc" id="L20">                .filter(e -&gt; e.headBaselineFailingTests().isEmpty())</span>
 <span class="fc" id="L21">                .count();</span>
-<span class="pc bpc" id="L22" title="1 of 2 branches missed.">        int killed = (int) experiments.stream().filter(e -&gt; e.status() == MutationStatus.KILLED).count();</span>
+<span class="fc bfc" id="L22" title="All 2 branches covered.">        int killed = (int) experiments.stream().filter(e -&gt; e.status() == MutationStatus.KILLED).count();</span>
 <span class="fc" id="L23">        int killingTests = experiments.stream().mapToInt(e -&gt; e.killingTests().size()).sum();</span>
 <span class="fc" id="L24">        int selected = experiments.stream().mapToInt(e -&gt; e.selectedKillingTests().size()).sum();</span>
 <span class="fc" id="L25">        int skipped = experiments.stream().mapToInt(e -&gt; e.skippedKillingTests().size()).sum();</span>
 <span class="fc" id="L26">        int flaky = experiments.stream().mapToInt(e -&gt; e.flakyTests().size()).sum();</span>
-<span class="fc" id="L27">        MutationCoverage coverage = new MutationCoverage(</span>
-<span class="fc" id="L28">                generatedMutations, experiments.size(), timeLimitSkippedMutations, unbuildable, compilable,</span>
-                baselineClean, killed, killingTests, selected, skipped, flaky);
-<span class="fc bfc" id="L30" title="All 2 branches covered.">        return new MutationValidationReport(skipped == 0 ? Verdict.PASS : Verdict.FAIL, coverage, experiments);</span>
+<span class="fc" id="L27">        MutationOriginCoverage diffTargeted = originCoverage(experiments, MutationCandidateOrigin.DIFF_TARGETED);</span>
+<span class="fc" id="L28">        MutationOriginCoverage wholeTreeFallback =</span>
+<span class="fc" id="L29">                originCoverage(experiments, MutationCandidateOrigin.WHOLE_TREE_FALLBACK);</span>
+<span class="fc" id="L30">        MutationCoverage coverage = new MutationCoverage(</span>
+<span class="fc" id="L31">                generatedMutations, experiments.size(), timeLimitSkippedMutations, unbuildable, compilable,</span>
+                baselineClean, killed, killingTests, selected, skipped, flaky, diffTargeted, wholeTreeFallback);
+        // killed == 0 means every attempted mutant either survived or failed to build: selection
+        // was never actually put to the test, so a bare PASS here would claim confirmation this
+        // run never earned (§III) — distinct from skipped == 0 with killed &gt; 0, a real PASS.
+<span class="fc bfc" id="L36" title="All 4 branches covered.">        Verdict verdict = killed == 0 ? Verdict.INCONCLUSIVE : skipped == 0 ? Verdict.PASS : Verdict.FAIL;</span>
+<span class="fc" id="L37">        return new MutationValidationReport(verdict, coverage, experiments);</span>
+    }
+
+    private static MutationOriginCoverage originCoverage(
+            List&lt;MutationExperiment&gt; experiments, MutationCandidateOrigin origin) {
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        List&lt;MutationExperiment&gt; fromOrigin = experiments.stream().filter(e -&gt; e.origin() == origin).toList();</span>
+<span class="fc" id="L43">        int killingTests = fromOrigin.stream().mapToInt(e -&gt; e.killingTests().size()).sum();</span>
+<span class="fc" id="L44">        int selected = fromOrigin.stream().mapToInt(e -&gt; e.selectedKillingTests().size()).sum();</span>
+<span class="fc" id="L45">        int skipped = fromOrigin.stream().mapToInt(e -&gt; e.skippedKillingTests().size()).sum();</span>
+<span class="fc" id="L46">        return new MutationOriginCoverage(killingTests, selected, skipped);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

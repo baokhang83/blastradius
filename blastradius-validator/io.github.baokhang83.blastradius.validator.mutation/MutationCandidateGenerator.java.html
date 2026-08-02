@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Enumerates the first, deliberately narrow mutation corpus from every module's
@@ -18,7 +19,7 @@ import java.util.Objects;
  * and text blocks are skipped so candidates describe executable Java tokens rather than
  * explanatory text.
  */
-<span class="fc" id="L21">public final class MutationCandidateGenerator {</span>
+<span class="fc" id="L22">public final class MutationCandidateGenerator {</span>
 
     private static final String PRODUCTION_MARKER = &quot;src/main/java/&quot;;
 
@@ -28,50 +29,73 @@ import java.util.Objects;
      * @param maxMutations upper bound after deterministic ordering
      */
     public List&lt;MutationCandidate&gt; generate(Path projectRoot, String classFilter, int maxMutations) {
-<span class="fc" id="L31">        return generate(projectRoot, classFilter, Integer.MAX_VALUE, maxMutations);</span>
+<span class="fc" id="L32">        return generate(projectRoot, classFilter, Integer.MAX_VALUE, maxMutations);</span>
     }
 
     /** Like {@link #generate(Path, String, int)}, with a bound on production classes visited. */
     public List&lt;MutationCandidate&gt; generate(
             Path projectRoot, String classFilter, int maxMutationClasses, int maxMutations) {
-<span class="fc" id="L37">        Objects.requireNonNull(projectRoot, &quot;projectRoot&quot;);</span>
-<span class="pc bpc" id="L38" title="1 of 2 branches missed.">        if (maxMutationClasses &lt; 1) {</span>
-<span class="nc" id="L39">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L38">        return generate(projectRoot, classFilter, null, maxMutationClasses, maxMutations);</span>
+    }
+
+    /**
+     * Like {@link #generate(Path, String, int, int)}, but restricts the corpus to production
+     * sources whose repo-relative path is in {@code pathPool} — the changed source files of a
+     * commit pair, so mutants land in the code the commit actually changed rather than the
+     * whole-tree first-yielding class.
+     *
+     * &lt;p&gt;{@code pathPool} is a soundness-preserving &lt;em&gt;narrowing&lt;/em&gt;, not a hard requirement:
+     * {@code null} scans the whole tree (the other overloads' behavior). A caller passing an
+     * &lt;em&gt;empty&lt;/em&gt; pool gets an empty result — the caller decides whether to fall back to the
+     * whole tree (a docs/config/token-free pair should still exercise some mutant, never silently
+     * generate zero — §III), which keeps that policy where the caller's intent lives rather than
+     * hidden in the generator.
+     *
+     * @param pathPool repo-relative, forward-slashed production source paths to restrict to, or
+     *                 {@code null} for the whole tree
+     */
+    public List&lt;MutationCandidate&gt; generate(
+            Path projectRoot, String classFilter, Set&lt;String&gt; pathPool,
+            int maxMutationClasses, int maxMutations) {
+<span class="fc" id="L60">        Objects.requireNonNull(projectRoot, &quot;projectRoot&quot;);</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">        if (maxMutationClasses &lt; 1) {</span>
+<span class="nc" id="L62">            throw new IllegalArgumentException(</span>
                     &quot;maxMutationClasses must be positive, got: &quot; + maxMutationClasses);
         }
-<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        if (maxMutations &lt; 1) {</span>
-<span class="nc" id="L43">            throw new IllegalArgumentException(&quot;maxMutations must be positive, got: &quot; + maxMutations);</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">        if (maxMutations &lt; 1) {</span>
+<span class="nc" id="L66">            throw new IllegalArgumentException(&quot;maxMutations must be positive, got: &quot; + maxMutations);</span>
         }
-<span class="pc bpc" id="L45" title="1 of 2 branches missed.">        if (Files.notExists(projectRoot)) {</span>
-<span class="nc" id="L46">            return List.of();</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">        if (Files.notExists(projectRoot)) {</span>
+<span class="nc" id="L69">            return List.of();</span>
         }
-<span class="fc" id="L48">        List&lt;String&gt; sources = collectProductionSources(projectRoot).stream()</span>
-<span class="fc" id="L49">                .sorted()</span>
-<span class="fc bfc" id="L50" title="All 4 branches covered.">                .filter(path -&gt; classFilter == null || classFilter.equals(classNameOf(path)))</span>
-<span class="fc" id="L51">                .toList();</span>
+<span class="fc" id="L71">        List&lt;String&gt; sources = collectProductionSources(projectRoot).stream()</span>
+<span class="fc" id="L72">                .sorted()</span>
+<span class="fc bfc" id="L73" title="All 4 branches covered.">                .filter(path -&gt; pathPool == null || pathPool.contains(path))</span>
+<span class="fc bfc" id="L74" title="All 4 branches covered.">                .filter(path -&gt; classFilter == null || classFilter.equals(classNameOf(path)))</span>
+<span class="fc" id="L75">                .toList();</span>
         // maxMutationClasses bounds the classes we actually MUTATE, not the files we look at. A
         // source with no mutable token (an abstract class, an interface, a constant-free type) must
         // not consume the budget: applying the limit before scanning meant a reactor whose
         // alphabetically-first source happens to be token-free would yield zero mutants while
         // thousands of mutable classes went unvisited (apache/shenyu: --max-mutation-classes 1
         // landed on a token-free AbstractDataChangedInit and generated nothing).
-<span class="fc" id="L58">        List&lt;MutationCandidate&gt; collected = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L59">        int classesMutated = 0;</span>
-<span class="fc bfc" id="L60" title="All 2 branches covered.">        for (String path : sources) {</span>
-<span class="pc bpc" id="L61" title="1 of 2 branches missed.">            if (classesMutated &gt;= maxMutationClasses) {</span>
-<span class="nc" id="L62">                break;</span>
+<span class="fc" id="L82">        List&lt;MutationCandidate&gt; collected = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L83">        int classesMutated = 0;</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">        for (String path : sources) {</span>
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">            if (classesMutated &gt;= maxMutationClasses) {</span>
+<span class="nc" id="L86">                break;</span>
             }
-<span class="fc" id="L64">            List&lt;MutationCandidate&gt; inClass = candidatesIn(projectRoot, path, classFilter);</span>
-<span class="fc bfc" id="L65" title="All 2 branches covered.">            if (!inClass.isEmpty()) {</span>
-<span class="fc" id="L66">                collected.addAll(inClass);</span>
-<span class="fc" id="L67">                classesMutated++;</span>
+<span class="fc" id="L88">            List&lt;MutationCandidate&gt; inClass = candidatesIn(projectRoot, path, classFilter);</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">            if (!inClass.isEmpty()) {</span>
+<span class="fc" id="L90">                collected.addAll(inClass);</span>
+<span class="fc" id="L91">                classesMutated++;</span>
             }
-<span class="fc" id="L69">        }</span>
-<span class="fc" id="L70">        return collected.stream()</span>
-<span class="fc" id="L71">                .sorted(Comparator.comparing(MutationCandidate::sourcePath)</span>
-<span class="fc" id="L72">                        .thenComparingInt(MutationCandidate::offset))</span>
-<span class="fc" id="L73">                .limit(maxMutations)</span>
-<span class="fc" id="L74">                .toList();</span>
+<span class="fc" id="L93">        }</span>
+<span class="fc" id="L94">        return collected.stream()</span>
+<span class="fc" id="L95">                .sorted(Comparator.comparing(MutationCandidate::sourcePath)</span>
+<span class="fc" id="L96">                        .thenComparingInt(MutationCandidate::offset))</span>
+<span class="fc" id="L97">                .limit(maxMutations)</span>
+<span class="fc" id="L98">                .toList();</span>
     }
 
     /**
@@ -83,168 +107,168 @@ import java.util.Objects;
      * subtrees are pruned so generated output and VCS internals are never mutated.
      */
     private static List&lt;String&gt; collectProductionSources(Path projectRoot) {
-<span class="fc" id="L86">        List&lt;String&gt; sources = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L110">        List&lt;String&gt; sources = new ArrayList&lt;&gt;();</span>
         try {
-<span class="fc" id="L88">            Files.walkFileTree(projectRoot, new SimpleFileVisitor&lt;&gt;() {</span>
+<span class="fc" id="L112">            Files.walkFileTree(projectRoot, new SimpleFileVisitor&lt;&gt;() {</span>
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-<span class="pc bpc" id="L91" title="1 of 2 branches missed.">                    String name = dir.getFileName() == null ? &quot;&quot; : dir.getFileName().toString();</span>
-<span class="pc bpc" id="L92" title="1 of 6 branches missed.">                    if (&quot;.git&quot;.equals(name) || &quot;target&quot;.equals(name) || &quot;build&quot;.equals(name)) {</span>
-<span class="fc" id="L93">                        return FileVisitResult.SKIP_SUBTREE;</span>
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">                    String name = dir.getFileName() == null ? &quot;&quot; : dir.getFileName().toString();</span>
+<span class="pc bpc" id="L116" title="1 of 6 branches missed.">                    if (&quot;.git&quot;.equals(name) || &quot;target&quot;.equals(name) || &quot;build&quot;.equals(name)) {</span>
+<span class="fc" id="L117">                        return FileVisitResult.SKIP_SUBTREE;</span>
                     }
-<span class="fc" id="L95">                    return FileVisitResult.CONTINUE;</span>
+<span class="fc" id="L119">                    return FileVisitResult.CONTINUE;</span>
                 }
 
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-<span class="fc" id="L100">                    String relative = projectRoot.relativize(file).toString().replace('\\', '/');</span>
-<span class="fc bfc" id="L101" title="All 4 branches covered.">                    if (relative.endsWith(&quot;.java&quot;) &amp;&amp; relative.contains(PRODUCTION_MARKER)) {</span>
-<span class="fc" id="L102">                        sources.add(relative);</span>
+<span class="fc" id="L124">                    String relative = projectRoot.relativize(file).toString().replace('\\', '/');</span>
+<span class="fc bfc" id="L125" title="All 4 branches covered.">                    if (relative.endsWith(&quot;.java&quot;) &amp;&amp; relative.contains(PRODUCTION_MARKER)) {</span>
+<span class="fc" id="L126">                        sources.add(relative);</span>
                     }
-<span class="fc" id="L104">                    return FileVisitResult.CONTINUE;</span>
+<span class="fc" id="L128">                    return FileVisitResult.CONTINUE;</span>
                 }
             });
-<span class="nc" id="L107">        } catch (IOException e) {</span>
-<span class="nc" id="L108">            throw new UncheckedIOException(&quot;failed to enumerate production Java sources under &quot; + projectRoot, e);</span>
-<span class="fc" id="L109">        }</span>
-<span class="fc" id="L110">        return sources;</span>
+<span class="nc" id="L131">        } catch (IOException e) {</span>
+<span class="nc" id="L132">            throw new UncheckedIOException(&quot;failed to enumerate production Java sources under &quot; + projectRoot, e);</span>
+<span class="fc" id="L133">        }</span>
+<span class="fc" id="L134">        return sources;</span>
     }
 
     private static List&lt;MutationCandidate&gt; candidatesIn(Path projectRoot, String repoRelativePath, String classFilter) {
-<span class="fc" id="L114">        String className = classNameOf(repoRelativePath);</span>
-<span class="pc bpc" id="L115" title="1 of 4 branches missed.">        if (classFilter != null &amp;&amp; !classFilter.equals(className)) {</span>
-<span class="nc" id="L116">            return List.of();</span>
+<span class="fc" id="L138">        String className = classNameOf(repoRelativePath);</span>
+<span class="pc bpc" id="L139" title="1 of 4 branches missed.">        if (classFilter != null &amp;&amp; !classFilter.equals(className)) {</span>
+<span class="nc" id="L140">            return List.of();</span>
         }
         try {
-<span class="fc" id="L119">            return scan(repoRelativePath, className, Files.readString(projectRoot.resolve(repoRelativePath)));</span>
-<span class="nc" id="L120">        } catch (IOException e) {</span>
-<span class="nc" id="L121">            throw new UncheckedIOException(&quot;failed to read &quot; + repoRelativePath, e);</span>
+<span class="fc" id="L143">            return scan(repoRelativePath, className, Files.readString(projectRoot.resolve(repoRelativePath)));</span>
+<span class="nc" id="L144">        } catch (IOException e) {</span>
+<span class="nc" id="L145">            throw new UncheckedIOException(&quot;failed to read &quot; + repoRelativePath, e);</span>
         }
     }
 
     /** Derives the FQN from the path &lt;em&gt;after&lt;/em&gt; the last {@value #PRODUCTION_MARKER} segment. */
     private static String classNameOf(String repoRelativePath) {
-<span class="fc" id="L127">        int marker = repoRelativePath.lastIndexOf(PRODUCTION_MARKER);</span>
-<span class="pc bpc" id="L128" title="1 of 2 branches missed.">        String afterRoot = marker &lt; 0</span>
-<span class="nc" id="L129">                ? repoRelativePath</span>
-<span class="fc" id="L130">                : repoRelativePath.substring(marker + PRODUCTION_MARKER.length());</span>
-<span class="fc" id="L131">        return afterRoot.replace('/', '.').replaceFirst(&quot;\\.java$&quot;, &quot;&quot;);</span>
+<span class="fc" id="L151">        int marker = repoRelativePath.lastIndexOf(PRODUCTION_MARKER);</span>
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">        String afterRoot = marker &lt; 0</span>
+<span class="nc" id="L153">                ? repoRelativePath</span>
+<span class="fc" id="L154">                : repoRelativePath.substring(marker + PRODUCTION_MARKER.length());</span>
+<span class="fc" id="L155">        return afterRoot.replace('/', '.').replaceFirst(&quot;\\.java$&quot;, &quot;&quot;);</span>
     }
 
     private static List&lt;MutationCandidate&gt; scan(String sourcePath, String className, String source) {
-<span class="fc" id="L135">        List&lt;MutationCandidate&gt; candidates = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L136">        ScanState state = ScanState.CODE;</span>
-<span class="fc bfc" id="L137" title="All 2 branches covered.">        for (int index = 0; index &lt; source.length(); index++) {</span>
-<span class="fc" id="L138">            char current = source.charAt(index);</span>
-<span class="fc bfc" id="L139" title="All 2 branches covered.">            char next = index + 1 &lt; source.length() ? source.charAt(index + 1) : '\0';</span>
-<span class="fc bfc" id="L140" title="All 2 branches covered.">            if (state == ScanState.LINE_COMMENT) {</span>
-<span class="pc bpc" id="L141" title="1 of 4 branches missed.">                if (current == '\n' || current == '\r') {</span>
-<span class="fc" id="L142">                    state = ScanState.CODE;</span>
+<span class="fc" id="L159">        List&lt;MutationCandidate&gt; candidates = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L160">        ScanState state = ScanState.CODE;</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">        for (int index = 0; index &lt; source.length(); index++) {</span>
+<span class="fc" id="L162">            char current = source.charAt(index);</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">            char next = index + 1 &lt; source.length() ? source.charAt(index + 1) : '\0';</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">            if (state == ScanState.LINE_COMMENT) {</span>
+<span class="pc bpc" id="L165" title="1 of 4 branches missed.">                if (current == '\n' || current == '\r') {</span>
+<span class="fc" id="L166">                    state = ScanState.CODE;</span>
                 }
                 continue;
             }
-<span class="pc bpc" id="L146" title="1 of 2 branches missed.">            if (state == ScanState.BLOCK_COMMENT) {</span>
-<span class="nc bnc" id="L147" title="All 4 branches missed.">                if (current == '*' &amp;&amp; next == '/') {</span>
-<span class="nc" id="L148">                    state = ScanState.CODE;</span>
-<span class="nc" id="L149">                    index++;</span>
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">            if (state == ScanState.BLOCK_COMMENT) {</span>
+<span class="nc bnc" id="L171" title="All 4 branches missed.">                if (current == '*' &amp;&amp; next == '/') {</span>
+<span class="nc" id="L172">                    state = ScanState.CODE;</span>
+<span class="nc" id="L173">                    index++;</span>
                 }
                 continue;
             }
-<span class="pc bpc" id="L153" title="1 of 4 branches missed.">            if (state == ScanState.STRING || state == ScanState.CHARACTER) {</span>
-<span class="pc bpc" id="L154" title="1 of 2 branches missed.">                if (current == '\\') {</span>
-<span class="nc" id="L155">                    index++;</span>
-<span class="pc bpc" id="L156" title="4 of 8 branches missed.">                } else if ((state == ScanState.STRING &amp;&amp; current == '&quot;')</span>
+<span class="pc bpc" id="L177" title="1 of 4 branches missed.">            if (state == ScanState.STRING || state == ScanState.CHARACTER) {</span>
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">                if (current == '\\') {</span>
+<span class="nc" id="L179">                    index++;</span>
+<span class="pc bpc" id="L180" title="4 of 8 branches missed.">                } else if ((state == ScanState.STRING &amp;&amp; current == '&quot;')</span>
                         || (state == ScanState.CHARACTER &amp;&amp; current == '\'')) {
-<span class="fc" id="L158">                    state = ScanState.CODE;</span>
+<span class="fc" id="L182">                    state = ScanState.CODE;</span>
                 }
                 continue;
             }
-<span class="pc bpc" id="L162" title="1 of 2 branches missed.">            if (state == ScanState.TEXT_BLOCK) {</span>
-<span class="nc bnc" id="L163" title="All 2 branches missed.">                if (startsWith(source, index, &quot;\&quot;\&quot;\&quot;&quot;)) {</span>
-<span class="nc" id="L164">                    state = ScanState.CODE;</span>
-<span class="nc" id="L165">                    index += 2;</span>
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">            if (state == ScanState.TEXT_BLOCK) {</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">                if (startsWith(source, index, &quot;\&quot;\&quot;\&quot;&quot;)) {</span>
+<span class="nc" id="L188">                    state = ScanState.CODE;</span>
+<span class="nc" id="L189">                    index += 2;</span>
                 }
                 continue;
             }
-<span class="pc bpc" id="L169" title="1 of 4 branches missed.">            if (current == '/' &amp;&amp; next == '/') {</span>
-<span class="fc" id="L170">                state = ScanState.LINE_COMMENT;</span>
-<span class="fc" id="L171">                index++;</span>
-<span class="fc" id="L172">                continue;</span>
+<span class="pc bpc" id="L193" title="1 of 4 branches missed.">            if (current == '/' &amp;&amp; next == '/') {</span>
+<span class="fc" id="L194">                state = ScanState.LINE_COMMENT;</span>
+<span class="fc" id="L195">                index++;</span>
+<span class="fc" id="L196">                continue;</span>
             }
-<span class="pc bpc" id="L174" title="3 of 4 branches missed.">            if (current == '/' &amp;&amp; next == '*') {</span>
-<span class="nc" id="L175">                state = ScanState.BLOCK_COMMENT;</span>
-<span class="nc" id="L176">                index++;</span>
-<span class="nc" id="L177">                continue;</span>
+<span class="pc bpc" id="L198" title="3 of 4 branches missed.">            if (current == '/' &amp;&amp; next == '*') {</span>
+<span class="nc" id="L199">                state = ScanState.BLOCK_COMMENT;</span>
+<span class="nc" id="L200">                index++;</span>
+<span class="nc" id="L201">                continue;</span>
             }
-<span class="pc bpc" id="L179" title="1 of 2 branches missed.">            if (startsWith(source, index, &quot;\&quot;\&quot;\&quot;&quot;)) {</span>
-<span class="nc" id="L180">                state = ScanState.TEXT_BLOCK;</span>
-<span class="nc" id="L181">                index += 2;</span>
-<span class="nc" id="L182">                continue;</span>
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">            if (startsWith(source, index, &quot;\&quot;\&quot;\&quot;&quot;)) {</span>
+<span class="nc" id="L204">                state = ScanState.TEXT_BLOCK;</span>
+<span class="nc" id="L205">                index += 2;</span>
+<span class="nc" id="L206">                continue;</span>
             }
-<span class="fc bfc" id="L184" title="All 2 branches covered.">            if (current == '&quot;') {</span>
-<span class="fc" id="L185">                state = ScanState.STRING;</span>
-<span class="fc" id="L186">                continue;</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">            if (current == '&quot;') {</span>
+<span class="fc" id="L209">                state = ScanState.STRING;</span>
+<span class="fc" id="L210">                continue;</span>
             }
-<span class="pc bpc" id="L188" title="1 of 2 branches missed.">            if (current == '\'') {</span>
-<span class="nc" id="L189">                state = ScanState.CHARACTER;</span>
-<span class="nc" id="L190">                continue;</span>
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">            if (current == '\'') {</span>
+<span class="nc" id="L213">                state = ScanState.CHARACTER;</span>
+<span class="nc" id="L214">                continue;</span>
             }
-<span class="fc bfc" id="L192" title="All 2 branches covered.">            if (isWordAt(source, index, &quot;true&quot;)) {</span>
-<span class="fc" id="L193">                candidates.add(candidate(sourcePath, className, MutationOperator.BOOLEAN_LITERAL, index, &quot;true&quot;, &quot;false&quot;));</span>
-<span class="fc" id="L194">                index += &quot;true&quot;.length() - 1;</span>
-<span class="fc" id="L195">                continue;</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">            if (isWordAt(source, index, &quot;true&quot;)) {</span>
+<span class="fc" id="L217">                candidates.add(candidate(sourcePath, className, MutationOperator.BOOLEAN_LITERAL, index, &quot;true&quot;, &quot;false&quot;));</span>
+<span class="fc" id="L218">                index += &quot;true&quot;.length() - 1;</span>
+<span class="fc" id="L219">                continue;</span>
             }
-<span class="fc bfc" id="L197" title="All 2 branches covered.">            if (isWordAt(source, index, &quot;false&quot;)) {</span>
-<span class="fc" id="L198">                candidates.add(candidate(sourcePath, className, MutationOperator.BOOLEAN_LITERAL, index, &quot;false&quot;, &quot;true&quot;));</span>
-<span class="fc" id="L199">                index += &quot;false&quot;.length() - 1;</span>
-<span class="fc" id="L200">                continue;</span>
+<span class="fc bfc" id="L221" title="All 2 branches covered.">            if (isWordAt(source, index, &quot;false&quot;)) {</span>
+<span class="fc" id="L222">                candidates.add(candidate(sourcePath, className, MutationOperator.BOOLEAN_LITERAL, index, &quot;false&quot;, &quot;true&quot;));</span>
+<span class="fc" id="L223">                index += &quot;false&quot;.length() - 1;</span>
+<span class="fc" id="L224">                continue;</span>
             }
-<span class="fc bfc" id="L202" title="All 2 branches covered.">            if (startsWith(source, index, &quot;==&quot;)) {</span>
-<span class="fc" id="L203">                candidates.add(candidate(sourcePath, className, MutationOperator.EQUALITY_OPERATOR, index, &quot;==&quot;, &quot;!=&quot;));</span>
-<span class="fc" id="L204">                index++;</span>
-<span class="fc" id="L205">                continue;</span>
+<span class="fc bfc" id="L226" title="All 2 branches covered.">            if (startsWith(source, index, &quot;==&quot;)) {</span>
+<span class="fc" id="L227">                candidates.add(candidate(sourcePath, className, MutationOperator.EQUALITY_OPERATOR, index, &quot;==&quot;, &quot;!=&quot;));</span>
+<span class="fc" id="L228">                index++;</span>
+<span class="fc" id="L229">                continue;</span>
             }
-<span class="pc bpc" id="L207" title="1 of 2 branches missed.">            if (startsWith(source, index, &quot;!=&quot;)) {</span>
-<span class="nc" id="L208">                candidates.add(candidate(sourcePath, className, MutationOperator.EQUALITY_OPERATOR, index, &quot;!=&quot;, &quot;==&quot;));</span>
-<span class="nc" id="L209">                index++;</span>
-<span class="nc" id="L210">                continue;</span>
+<span class="pc bpc" id="L231" title="1 of 2 branches missed.">            if (startsWith(source, index, &quot;!=&quot;)) {</span>
+<span class="nc" id="L232">                candidates.add(candidate(sourcePath, className, MutationOperator.EQUALITY_OPERATOR, index, &quot;!=&quot;, &quot;==&quot;));</span>
+<span class="nc" id="L233">                index++;</span>
+<span class="nc" id="L234">                continue;</span>
             }
-<span class="pc bpc" id="L212" title="1 of 2 branches missed.">            if (startsWith(source, index, &quot;&gt;=&quot;)) {</span>
-<span class="nc" id="L213">                candidates.add(candidate(sourcePath, className, MutationOperator.RELATIONAL_OPERATOR, index, &quot;&gt;=&quot;, &quot;&lt;&quot;));</span>
-<span class="nc" id="L214">                index++;</span>
-<span class="nc" id="L215">                continue;</span>
+<span class="pc bpc" id="L236" title="1 of 2 branches missed.">            if (startsWith(source, index, &quot;&gt;=&quot;)) {</span>
+<span class="nc" id="L237">                candidates.add(candidate(sourcePath, className, MutationOperator.RELATIONAL_OPERATOR, index, &quot;&gt;=&quot;, &quot;&lt;&quot;));</span>
+<span class="nc" id="L238">                index++;</span>
+<span class="nc" id="L239">                continue;</span>
             }
-<span class="pc bpc" id="L217" title="1 of 2 branches missed.">            if (startsWith(source, index, &quot;&lt;=&quot;)) {</span>
-<span class="nc" id="L218">                candidates.add(candidate(sourcePath, className, MutationOperator.RELATIONAL_OPERATOR, index, &quot;&lt;=&quot;, &quot;&gt;&quot;));</span>
-<span class="nc" id="L219">                index++;</span>
+<span class="pc bpc" id="L241" title="1 of 2 branches missed.">            if (startsWith(source, index, &quot;&lt;=&quot;)) {</span>
+<span class="nc" id="L242">                candidates.add(candidate(sourcePath, className, MutationOperator.RELATIONAL_OPERATOR, index, &quot;&lt;=&quot;, &quot;&gt;&quot;));</span>
+<span class="nc" id="L243">                index++;</span>
             }
         }
-<span class="fc" id="L222">        return candidates;</span>
+<span class="fc" id="L246">        return candidates;</span>
     }
 
     private static MutationCandidate candidate(
             String sourcePath, String className, MutationOperator operator, int offset, String original, String replacement) {
-<span class="fc" id="L227">        return new MutationCandidate(sourcePath, className, operator, offset, original, replacement);</span>
+<span class="fc" id="L251">        return new MutationCandidate(sourcePath, className, operator, offset, original, replacement);</span>
     }
 
     private static boolean startsWith(String source, int offset, String token) {
-<span class="fc" id="L231">        return source.regionMatches(offset, token, 0, token.length());</span>
+<span class="fc" id="L255">        return source.regionMatches(offset, token, 0, token.length());</span>
     }
 
     private static boolean isWordAt(String source, int offset, String word) {
-<span class="fc" id="L235">        int end = offset + word.length();</span>
-<span class="pc bpc" id="L236" title="1 of 4 branches missed.">        return startsWith(source, offset, word)</span>
-<span class="pc bpc" id="L237" title="1 of 2 branches missed.">                &amp;&amp; (offset == 0 || !Character.isJavaIdentifierPart(source.charAt(offset - 1)))</span>
-<span class="pc bpc" id="L238" title="2 of 4 branches missed.">                &amp;&amp; (end == source.length() || !Character.isJavaIdentifierPart(source.charAt(end)));</span>
+<span class="fc" id="L259">        int end = offset + word.length();</span>
+<span class="pc bpc" id="L260" title="1 of 4 branches missed.">        return startsWith(source, offset, word)</span>
+<span class="pc bpc" id="L261" title="1 of 2 branches missed.">                &amp;&amp; (offset == 0 || !Character.isJavaIdentifierPart(source.charAt(offset - 1)))</span>
+<span class="pc bpc" id="L262" title="2 of 4 branches missed.">                &amp;&amp; (end == source.length() || !Character.isJavaIdentifierPart(source.charAt(end)));</span>
     }
 
-<span class="fc" id="L241">    private enum ScanState {</span>
-<span class="fc" id="L242">        CODE,</span>
-<span class="fc" id="L243">        LINE_COMMENT,</span>
-<span class="fc" id="L244">        BLOCK_COMMENT,</span>
-<span class="fc" id="L245">        STRING,</span>
-<span class="fc" id="L246">        CHARACTER,</span>
-<span class="fc" id="L247">        TEXT_BLOCK</span>
+<span class="fc" id="L265">    private enum ScanState {</span>
+<span class="fc" id="L266">        CODE,</span>
+<span class="fc" id="L267">        LINE_COMMENT,</span>
+<span class="fc" id="L268">        BLOCK_COMMENT,</span>
+<span class="fc" id="L269">        STRING,</span>
+<span class="fc" id="L270">        CHARACTER,</span>
+<span class="fc" id="L271">        TEXT_BLOCK</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
