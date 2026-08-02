@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -64,6 +65,29 @@ class MavenBuildRunnerTest {
         BuildResult result = runner.run(projectDir, null, null);
 
         assertTrue(result.exitCode() != 0);
+    }
+
+    @Test
+    void excludedFailingTestDoesNotRunInTheFullSuite(@TempDir Path projectDir) {
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        fixture.writeTest("com.example.StableTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                class StableTest { @Test void passes() {} }
+                """);
+        fixture.writeTest("com.example.FlakyTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                import static org.junit.jupiter.api.Assertions.fail;
+                class FlakyTest { @Test void failsWhenRun() { fail("known flaky test"); } }
+                """);
+        fixture.commit("initial");
+
+        BuildResult result = new MavenBuildRunner(null, 5, false, false,
+                SkippedTests.parse(List.of("com.example.FlakyTest"))).run(projectDir, null, null);
+
+        assertEquals(0, result.exitCode(), result.output());
+        assertTrue(result.output().contains("Tests run: 1"), result.output());
     }
 
     @Test
@@ -218,6 +242,19 @@ class MavenBuildRunnerTest {
                     "-DfailIfNoTests=false", "-Dsurefire.failIfNoSpecifiedTests=false"
                 },
                 new MavenBuildRunner().command("com.example.FooTest#passes", null));
+    }
+
+    @Test
+    void fullSuiteCommandCarriesExplicitNegativeTestSelectors() {
+        SkippedTests skipped = SkippedTests.parse(List.of("org.app.FlakyTest,org.app2.Flaky2Test"));
+
+        assertArrayEquals(
+                new String[] {
+                    MavenLauncher.resolve(), "-B", "--no-transfer-progress", "clean", "test",
+                    "-Dtest=!org.app.FlakyTest,!org.app2.Flaky2Test",
+                    "-DfailIfNoTests=false", "-Dsurefire.failIfNoSpecifiedTests=false"
+                },
+                new MavenBuildRunner(null, 5, false, false, skipped).command(null));
     }
 
     @Test

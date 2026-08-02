@@ -54,6 +54,7 @@ public final class MavenBuildRunner {
     private final long timeoutMinutes;
     private final boolean isolatedRepo;
     private final boolean skipBuildExtras;
+    private final SkippedTests skippedTests;
 
     /** No {@code -T} flag: the target project's reactor builds serially, as it always has. */
     public MavenBuildRunner() {
@@ -99,6 +100,12 @@ public final class MavenBuildRunner {
      */
     public MavenBuildRunner(Integer parallelThreads, long timeoutMinutes, boolean isolatedRepo,
             boolean skipBuildExtras) {
+        this(parallelThreads, timeoutMinutes, isolatedRepo, skipBuildExtras, SkippedTests.none());
+    }
+
+    /** Creates a runner that consistently excludes the supplied known-flaky test classes. */
+    public MavenBuildRunner(Integer parallelThreads, long timeoutMinutes, boolean isolatedRepo,
+            boolean skipBuildExtras, SkippedTests skippedTests) {
         if (parallelThreads != null && parallelThreads < 1) {
             throw new IllegalArgumentException("parallelThreads must be positive, got: " + parallelThreads);
         }
@@ -109,6 +116,7 @@ public final class MavenBuildRunner {
         this.timeoutMinutes = timeoutMinutes;
         this.isolatedRepo = isolatedRepo;
         this.skipBuildExtras = skipBuildExtras;
+        this.skippedTests = java.util.Objects.requireNonNull(skippedTests, "skippedTests");
     }
 
     /**
@@ -331,8 +339,9 @@ public final class MavenBuildRunner {
             args.add("-T");
             args.add(String.valueOf(parallelThreads));
         }
-        if (testSelector != null) {
-            args.add("-Dtest=" + testSelector);
+        String effectiveSelector = skippedTests.appendTo(testSelector);
+        if (effectiveSelector != null) {
+            args.add("-Dtest=" + effectiveSelector);
             // Without this, a multi-module reactor aborts the whole build at the first
             // module that has test sources but none matching testSelector (found running
             // against apache/shenyu, whose shenyu-common module has no test named after

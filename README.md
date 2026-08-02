@@ -61,6 +61,20 @@ do not become soundness failures. This is sampled fault evidence, not a claim th
 changes or every possible defect are covered. Use the optional `--mutation-class <FQCN>` only
 when you want to focus the bounded run on one production class.
 
+### Excluding known flaky tests
+
+Both validator actions accept `--skipped-tests` with one or more comma-separated, fully qualified
+test-class names. The named tests are excluded from every target Maven build, including baseline,
+head, mutation, and confirmation runs. The JSON and text reports list them explicitly, so the
+result is clear about the test population it did not observe.
+
+```sh
+--skipped-tests org.app.FlakyTest,org.app2.Flaky2Test
+```
+
+This is an opt-in evidence boundary, not a pass verdict for the skipped tests. Use exact class
+names only; method patterns and wildcard expressions are intentionally not accepted.
+
 ## How it works
 
 1. **Track.** On a build of your base branch, a `java.lang.instrument` agent watches every

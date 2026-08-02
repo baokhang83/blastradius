@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.github.baokhang83.blastradius.validator.build.SkippedTests;
 import io.github.baokhang83.blastradius.validator.git.HistoryMode;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,6 +26,7 @@ class RunConfigTest {
         assertEquals(50, config.commitWindowSize());
         assertEquals(reportOut, config.reportOutputPath());
         assertEquals(HistoryMode.ALL_PARENTS, config.historyMode());
+        assertEquals(SkippedTests.none(), config.skippedTests());
     }
 
     @Test

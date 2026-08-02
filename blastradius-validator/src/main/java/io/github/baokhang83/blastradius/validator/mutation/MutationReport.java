@@ -11,7 +11,8 @@ public record MutationReport(
         String baselineCommit,
         List<TestIdentity> baselineFailingTests,
         MutationCoverage coverage,
-        List<MutationExperiment> experiments) {
+        List<MutationExperiment> experiments,
+        List<String> skippedTests) {
 
     public MutationReport {
         Objects.requireNonNull(verdict, "verdict");
@@ -21,6 +22,7 @@ public record MutationReport(
         Objects.requireNonNull(experiments, "experiments");
         baselineFailingTests = List.copyOf(baselineFailingTests);
         experiments = List.copyOf(experiments);
+        skippedTests = skippedTests == null ? List.of() : List.copyOf(skippedTests);
     }
 
     public static MutationReport from(
@@ -29,6 +31,17 @@ public record MutationReport(
             List<MutationExperiment> experiments,
             int generatedMutations,
             int timeLimitSkippedMutations) {
+        return from(baselineCommit, baselineFailingTests, experiments, generatedMutations,
+                timeLimitSkippedMutations, List.of());
+    }
+
+    public static MutationReport from(
+            String baselineCommit,
+            List<TestIdentity> baselineFailingTests,
+            List<MutationExperiment> experiments,
+            int generatedMutations,
+            int timeLimitSkippedMutations,
+            List<String> skippedTests) {
         int unbuildable = (int) experiments.stream().filter(e -> e.status() == MutationStatus.UNBUILDABLE).count();
         int compilable = experiments.size() - unbuildable;
         int killed = (int) experiments.stream().filter(e -> e.status() == MutationStatus.KILLED).count();
@@ -40,6 +53,6 @@ public record MutationReport(
                 generatedMutations, experiments.size(), timeLimitSkippedMutations, unbuildable, compilable,
                 baselineFailingTests.isEmpty() ? compilable : 0, killed, killingTests, selected, skipped, flaky);
         return new MutationReport(skipped == 0 ? Verdict.PASS : Verdict.FAIL, baselineCommit,
-                baselineFailingTests, coverage, experiments);
+                baselineFailingTests, coverage, experiments, skippedTests);
     }
 }

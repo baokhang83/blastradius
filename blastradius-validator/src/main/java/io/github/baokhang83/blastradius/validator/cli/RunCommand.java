@@ -109,7 +109,7 @@ public final class RunCommand {
             boolean isolatedRepo = config.buildConcurrency() > 1;
             buildRunner = new MavenBuildRunner(
                     config.mavenParallelThreads(), config.buildTimeoutMinutes(), isolatedRepo,
-                    config.skipBuildExtras());
+                    config.skipBuildExtras(), config.skippedTests());
             groundTruthResolver = new GroundTruthResolver(buildRunner);
 
             jdkMismatchDetector.detect(config.projectPath()).ifPresent(System.err::println);
@@ -230,7 +230,7 @@ public final class RunCommand {
         Verdict verdict = verdictCalculator.calculate(allMisses);
         SavingsSummary savingsSummary = savingsSummaryAggregator.aggregate(allDecisions);
         return new AnalysisReport(verdict, config.historyMode(), analyzedPairs, excludedPairs, failureCoverage,
-                allMisses, allFlaky, savingsSummary);
+                allMisses, allFlaky, savingsSummary, config.skippedTests().classes());
     }
 
     private record PairAnalysis(

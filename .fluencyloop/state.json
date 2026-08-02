@@ -1,8 +1,8 @@
 {
-  "feature": "add-opt-in-bounded-mutation-based-validator-soundness-valida",
-  "branch": "feature/add-opt-in-bounded-mutation-based-validator-soundness-valida",
+  "feature": "add-explicit-flaky-test-exclusions-to-validator-target-build",
+  "branch": "feature/add-explicit-flaky-test-exclusions-to-validator-target-build",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/add-opt-in-bounded-mutation-based-validator-soundness-valida/sessions/run-bounded-mutation-experiments-and-report-confirmed-misses.md",
+  "last_session": "docs/fluencyloop/features/add-explicit-flaky-test-exclusions-to-validator-target-build/sessions/make-test-exclusions-auditable-across-validator-modes.md",
   "base_ref": "main",
-  "updated": "2026-08-01"
+  "updated": "2026-08-02"
 }

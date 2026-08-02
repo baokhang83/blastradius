@@ -21,6 +21,10 @@ public final class TextSummaryRenderer {
                     .append(" excluded — see report for reasons)");
         }
         sb.append('\n');
+        sb.append("Skipped test classes: ").append(report.skippedTests().size()).append('\n');
+        for (String skippedTest : report.skippedTests()) {
+            sb.append("  - ").append(skippedTest).append('\n');
+        }
         FailureCoverage coverage = report.failureCoverage();
         sb.append("Failure coverage:\n");
         sb.append("  - Pairs with newly confirmed failures: ")

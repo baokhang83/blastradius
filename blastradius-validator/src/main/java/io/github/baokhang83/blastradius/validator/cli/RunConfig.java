@@ -1,5 +1,6 @@
 package io.github.baokhang83.blastradius.validator.cli;
 
+import io.github.baokhang83.blastradius.validator.build.SkippedTests;
 import io.github.baokhang83.blastradius.validator.git.HistoryMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,11 +42,13 @@ import java.util.Objects;
  *                             during {@code clean test} but change neither which tests run nor
  *                             whether they pass. Pure per-build wall-clock savings; soundness-
  *                             neutral (constitution §III), unlike scoping the reactor.
+ * @param skippedTests         opt-in exact test classes to exclude from every target build. They
+ *                             are retained in the resulting report as an explicit evidence boundary.
  */
 public record RunConfig(
         Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
         boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes, boolean skipBuildExtras,
-        HistoryMode historyMode) {
+        HistoryMode historyMode, SkippedTests skippedTests) {
 
     /** Default build timeout in minutes when the operator doesn't override it. */
     public static final long DEFAULT_BUILD_TIMEOUT_MINUTES = 5;
@@ -85,7 +88,16 @@ public record RunConfig(
             Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
             boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes, boolean skipBuildExtras) {
         this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,
-                buildConcurrency, buildTimeoutMinutes, skipBuildExtras, HistoryMode.ALL_PARENTS);
+                buildConcurrency, buildTimeoutMinutes, skipBuildExtras, HistoryMode.ALL_PARENTS, SkippedTests.none());
+    }
+
+    /** Compatibility constructor for callers that do not use explicit test exclusions. */
+    public RunConfig(
+            Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
+            boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes, boolean skipBuildExtras,
+            HistoryMode historyMode) {
+        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,
+                buildConcurrency, buildTimeoutMinutes, skipBuildExtras, historyMode, SkippedTests.none());
     }
 
     public RunConfig {
@@ -101,6 +113,7 @@ public record RunConfig(
         }
         Objects.requireNonNull(reportOutputPath, "reportOutputPath");
         Objects.requireNonNull(historyMode, "historyMode");
+        Objects.requireNonNull(skippedTests, "skippedTests");
         if (Files.isDirectory(reportOutputPath)) {
             throw new IllegalArgumentException("reportOutputPath must be a file path, not a directory: " + reportOutputPath);
         }
