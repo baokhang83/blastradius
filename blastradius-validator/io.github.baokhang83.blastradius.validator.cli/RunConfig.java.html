@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>RunConfig.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.cli</a> &gt; <span class="el_source">RunConfig.java</span></div><h1>RunConfig.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.cli;
 
+import io.github.baokhang83.blastradius.validator.build.SkippedTests;
 import io.github.baokhang83.blastradius.validator.git.HistoryMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,79 +42,91 @@ import java.util.Objects;
  *                             during {@code clean test} but change neither which tests run nor
  *                             whether they pass. Pure per-build wall-clock savings; soundness-
  *                             neutral (constitution §III), unlike scoping the reactor.
+ * @param skippedTests         opt-in exact test classes to exclude from every target build. They
+ *                             are retained in the resulting report as an explicit evidence boundary.
  */
 public record RunConfig(
         Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
         boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes, boolean skipBuildExtras,
-        HistoryMode historyMode) {
+        HistoryMode historyMode, SkippedTests skippedTests) {
 
     /** Default build timeout in minutes when the operator doesn't override it. */
     public static final long DEFAULT_BUILD_TIMEOUT_MINUTES = 5;
 
     public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath) {
-<span class="fc" id="L54">        this(projectPath, commitWindowSize, reportOutputPath, null, false, 1, DEFAULT_BUILD_TIMEOUT_MINUTES, false);</span>
-<span class="fc" id="L55">    }</span>
+<span class="fc" id="L57">        this(projectPath, commitWindowSize, reportOutputPath, null, false, 1, DEFAULT_BUILD_TIMEOUT_MINUTES, false);</span>
+<span class="fc" id="L58">    }</span>
 
     public RunConfig(Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads) {
-<span class="nc" id="L58">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, false, 1,</span>
+<span class="nc" id="L61">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, false, 1,</span>
                 DEFAULT_BUILD_TIMEOUT_MINUTES, false);
-<span class="nc" id="L60">    }</span>
+<span class="nc" id="L63">    }</span>
 
     public RunConfig(
             Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
             boolean fastGroundTruth) {
-<span class="fc" id="L65">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth, 1,</span>
+<span class="fc" id="L68">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth, 1,</span>
                 DEFAULT_BUILD_TIMEOUT_MINUTES, false);
-<span class="fc" id="L67">    }</span>
+<span class="fc" id="L70">    }</span>
 
     public RunConfig(
             Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
             boolean fastGroundTruth, int buildConcurrency) {
-<span class="nc" id="L72">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,</span>
+<span class="nc" id="L75">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,</span>
                 buildConcurrency, DEFAULT_BUILD_TIMEOUT_MINUTES, false);
-<span class="nc" id="L74">    }</span>
+<span class="nc" id="L77">    }</span>
 
     public RunConfig(
             Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
             boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes) {
-<span class="fc" id="L79">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,</span>
+<span class="fc" id="L82">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,</span>
                 buildConcurrency, buildTimeoutMinutes, false);
-<span class="fc" id="L81">    }</span>
+<span class="fc" id="L84">    }</span>
 
     /** Preserves the established configuration API while defaulting to broad graph coverage. */
     public RunConfig(
             Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
             boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes, boolean skipBuildExtras) {
-<span class="fc" id="L87">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,</span>
-                buildConcurrency, buildTimeoutMinutes, skipBuildExtras, HistoryMode.ALL_PARENTS);
-<span class="fc" id="L89">    }</span>
+<span class="fc" id="L90">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,</span>
+<span class="fc" id="L91">                buildConcurrency, buildTimeoutMinutes, skipBuildExtras, HistoryMode.ALL_PARENTS, SkippedTests.none());</span>
+<span class="fc" id="L92">    }</span>
 
-<span class="fc" id="L91">    public RunConfig {</span>
-<span class="fc" id="L92">        Objects.requireNonNull(projectPath, &quot;projectPath&quot;);</span>
-<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (!Files.isDirectory(projectPath)) {</span>
-<span class="fc" id="L94">            throw new IllegalArgumentException(&quot;projectPath does not exist or is not a directory: &quot; + projectPath);</span>
+    /** Compatibility constructor for callers that do not use explicit test exclusions. */
+    public RunConfig(
+            Path projectPath, int commitWindowSize, Path reportOutputPath, Integer mavenParallelThreads,
+            boolean fastGroundTruth, int buildConcurrency, long buildTimeoutMinutes, boolean skipBuildExtras,
+            HistoryMode historyMode) {
+<span class="nc" id="L99">        this(projectPath, commitWindowSize, reportOutputPath, mavenParallelThreads, fastGroundTruth,</span>
+<span class="nc" id="L100">                buildConcurrency, buildTimeoutMinutes, skipBuildExtras, historyMode, SkippedTests.none());</span>
+<span class="nc" id="L101">    }</span>
+
+<span class="fc" id="L103">    public RunConfig {</span>
+<span class="fc" id="L104">        Objects.requireNonNull(projectPath, &quot;projectPath&quot;);</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">        if (!Files.isDirectory(projectPath)) {</span>
+<span class="fc" id="L106">            throw new IllegalArgumentException(&quot;projectPath does not exist or is not a directory: &quot; + projectPath);</span>
         }
-<span class="fc bfc" id="L96" title="All 2 branches covered.">        if (!Files.isDirectory(projectPath.resolve(&quot;.git&quot;))) {</span>
-<span class="fc" id="L97">            throw new IllegalArgumentException(&quot;projectPath is not a git repository: &quot; + projectPath);</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (!Files.isDirectory(projectPath.resolve(&quot;.git&quot;))) {</span>
+<span class="fc" id="L109">            throw new IllegalArgumentException(&quot;projectPath is not a git repository: &quot; + projectPath);</span>
         }
-<span class="fc bfc" id="L99" title="All 2 branches covered.">        if (commitWindowSize &lt;= 0) {</span>
-<span class="fc" id="L100">            throw new IllegalArgumentException(&quot;commitWindowSize must be positive, got: &quot; + commitWindowSize);</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        if (commitWindowSize &lt;= 0) {</span>
+<span class="fc" id="L112">            throw new IllegalArgumentException(&quot;commitWindowSize must be positive, got: &quot; + commitWindowSize);</span>
         }
-<span class="fc" id="L102">        Objects.requireNonNull(reportOutputPath, &quot;reportOutputPath&quot;);</span>
-<span class="fc" id="L103">        Objects.requireNonNull(historyMode, &quot;historyMode&quot;);</span>
-<span class="fc bfc" id="L104" title="All 2 branches covered.">        if (Files.isDirectory(reportOutputPath)) {</span>
-<span class="fc" id="L105">            throw new IllegalArgumentException(&quot;reportOutputPath must be a file path, not a directory: &quot; + reportOutputPath);</span>
+<span class="fc" id="L114">        Objects.requireNonNull(reportOutputPath, &quot;reportOutputPath&quot;);</span>
+<span class="fc" id="L115">        Objects.requireNonNull(historyMode, &quot;historyMode&quot;);</span>
+<span class="fc" id="L116">        Objects.requireNonNull(skippedTests, &quot;skippedTests&quot;);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if (Files.isDirectory(reportOutputPath)) {</span>
+<span class="fc" id="L118">            throw new IllegalArgumentException(&quot;reportOutputPath must be a file path, not a directory: &quot; + reportOutputPath);</span>
         }
-<span class="fc bfc" id="L107" title="All 4 branches covered.">        if (mavenParallelThreads != null &amp;&amp; mavenParallelThreads &lt; 1) {</span>
-<span class="fc" id="L108">            throw new IllegalArgumentException(</span>
+<span class="fc bfc" id="L120" title="All 4 branches covered.">        if (mavenParallelThreads != null &amp;&amp; mavenParallelThreads &lt; 1) {</span>
+<span class="fc" id="L121">            throw new IllegalArgumentException(</span>
                     &quot;mavenParallelThreads must be positive, got: &quot; + mavenParallelThreads);
         }
-<span class="pc bpc" id="L111" title="1 of 2 branches missed.">        if (buildConcurrency &lt; 1) {</span>
-<span class="nc" id="L112">            throw new IllegalArgumentException(&quot;buildConcurrency must be positive, got: &quot; + buildConcurrency);</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">        if (buildConcurrency &lt; 1) {</span>
+<span class="nc" id="L125">            throw new IllegalArgumentException(&quot;buildConcurrency must be positive, got: &quot; + buildConcurrency);</span>
         }
-<span class="fc bfc" id="L114" title="All 2 branches covered.">        if (buildTimeoutMinutes &lt; 1) {</span>
-<span class="fc" id="L115">            throw new IllegalArgumentException(&quot;buildTimeoutMinutes must be positive, got: &quot; + buildTimeoutMinutes);</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">        if (buildTimeoutMinutes &lt; 1) {</span>
+<span class="fc" id="L128">            throw new IllegalArgumentException(&quot;buildTimeoutMinutes must be positive, got: &quot; + buildTimeoutMinutes);</span>
         }
-<span class="fc" id="L117">    }</span>
+<span class="fc" id="L130">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

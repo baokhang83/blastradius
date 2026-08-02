@@ -11,17 +11,19 @@ public record MutationReport(
         String baselineCommit,
         List&lt;TestIdentity&gt; baselineFailingTests,
         MutationCoverage coverage,
-        List&lt;MutationExperiment&gt; experiments) {
+        List&lt;MutationExperiment&gt; experiments,
+        List&lt;String&gt; skippedTests) {
 
-<span class="fc" id="L16">    public MutationReport {</span>
-<span class="fc" id="L17">        Objects.requireNonNull(verdict, &quot;verdict&quot;);</span>
-<span class="fc" id="L18">        Objects.requireNonNull(baselineCommit, &quot;baselineCommit&quot;);</span>
-<span class="fc" id="L19">        Objects.requireNonNull(baselineFailingTests, &quot;baselineFailingTests&quot;);</span>
-<span class="fc" id="L20">        Objects.requireNonNull(coverage, &quot;coverage&quot;);</span>
-<span class="fc" id="L21">        Objects.requireNonNull(experiments, &quot;experiments&quot;);</span>
-<span class="fc" id="L22">        baselineFailingTests = List.copyOf(baselineFailingTests);</span>
-<span class="fc" id="L23">        experiments = List.copyOf(experiments);</span>
-<span class="fc" id="L24">    }</span>
+<span class="fc" id="L17">    public MutationReport {</span>
+<span class="fc" id="L18">        Objects.requireNonNull(verdict, &quot;verdict&quot;);</span>
+<span class="fc" id="L19">        Objects.requireNonNull(baselineCommit, &quot;baselineCommit&quot;);</span>
+<span class="fc" id="L20">        Objects.requireNonNull(baselineFailingTests, &quot;baselineFailingTests&quot;);</span>
+<span class="fc" id="L21">        Objects.requireNonNull(coverage, &quot;coverage&quot;);</span>
+<span class="fc" id="L22">        Objects.requireNonNull(experiments, &quot;experiments&quot;);</span>
+<span class="fc" id="L23">        baselineFailingTests = List.copyOf(baselineFailingTests);</span>
+<span class="fc" id="L24">        experiments = List.copyOf(experiments);</span>
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">        skippedTests = skippedTests == null ? List.of() : List.copyOf(skippedTests);</span>
+<span class="fc" id="L26">    }</span>
 
     public static MutationReport from(
             String baselineCommit,
@@ -29,18 +31,29 @@ public record MutationReport(
             List&lt;MutationExperiment&gt; experiments,
             int generatedMutations,
             int timeLimitSkippedMutations) {
-<span class="fc bfc" id="L32" title="All 2 branches covered.">        int unbuildable = (int) experiments.stream().filter(e -&gt; e.status() == MutationStatus.UNBUILDABLE).count();</span>
-<span class="fc" id="L33">        int compilable = experiments.size() - unbuildable;</span>
-<span class="fc bfc" id="L34" title="All 2 branches covered.">        int killed = (int) experiments.stream().filter(e -&gt; e.status() == MutationStatus.KILLED).count();</span>
-<span class="fc" id="L35">        int killingTests = experiments.stream().mapToInt(e -&gt; e.killingTests().size()).sum();</span>
-<span class="fc" id="L36">        int selected = experiments.stream().mapToInt(e -&gt; e.selectedKillingTests().size()).sum();</span>
-<span class="fc" id="L37">        int skipped = experiments.stream().mapToInt(e -&gt; e.skippedKillingTests().size()).sum();</span>
-<span class="fc" id="L38">        int flaky = experiments.stream().mapToInt(e -&gt; e.flakyTests().size()).sum();</span>
-<span class="fc" id="L39">        MutationCoverage coverage = new MutationCoverage(</span>
-<span class="fc" id="L40">                generatedMutations, experiments.size(), timeLimitSkippedMutations, unbuildable, compilable,</span>
-<span class="pc bpc" id="L41" title="1 of 2 branches missed.">                baselineFailingTests.isEmpty() ? compilable : 0, killed, killingTests, selected, skipped, flaky);</span>
-<span class="fc bfc" id="L42" title="All 2 branches covered.">        return new MutationReport(skipped == 0 ? Verdict.PASS : Verdict.FAIL, baselineCommit,</span>
-                baselineFailingTests, coverage, experiments);
+<span class="fc" id="L34">        return from(baselineCommit, baselineFailingTests, experiments, generatedMutations,</span>
+<span class="fc" id="L35">                timeLimitSkippedMutations, List.of());</span>
+    }
+
+    public static MutationReport from(
+            String baselineCommit,
+            List&lt;TestIdentity&gt; baselineFailingTests,
+            List&lt;MutationExperiment&gt; experiments,
+            int generatedMutations,
+            int timeLimitSkippedMutations,
+            List&lt;String&gt; skippedTests) {
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        int unbuildable = (int) experiments.stream().filter(e -&gt; e.status() == MutationStatus.UNBUILDABLE).count();</span>
+<span class="fc" id="L46">        int compilable = experiments.size() - unbuildable;</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        int killed = (int) experiments.stream().filter(e -&gt; e.status() == MutationStatus.KILLED).count();</span>
+<span class="fc" id="L48">        int killingTests = experiments.stream().mapToInt(e -&gt; e.killingTests().size()).sum();</span>
+<span class="fc" id="L49">        int selected = experiments.stream().mapToInt(e -&gt; e.selectedKillingTests().size()).sum();</span>
+<span class="fc" id="L50">        int skipped = experiments.stream().mapToInt(e -&gt; e.skippedKillingTests().size()).sum();</span>
+<span class="fc" id="L51">        int flaky = experiments.stream().mapToInt(e -&gt; e.flakyTests().size()).sum();</span>
+<span class="fc" id="L52">        MutationCoverage coverage = new MutationCoverage(</span>
+<span class="fc" id="L53">                generatedMutations, experiments.size(), timeLimitSkippedMutations, unbuildable, compilable,</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">                baselineFailingTests.isEmpty() ? compilable : 0, killed, killingTests, selected, skipped, flaky);</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        return new MutationReport(skipped == 0 ? Verdict.PASS : Verdict.FAIL, baselineCommit,</span>
+                baselineFailingTests, coverage, experiments, skippedTests);
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

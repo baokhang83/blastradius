@@ -109,7 +109,7 @@ public final class RunCommand {
 <span class="pc bpc" id="L109" title="1 of 2 branches missed.">            boolean isolatedRepo = config.buildConcurrency() &gt; 1;</span>
 <span class="fc" id="L110">            buildRunner = new MavenBuildRunner(</span>
 <span class="fc" id="L111">                    config.mavenParallelThreads(), config.buildTimeoutMinutes(), isolatedRepo,</span>
-<span class="fc" id="L112">                    config.skipBuildExtras());</span>
+<span class="fc" id="L112">                    config.skipBuildExtras(), config.skippedTests());</span>
 <span class="fc" id="L113">            groundTruthResolver = new GroundTruthResolver(buildRunner);</span>
 
 <span class="fc" id="L115">            jdkMismatchDetector.detect(config.projectPath()).ifPresent(System.err::println);</span>
@@ -230,7 +230,7 @@ public final class RunCommand {
 <span class="fc" id="L230">        Verdict verdict = verdictCalculator.calculate(allMisses);</span>
 <span class="fc" id="L231">        SavingsSummary savingsSummary = savingsSummaryAggregator.aggregate(allDecisions);</span>
 <span class="fc" id="L232">        return new AnalysisReport(verdict, config.historyMode(), analyzedPairs, excludedPairs, failureCoverage,</span>
-                allMisses, allFlaky, savingsSummary);
+<span class="fc" id="L233">                allMisses, allFlaky, savingsSummary, config.skippedTests().classes());</span>
     }
 
 <span class="fc" id="L236">    private record PairAnalysis(</span>

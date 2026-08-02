@@ -9,37 +9,41 @@ import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 <span class="fc" id="L9">        MutationCoverage coverage = report.coverage();</span>
 <span class="fc" id="L10">        StringBuilder text = new StringBuilder(&quot;Verdict: &quot;).append(report.verdict()).append('\n');</span>
 <span class="fc" id="L11">        text.append(&quot;Baseline: &quot;).append(report.baselineCommit()).append('\n');</span>
-<span class="fc" id="L12">        text.append(&quot;Mutation coverage:\n&quot;);</span>
-<span class="fc" id="L13">        text.append(&quot;  - generated: &quot;).append(coverage.generatedMutations()).append('\n');</span>
-<span class="fc" id="L14">        text.append(&quot;  - attempted: &quot;).append(coverage.attemptedMutations()).append('\n');</span>
-<span class="fc" id="L15">        text.append(&quot;  - skipped by time limit: &quot;).append(coverage.timeLimitSkippedMutations()).append('\n');</span>
-<span class="fc" id="L16">        text.append(&quot;  - unbuildable: &quot;).append(coverage.unbuildableMutants()).append('\n');</span>
-<span class="fc" id="L17">        text.append(&quot;  - compilable: &quot;).append(coverage.compilableMutants()).append('\n');</span>
-<span class="fc" id="L18">        text.append(&quot;  - baseline-clean: &quot;).append(coverage.baselineCleanMutants()).append('\n');</span>
-<span class="fc" id="L19">        text.append(&quot;  - test-killed: &quot;).append(coverage.testKilledMutants()).append('\n');</span>
-<span class="fc" id="L20">        text.append(&quot;  - killing tests: &quot;).append(coverage.mutationKillingTests()).append('\n');</span>
-<span class="fc" id="L21">        text.append(&quot;  - killing tests selected: &quot;).append(coverage.selectedKillingTests()).append('\n');</span>
-<span class="fc" id="L22">        text.append(&quot;  - killing tests skipped: &quot;).append(coverage.skippedKillingTests()).append('\n');</span>
-<span class="fc" id="L23">        text.append(&quot;  - flaky mutant failures: &quot;).append(coverage.flakyMutantFailures()).append('\n');</span>
-<span class="fc" id="L24">        text.append(&quot;Baseline failures: &quot;).append(report.baselineFailingTests().size()).append('\n');</span>
-<span class="pc bpc" id="L25" title="1 of 2 branches missed.">        for (TestIdentity test : report.baselineFailingTests()) {</span>
-<span class="nc" id="L26">            text.append(&quot;  - &quot;).append(label(test)).append('\n');</span>
-<span class="nc" id="L27">        }</span>
-<span class="fc bfc" id="L28" title="All 2 branches covered.">        for (MutationExperiment experiment : report.experiments()) {</span>
-<span class="fc" id="L29">            text.append(&quot;Mutation &quot;).append(experiment.mutantCommit()).append(&quot; &quot;)</span>
-<span class="fc" id="L30">                    .append(experiment.mutation().className()).append(&quot; &quot;)</span>
-<span class="fc" id="L31">                    .append(experiment.mutation().original()).append(&quot; -&gt; &quot;)</span>
-<span class="fc" id="L32">                    .append(experiment.mutation().replacement()).append(&quot;: &quot;)</span>
-<span class="fc" id="L33">                    .append(experiment.status()).append('\n');</span>
-<span class="fc bfc" id="L34" title="All 2 branches covered.">            for (TestIdentity test : experiment.skippedKillingTests()) {</span>
-<span class="fc" id="L35">                text.append(&quot;  - skipped killing test: &quot;).append(label(test)).append('\n');</span>
-<span class="fc" id="L36">            }</span>
-<span class="fc" id="L37">        }</span>
-<span class="fc" id="L38">        return text.toString();</span>
+<span class="fc" id="L12">        text.append(&quot;Skipped test classes: &quot;).append(report.skippedTests().size()).append('\n');</span>
+<span class="pc bpc" id="L13" title="1 of 2 branches missed.">        for (String skippedTest : report.skippedTests()) {</span>
+<span class="nc" id="L14">            text.append(&quot;  - &quot;).append(skippedTest).append('\n');</span>
+<span class="nc" id="L15">        }</span>
+<span class="fc" id="L16">        text.append(&quot;Mutation coverage:\n&quot;);</span>
+<span class="fc" id="L17">        text.append(&quot;  - generated: &quot;).append(coverage.generatedMutations()).append('\n');</span>
+<span class="fc" id="L18">        text.append(&quot;  - attempted: &quot;).append(coverage.attemptedMutations()).append('\n');</span>
+<span class="fc" id="L19">        text.append(&quot;  - skipped by time limit: &quot;).append(coverage.timeLimitSkippedMutations()).append('\n');</span>
+<span class="fc" id="L20">        text.append(&quot;  - unbuildable: &quot;).append(coverage.unbuildableMutants()).append('\n');</span>
+<span class="fc" id="L21">        text.append(&quot;  - compilable: &quot;).append(coverage.compilableMutants()).append('\n');</span>
+<span class="fc" id="L22">        text.append(&quot;  - baseline-clean: &quot;).append(coverage.baselineCleanMutants()).append('\n');</span>
+<span class="fc" id="L23">        text.append(&quot;  - test-killed: &quot;).append(coverage.testKilledMutants()).append('\n');</span>
+<span class="fc" id="L24">        text.append(&quot;  - killing tests: &quot;).append(coverage.mutationKillingTests()).append('\n');</span>
+<span class="fc" id="L25">        text.append(&quot;  - killing tests selected: &quot;).append(coverage.selectedKillingTests()).append('\n');</span>
+<span class="fc" id="L26">        text.append(&quot;  - killing tests skipped: &quot;).append(coverage.skippedKillingTests()).append('\n');</span>
+<span class="fc" id="L27">        text.append(&quot;  - flaky mutant failures: &quot;).append(coverage.flakyMutantFailures()).append('\n');</span>
+<span class="fc" id="L28">        text.append(&quot;Baseline failures: &quot;).append(report.baselineFailingTests().size()).append('\n');</span>
+<span class="pc bpc" id="L29" title="1 of 2 branches missed.">        for (TestIdentity test : report.baselineFailingTests()) {</span>
+<span class="nc" id="L30">            text.append(&quot;  - &quot;).append(label(test)).append('\n');</span>
+<span class="nc" id="L31">        }</span>
+<span class="fc bfc" id="L32" title="All 2 branches covered.">        for (MutationExperiment experiment : report.experiments()) {</span>
+<span class="fc" id="L33">            text.append(&quot;Mutation &quot;).append(experiment.mutantCommit()).append(&quot; &quot;)</span>
+<span class="fc" id="L34">                    .append(experiment.mutation().className()).append(&quot; &quot;)</span>
+<span class="fc" id="L35">                    .append(experiment.mutation().original()).append(&quot; -&gt; &quot;)</span>
+<span class="fc" id="L36">                    .append(experiment.mutation().replacement()).append(&quot;: &quot;)</span>
+<span class="fc" id="L37">                    .append(experiment.status()).append('\n');</span>
+<span class="fc bfc" id="L38" title="All 2 branches covered.">            for (TestIdentity test : experiment.skippedKillingTests()) {</span>
+<span class="fc" id="L39">                text.append(&quot;  - skipped killing test: &quot;).append(label(test)).append('\n');</span>
+<span class="fc" id="L40">            }</span>
+<span class="fc" id="L41">        }</span>
+<span class="fc" id="L42">        return text.toString();</span>
     }
 
     private static String label(TestIdentity test) {
-<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        return test.methodName() == null ? test.className() : test.className() + &quot;#&quot; + test.methodName();</span>
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">        return test.methodName() == null ? test.className() : test.className() + &quot;#&quot; + test.methodName();</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

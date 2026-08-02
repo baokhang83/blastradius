@@ -21,52 +21,56 @@ import io.github.baokhang83.blastradius.validator.verdict.WouldMissCase;
 <span class="nc" id="L21">                    .append(&quot; excluded — see report for reasons)&quot;);</span>
         }
 <span class="fc" id="L23">        sb.append('\n');</span>
-<span class="fc" id="L24">        FailureCoverage coverage = report.failureCoverage();</span>
-<span class="fc" id="L25">        sb.append(&quot;Failure coverage:\n&quot;);</span>
-<span class="fc" id="L26">        sb.append(&quot;  - Pairs with newly confirmed failures: &quot;)</span>
-<span class="fc" id="L27">                .append(coverage.pairsWithNewlyConfirmedFailures()).append('\n');</span>
-<span class="fc" id="L28">        sb.append(&quot;  - Newly confirmed failing tests: &quot;)</span>
-<span class="fc" id="L29">                .append(coverage.newlyConfirmedFailingTests()).append('\n');</span>
-<span class="fc" id="L30">        sb.append(&quot;  - Newly confirmed failures selected: &quot;)</span>
-<span class="fc" id="L31">                .append(coverage.selectedNewlyConfirmedFailures()).append('\n');</span>
-<span class="fc" id="L32">        sb.append(&quot;  - Newly confirmed failures skipped: &quot;)</span>
-<span class="fc" id="L33">                .append(coverage.skippedNewlyConfirmedFailures()).append('\n');</span>
-<span class="fc" id="L34">        sb.append(&quot;Would-miss cases: &quot;).append(report.wouldMissCases().size()).append('\n');</span>
+<span class="fc" id="L24">        sb.append(&quot;Skipped test classes: &quot;).append(report.skippedTests().size()).append('\n');</span>
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">        for (String skippedTest : report.skippedTests()) {</span>
+<span class="nc" id="L26">            sb.append(&quot;  - &quot;).append(skippedTest).append('\n');</span>
+<span class="nc" id="L27">        }</span>
+<span class="fc" id="L28">        FailureCoverage coverage = report.failureCoverage();</span>
+<span class="fc" id="L29">        sb.append(&quot;Failure coverage:\n&quot;);</span>
+<span class="fc" id="L30">        sb.append(&quot;  - Pairs with newly confirmed failures: &quot;)</span>
+<span class="fc" id="L31">                .append(coverage.pairsWithNewlyConfirmedFailures()).append('\n');</span>
+<span class="fc" id="L32">        sb.append(&quot;  - Newly confirmed failing tests: &quot;)</span>
+<span class="fc" id="L33">                .append(coverage.newlyConfirmedFailingTests()).append('\n');</span>
+<span class="fc" id="L34">        sb.append(&quot;  - Newly confirmed failures selected: &quot;)</span>
+<span class="fc" id="L35">                .append(coverage.selectedNewlyConfirmedFailures()).append('\n');</span>
+<span class="fc" id="L36">        sb.append(&quot;  - Newly confirmed failures skipped: &quot;)</span>
+<span class="fc" id="L37">                .append(coverage.skippedNewlyConfirmedFailures()).append('\n');</span>
+<span class="fc" id="L38">        sb.append(&quot;Would-miss cases: &quot;).append(report.wouldMissCases().size()).append('\n');</span>
 
-<span class="fc bfc" id="L36" title="All 2 branches covered.">        for (WouldMissCase miss : report.wouldMissCases()) {</span>
-<span class="fc" id="L37">            sb.append(&quot;  - commit &quot;).append(miss.commitPair().baseCommit())</span>
-<span class="fc" id="L38">                    .append(&quot;..&quot;).append(miss.commitPair().headCommit())</span>
-<span class="fc" id="L39">                    .append(&quot;: &quot;).append(testLabel(miss.test())).append('\n');</span>
-<span class="fc" id="L40">            sb.append(&quot;    changed: &quot;).append(String.join(&quot;, &quot;, miss.changedClasses())).append('\n');</span>
-<span class="fc" id="L41">            sb.append(&quot;    not selected: &quot;).append(miss.selectionReason()).append('\n');</span>
-<span class="fc" id="L42">        }</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">        for (WouldMissCase miss : report.wouldMissCases()) {</span>
+<span class="fc" id="L41">            sb.append(&quot;  - commit &quot;).append(miss.commitPair().baseCommit())</span>
+<span class="fc" id="L42">                    .append(&quot;..&quot;).append(miss.commitPair().headCommit())</span>
+<span class="fc" id="L43">                    .append(&quot;: &quot;).append(testLabel(miss.test())).append('\n');</span>
+<span class="fc" id="L44">            sb.append(&quot;    changed: &quot;).append(String.join(&quot;, &quot;, miss.changedClasses())).append('\n');</span>
+<span class="fc" id="L45">            sb.append(&quot;    not selected: &quot;).append(miss.selectionReason()).append('\n');</span>
+<span class="fc" id="L46">        }</span>
 
-<span class="fc" id="L44">        SavingsSummary savings = report.savingsSummary();</span>
-<span class="fc" id="L45">        sb.append('\n');</span>
-<span class="fc" id="L46">        sb.append(&quot;Savings: &quot;).append(savings.totalSelected()).append(&quot; / &quot;)</span>
-<span class="fc" id="L47">                .append(savings.totalTestExecutions()).append(&quot; test executions selected&quot;)</span>
-<span class="fc" id="L48">                .append(String.format(&quot; (%.1f%% skipped)%n&quot;, savings.proportionSkipped() * 100));</span>
-<span class="fc" id="L49">        sb.append(&quot;  - dependency-matched: &quot;).append(savings.dependencyMatchedSelections()).append('\n');</span>
-<span class="fc" id="L50">        sb.append(&quot;  - fallback-driven: &quot;).append(savings.fallbackDrivenSelections()).append('\n');</span>
-<span class="fc" id="L51">        sb.append(&quot;  - module-scoped fallback: &quot;).append(savings.moduleScopedFallbackSelections()).append('\n');</span>
-<span class="fc" id="L52">        sb.append(&quot;  - new-or-modified: &quot;).append(savings.newOrModifiedTestSelections()).append('\n');</span>
+<span class="fc" id="L48">        SavingsSummary savings = report.savingsSummary();</span>
+<span class="fc" id="L49">        sb.append('\n');</span>
+<span class="fc" id="L50">        sb.append(&quot;Savings: &quot;).append(savings.totalSelected()).append(&quot; / &quot;)</span>
+<span class="fc" id="L51">                .append(savings.totalTestExecutions()).append(&quot; test executions selected&quot;)</span>
+<span class="fc" id="L52">                .append(String.format(&quot; (%.1f%% skipped)%n&quot;, savings.proportionSkipped() * 100));</span>
+<span class="fc" id="L53">        sb.append(&quot;  - dependency-matched: &quot;).append(savings.dependencyMatchedSelections()).append('\n');</span>
+<span class="fc" id="L54">        sb.append(&quot;  - fallback-driven: &quot;).append(savings.fallbackDrivenSelections()).append('\n');</span>
+<span class="fc" id="L55">        sb.append(&quot;  - module-scoped fallback: &quot;).append(savings.moduleScopedFallbackSelections()).append('\n');</span>
+<span class="fc" id="L56">        sb.append(&quot;  - new-or-modified: &quot;).append(savings.newOrModifiedTestSelections()).append('\n');</span>
 
-<span class="fc" id="L54">        sb.append(&quot;Excluded pairs: &quot;).append(report.excludedCommitPairs().size()).append('\n');</span>
-<span class="fc" id="L55">        sb.append(&quot;Flaky failures observed: &quot;).append(report.flakyFailures().size())</span>
-<span class="fc" id="L56">                .append(&quot; (excluded from verdict)\n&quot;);</span>
-<span class="pc bpc" id="L57" title="1 of 2 branches missed.">        if (!report.flakyFailures().isEmpty()) {</span>
-<span class="nc bnc" id="L58" title="All 2 branches missed.">            for (FlakyFailure flaky : report.flakyFailures()) {</span>
-<span class="nc" id="L59">                sb.append(&quot;  - commit &quot;).append(flaky.commitPair().baseCommit())</span>
-<span class="nc" id="L60">                        .append(&quot;..&quot;).append(flaky.commitPair().headCommit())</span>
-<span class="nc" id="L61">                        .append(&quot;: &quot;).append(testLabel(flaky.test())).append('\n');</span>
-<span class="nc" id="L62">            }</span>
+<span class="fc" id="L58">        sb.append(&quot;Excluded pairs: &quot;).append(report.excludedCommitPairs().size()).append('\n');</span>
+<span class="fc" id="L59">        sb.append(&quot;Flaky failures observed: &quot;).append(report.flakyFailures().size())</span>
+<span class="fc" id="L60">                .append(&quot; (excluded from verdict)\n&quot;);</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">        if (!report.flakyFailures().isEmpty()) {</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">            for (FlakyFailure flaky : report.flakyFailures()) {</span>
+<span class="nc" id="L63">                sb.append(&quot;  - commit &quot;).append(flaky.commitPair().baseCommit())</span>
+<span class="nc" id="L64">                        .append(&quot;..&quot;).append(flaky.commitPair().headCommit())</span>
+<span class="nc" id="L65">                        .append(&quot;: &quot;).append(testLabel(flaky.test())).append('\n');</span>
+<span class="nc" id="L66">            }</span>
         }
 
-<span class="fc" id="L65">        return sb.toString();</span>
+<span class="fc" id="L69">        return sb.toString();</span>
     }
 
     private static String testLabel(TestIdentity test) {
-<span class="pc bpc" id="L69" title="1 of 2 branches missed.">        return test.methodName() == null ? test.className() : test.className() + &quot;#&quot; + test.methodName();</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">        return test.methodName() == null ? test.className() : test.className() + &quot;#&quot; + test.methodName();</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

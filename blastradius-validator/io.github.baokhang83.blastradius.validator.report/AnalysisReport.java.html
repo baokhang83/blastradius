@@ -15,7 +15,7 @@ import java.util.List;
  * @param flakyFailures       tests that failed once but passed on confirmation (FR-014);
  *                            never affect the verdict, reported for transparency only
  */
-<span class="fc" id="L18">public record AnalysisReport(</span>
+public record AnalysisReport(
         Verdict verdict,
         HistoryMode historyMode,
         List&lt;CommitPair&gt; analyzedCommitPairs,
@@ -23,7 +23,26 @@ import java.util.List;
         FailureCoverage failureCoverage,
         List&lt;WouldMissCase&gt; wouldMissCases,
         List&lt;FlakyFailure&gt; flakyFailures,
-        SavingsSummary savingsSummary) {
+        SavingsSummary savingsSummary,
+        List&lt;String&gt; skippedTests) {
+
+<span class="fc" id="L29">    public AnalysisReport {</span>
+<span class="pc bpc" id="L30" title="1 of 2 branches missed.">        skippedTests = skippedTests == null ? List.of() : List.copyOf(skippedTests);</span>
+<span class="fc" id="L31">    }</span>
+
+    /** Compatibility constructor for callers that do not use explicit test exclusions. */
+    public AnalysisReport(
+            Verdict verdict,
+            HistoryMode historyMode,
+            List&lt;CommitPair&gt; analyzedCommitPairs,
+            List&lt;CommitPair&gt; excludedCommitPairs,
+            FailureCoverage failureCoverage,
+            List&lt;WouldMissCase&gt; wouldMissCases,
+            List&lt;FlakyFailure&gt; flakyFailures,
+            SavingsSummary savingsSummary) {
+<span class="fc" id="L43">        this(verdict, historyMode, analyzedCommitPairs, excludedCommitPairs, failureCoverage,</span>
+<span class="fc" id="L44">                wouldMissCases, flakyFailures, savingsSummary, List.of());</span>
+<span class="fc" id="L45">    }</span>
 
     /** Compatibility constructor for callers that do not yet supply the newly-visible fields. */
     public AnalysisReport(
@@ -33,14 +52,14 @@ import java.util.List;
             List&lt;WouldMissCase&gt; wouldMissCases,
             List&lt;FlakyFailure&gt; flakyFailures,
             SavingsSummary savingsSummary) {
-<span class="fc" id="L36">        this(verdict, HistoryMode.ALL_PARENTS, analyzedCommitPairs, excludedCommitPairs,</span>
-<span class="fc" id="L37">                legacyFailureCoverage(wouldMissCases), wouldMissCases, flakyFailures, savingsSummary);</span>
-<span class="fc" id="L38">    }</span>
+<span class="fc" id="L55">        this(verdict, HistoryMode.ALL_PARENTS, analyzedCommitPairs, excludedCommitPairs,</span>
+<span class="fc" id="L56">                legacyFailureCoverage(wouldMissCases), wouldMissCases, flakyFailures, savingsSummary, List.of());</span>
+<span class="fc" id="L57">    }</span>
 
     private static FailureCoverage legacyFailureCoverage(List&lt;WouldMissCase&gt; wouldMissCases) {
-<span class="fc" id="L41">        int misses = wouldMissCases.size();</span>
-<span class="fc" id="L42">        int pairs = (int) wouldMissCases.stream().map(WouldMissCase::commitPair).distinct().count();</span>
-<span class="fc" id="L43">        return new FailureCoverage(pairs, misses, 0, misses);</span>
+<span class="fc" id="L60">        int misses = wouldMissCases.size();</span>
+<span class="fc" id="L61">        int pairs = (int) wouldMissCases.stream().map(WouldMissCase::commitPair).distinct().count();</span>
+<span class="fc" id="L62">        return new FailureCoverage(pairs, misses, 0, misses);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

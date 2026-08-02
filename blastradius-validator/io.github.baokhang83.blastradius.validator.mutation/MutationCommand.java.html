@@ -55,59 +55,61 @@ import org.eclipse.jgit.api.Git;
 <span class="fc" id="L55">            new JdkMismatchDetector().detect(config.projectPath()).ifPresent(System.err::println);</span>
 <span class="fc" id="L56">            scratchParent = Files.createTempDirectory(&quot;blastradius-mutations-&quot;);</span>
 <span class="fc" id="L57">            MavenBuildRunner buildRunner = new MavenBuildRunner(</span>
-<span class="fc" id="L58">                    config.mavenParallelThreads(), config.buildTimeoutMinutes(), false, config.skipBuildExtras());</span>
-<span class="fc" id="L59">            GroundTruthResolver groundTruthResolver = new GroundTruthResolver(buildRunner);</span>
-<span class="fc" id="L60">            try (SyntheticMutationCheckout checkout =</span>
-<span class="fc" id="L61">                    SyntheticMutationCheckout.forTargetProject(config.projectPath(), scratchParent)) {</span>
-<span class="fc" id="L62">                String baselineSha = head(checkout.workTree());</span>
-<span class="fc" id="L63">                Path baselineTree = checkout.checkoutBaseline(baselineSha);</span>
-<span class="fc" id="L64">                List&lt;MutationCandidate&gt; candidates = candidateGenerator.generate(</span>
-<span class="fc" id="L65">                        baselineTree, config.classFilter(), config.maxMutationClasses(), config.maxMutations());</span>
-<span class="fc" id="L66">                dependencyOutput = Files.createTempFile(&quot;blastradius-mutation-deps-&quot;, &quot;.json&quot;);</span>
-<span class="fc" id="L67">                GroundTruthResolution baselineResolution =</span>
-<span class="fc" id="L68">                        groundTruthResolver.resolve(baselineTree, agentJar, dependencyOutput);</span>
-<span class="pc bpc" id="L69" title="1 of 2 branches missed.">                if (buildFailureDetector.isBuildFailure(baselineResolution.initialBuild(), baselineTree)) {</span>
-<span class="nc" id="L70">                    System.err.println(&quot;blastradius-validator: baseline &quot; + baselineSha + &quot; failed to build&quot;);</span>
-<span class="nc" id="L71">                    return 2;</span>
+<span class="fc" id="L58">                    config.mavenParallelThreads(), config.buildTimeoutMinutes(), false, config.skipBuildExtras(),</span>
+<span class="fc" id="L59">                    config.skippedTests());</span>
+<span class="fc" id="L60">            GroundTruthResolver groundTruthResolver = new GroundTruthResolver(buildRunner);</span>
+<span class="fc" id="L61">            try (SyntheticMutationCheckout checkout =</span>
+<span class="fc" id="L62">                    SyntheticMutationCheckout.forTargetProject(config.projectPath(), scratchParent)) {</span>
+<span class="fc" id="L63">                String baselineSha = head(checkout.workTree());</span>
+<span class="fc" id="L64">                Path baselineTree = checkout.checkoutBaseline(baselineSha);</span>
+<span class="fc" id="L65">                List&lt;MutationCandidate&gt; candidates = candidateGenerator.generate(</span>
+<span class="fc" id="L66">                        baselineTree, config.classFilter(), config.maxMutationClasses(), config.maxMutations());</span>
+<span class="fc" id="L67">                dependencyOutput = Files.createTempFile(&quot;blastradius-mutation-deps-&quot;, &quot;.json&quot;);</span>
+<span class="fc" id="L68">                GroundTruthResolution baselineResolution =</span>
+<span class="fc" id="L69">                        groundTruthResolver.resolve(baselineTree, agentJar, dependencyOutput);</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">                if (buildFailureDetector.isBuildFailure(baselineResolution.initialBuild(), baselineTree)) {</span>
+<span class="nc" id="L71">                    System.err.println(&quot;blastradius-validator: baseline &quot; + baselineSha + &quot; failed to build&quot;);</span>
+<span class="nc" id="L72">                    return 2;</span>
                 }
-<span class="fc" id="L73">                DependencyRecordSet baselineDependencies = new DependencyRecordReader().readAll(dependencyOutput);</span>
-<span class="fc" id="L74">                List&lt;GroundTruthResult&gt; baselineOutcomes = baselineResolution.results();</span>
-<span class="fc" id="L75">                List&lt;TestIdentity&gt; baselineFailingTests = baselineOutcomes.stream()</span>
-<span class="pc bpc" id="L76" title="1 of 2 branches missed.">                        .filter(result -&gt; result.outcome() == Outcome.CONFIRMED_FAILED)</span>
-<span class="fc" id="L77">                        .map(GroundTruthResult::test)</span>
-<span class="fc" id="L78">                        .toList();</span>
-<span class="fc" id="L79">                long deadline = System.nanoTime() + Duration.ofMinutes(config.timeLimitMinutes()).toNanos();</span>
-<span class="fc" id="L80">                List&lt;MutationExperiment&gt; experiments = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L81">                int timeLimitSkipped = 0;</span>
-<span class="fc bfc" id="L82" title="All 2 branches covered.">                for (int index = 0; index &lt; candidates.size(); index++) {</span>
-<span class="pc bpc" id="L83" title="1 of 2 branches missed.">                    if (System.nanoTime() &gt;= deadline) {</span>
-<span class="nc" id="L84">                        timeLimitSkipped = candidates.size() - index;</span>
-<span class="nc" id="L85">                        break;</span>
+<span class="fc" id="L74">                DependencyRecordSet baselineDependencies = new DependencyRecordReader().readAll(dependencyOutput);</span>
+<span class="fc" id="L75">                List&lt;GroundTruthResult&gt; baselineOutcomes = baselineResolution.results();</span>
+<span class="fc" id="L76">                List&lt;TestIdentity&gt; baselineFailingTests = baselineOutcomes.stream()</span>
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">                        .filter(result -&gt; result.outcome() == Outcome.CONFIRMED_FAILED)</span>
+<span class="fc" id="L78">                        .map(GroundTruthResult::test)</span>
+<span class="fc" id="L79">                        .toList();</span>
+<span class="fc" id="L80">                long deadline = System.nanoTime() + Duration.ofMinutes(config.timeLimitMinutes()).toNanos();</span>
+<span class="fc" id="L81">                List&lt;MutationExperiment&gt; experiments = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L82">                int timeLimitSkipped = 0;</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">                for (int index = 0; index &lt; candidates.size(); index++) {</span>
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">                    if (System.nanoTime() &gt;= deadline) {</span>
+<span class="nc" id="L85">                        timeLimitSkipped = candidates.size() - index;</span>
+<span class="nc" id="L86">                        break;</span>
                     }
-<span class="fc" id="L87">                    MutationCandidate candidate = candidates.get(index);</span>
-<span class="fc" id="L88">                    checkout.checkoutBaseline(baselineSha);</span>
-<span class="fc" id="L89">                    String mutantSha = checkout.commit(candidate);</span>
-<span class="fc" id="L90">                    GroundTruthResolution mutantResolution = groundTruthResolver.resolve(checkout.workTree(), null, null);</span>
-<span class="pc bpc" id="L91" title="1 of 2 branches missed.">                    if (buildFailureDetector.isBuildFailure(mutantResolution.initialBuild(), checkout.workTree())) {</span>
-<span class="nc" id="L92">                        experiments.add(new MutationExperiment(candidate, mutantSha, MutationStatus.UNBUILDABLE,</span>
-<span class="nc" id="L93">                                &quot;mutant failed to build (exit &quot; + mutantResolution.initialBuild().exitCode() + &quot;)&quot;,</span>
-<span class="nc" id="L94">                                List.of(), List.of(), List.of(), List.of()));</span>
-<span class="nc" id="L95">                        continue;</span>
+<span class="fc" id="L88">                    MutationCandidate candidate = candidates.get(index);</span>
+<span class="fc" id="L89">                    checkout.checkoutBaseline(baselineSha);</span>
+<span class="fc" id="L90">                    String mutantSha = checkout.commit(candidate);</span>
+<span class="fc" id="L91">                    GroundTruthResolution mutantResolution = groundTruthResolver.resolve(checkout.workTree(), null, null);</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">                    if (buildFailureDetector.isBuildFailure(mutantResolution.initialBuild(), checkout.workTree())) {</span>
+<span class="nc" id="L93">                        experiments.add(new MutationExperiment(candidate, mutantSha, MutationStatus.UNBUILDABLE,</span>
+<span class="nc" id="L94">                                &quot;mutant failed to build (exit &quot; + mutantResolution.initialBuild().exitCode() + &quot;)&quot;,</span>
+<span class="nc" id="L95">                                List.of(), List.of(), List.of(), List.of()));</span>
+<span class="nc" id="L96">                        continue;</span>
                     }
-<span class="fc" id="L97">                    experiments.add(analyzeMutant(candidate, baselineSha, mutantSha, checkout.workTree(),</span>
-<span class="fc" id="L98">                            baselineDependencies, baselineOutcomes, mutantResolution.results()));</span>
+<span class="fc" id="L98">                    experiments.add(analyzeMutant(candidate, baselineSha, mutantSha, checkout.workTree(),</span>
+<span class="fc" id="L99">                            baselineDependencies, baselineOutcomes, mutantResolution.results()));</span>
                 }
-<span class="fc" id="L100">                MutationReport report = MutationReport.from(</span>
-<span class="fc" id="L101">                        baselineSha, baselineFailingTests, experiments, candidates.size(), timeLimitSkipped);</span>
-<span class="fc" id="L102">                reportWriter.write(config.reportOutputPath(), report);</span>
-<span class="fc bfc" id="L103" title="All 2 branches covered.">                return report.verdict() == io.github.baokhang83.blastradius.validator.verdict.Verdict.PASS ? 0 : 1;</span>
-<span class="nc bnc" id="L104" title="All 2 branches missed.">            }</span>
-<span class="nc" id="L105">        } catch (Exception e) {</span>
-<span class="nc" id="L106">            System.err.println(&quot;blastradius-validator: &quot; + e.getMessage());</span>
-<span class="nc" id="L107">            return 2;</span>
+<span class="fc" id="L101">                MutationReport report = MutationReport.from(</span>
+<span class="fc" id="L102">                        baselineSha, baselineFailingTests, experiments, candidates.size(), timeLimitSkipped,</span>
+<span class="fc" id="L103">                        config.skippedTests().classes());</span>
+<span class="fc" id="L104">                reportWriter.write(config.reportOutputPath(), report);</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">                return report.verdict() == io.github.baokhang83.blastradius.validator.verdict.Verdict.PASS ? 0 : 1;</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            }</span>
+<span class="nc" id="L107">        } catch (Exception e) {</span>
+<span class="nc" id="L108">            System.err.println(&quot;blastradius-validator: &quot; + e.getMessage());</span>
+<span class="nc" id="L109">            return 2;</span>
         } finally {
-<span class="fc" id="L109">            deleteFile(dependencyOutput);</span>
-<span class="fc" id="L110">            deleteFile(scratchParent);</span>
+<span class="fc" id="L111">            deleteFile(dependencyOutput);</span>
+<span class="fc" id="L112">            deleteFile(scratchParent);</span>
         }
     }
 
@@ -119,69 +121,69 @@ import org.eclipse.jgit.api.Git;
             DependencyRecordSet baselineDependencies,
             List&lt;GroundTruthResult&gt; baselineOutcomes,
             List&lt;GroundTruthResult&gt; mutantOutcomes) {
-<span class="fc" id="L122">        List&lt;ChangedFile&gt; changedFiles = changedFileClassifier.classify(mutantTree, baselineSha, mutantSha);</span>
-<span class="pc bpc" id="L123" title="1 of 2 branches missed.">        ReactorScope scope = fallbackSelector.shouldFallback(changedFiles) ? buildReactorScope(mutantTree) : null;</span>
-<span class="fc" id="L124">        CommitPair edge = CommitPair.analyzed(baselineSha, mutantSha, changedFiles);</span>
-<span class="fc" id="L125">        PairSelectionResult selection = pairSelectionAnalyzer.analyze(</span>
+<span class="fc" id="L124">        List&lt;ChangedFile&gt; changedFiles = changedFileClassifier.classify(mutantTree, baselineSha, mutantSha);</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        ReactorScope scope = fallbackSelector.shouldFallback(changedFiles) ? buildReactorScope(mutantTree) : null;</span>
+<span class="fc" id="L126">        CommitPair edge = CommitPair.analyzed(baselineSha, mutantSha, changedFiles);</span>
+<span class="fc" id="L127">        PairSelectionResult selection = pairSelectionAnalyzer.analyze(</span>
                 edge, baselineDependencies, baselineOutcomes, mutantOutcomes, scope);
-<span class="fc" id="L127">        Map&lt;TestIdentity, Outcome&gt; baselineByTest = new HashMap&lt;&gt;();</span>
-<span class="fc" id="L128">        baselineOutcomes.forEach(result -&gt; baselineByTest.put(result.test(), result.outcome()));</span>
-<span class="fc" id="L129">        Map&lt;TestIdentity, SelectionDecision&gt; decisionByTest = new HashMap&lt;&gt;();</span>
-<span class="fc" id="L130">        selection.decisions().forEach(decision -&gt; decisionByTest.put(decision.test(), decision));</span>
-<span class="fc" id="L131">        List&lt;TestIdentity&gt; killing = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L132">        List&lt;TestIdentity&gt; selected = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L133">        List&lt;TestIdentity&gt; skipped = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L134" title="All 2 branches covered.">        for (GroundTruthResult result : mutantOutcomes) {</span>
-<span class="pc bpc" id="L135" title="1 of 4 branches missed.">            if (result.outcome() != Outcome.CONFIRMED_FAILED || baselineByTest.get(result.test()) != Outcome.PASSED) {</span>
-<span class="nc" id="L136">                continue;</span>
+<span class="fc" id="L129">        Map&lt;TestIdentity, Outcome&gt; baselineByTest = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L130">        baselineOutcomes.forEach(result -&gt; baselineByTest.put(result.test(), result.outcome()));</span>
+<span class="fc" id="L131">        Map&lt;TestIdentity, SelectionDecision&gt; decisionByTest = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L132">        selection.decisions().forEach(decision -&gt; decisionByTest.put(decision.test(), decision));</span>
+<span class="fc" id="L133">        List&lt;TestIdentity&gt; killing = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L134">        List&lt;TestIdentity&gt; selected = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L135">        List&lt;TestIdentity&gt; skipped = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">        for (GroundTruthResult result : mutantOutcomes) {</span>
+<span class="pc bpc" id="L137" title="1 of 4 branches missed.">            if (result.outcome() != Outcome.CONFIRMED_FAILED || baselineByTest.get(result.test()) != Outcome.PASSED) {</span>
+<span class="nc" id="L138">                continue;</span>
             }
-<span class="fc" id="L138">            killing.add(result.test());</span>
-<span class="fc" id="L139">            SelectionDecision decision = decisionByTest.get(result.test());</span>
-<span class="pc bpc" id="L140" title="1 of 4 branches missed.">            if (decision != null &amp;&amp; decision.selected()) {</span>
-<span class="fc" id="L141">                selected.add(result.test());</span>
+<span class="fc" id="L140">            killing.add(result.test());</span>
+<span class="fc" id="L141">            SelectionDecision decision = decisionByTest.get(result.test());</span>
+<span class="pc bpc" id="L142" title="1 of 4 branches missed.">            if (decision != null &amp;&amp; decision.selected()) {</span>
+<span class="fc" id="L143">                selected.add(result.test());</span>
             } else {
-<span class="fc" id="L143">                skipped.add(result.test());</span>
+<span class="fc" id="L145">                skipped.add(result.test());</span>
             }
-<span class="fc" id="L145">        }</span>
-<span class="pc" id="L146">        List&lt;TestIdentity&gt; flaky = selection.flakyFailures().stream().map(flakyFailure -&gt; flakyFailure.test()).toList();</span>
-<span class="fc" id="L147">        return new MutationExperiment(candidate, mutantSha,</span>
-<span class="pc bpc" id="L148" title="1 of 2 branches missed.">                killing.isEmpty() ? MutationStatus.SURVIVED : MutationStatus.KILLED,</span>
+<span class="fc" id="L147">        }</span>
+<span class="pc" id="L148">        List&lt;TestIdentity&gt; flaky = selection.flakyFailures().stream().map(flakyFailure -&gt; flakyFailure.test()).toList();</span>
+<span class="fc" id="L149">        return new MutationExperiment(candidate, mutantSha,</span>
+<span class="pc bpc" id="L150" title="1 of 2 branches missed.">                killing.isEmpty() ? MutationStatus.SURVIVED : MutationStatus.KILLED,</span>
                 null, killing, selected, skipped, flaky);
     }
 
     private ReactorScope buildReactorScope(Path tree) {
         try {
-<span class="nc" id="L154">            ReactorModuleGraph graph = reactorModuleGraphBuilder.fromRepoTree(tree);</span>
-<span class="nc" id="L155">            return new ReactorScope(graph, TestModuleIndex.fromRepoTree(tree, graph));</span>
-<span class="nc" id="L156">        } catch (RuntimeException e) {</span>
-<span class="nc" id="L157">            return null;</span>
+<span class="nc" id="L156">            ReactorModuleGraph graph = reactorModuleGraphBuilder.fromRepoTree(tree);</span>
+<span class="nc" id="L157">            return new ReactorScope(graph, TestModuleIndex.fromRepoTree(tree, graph));</span>
+<span class="nc" id="L158">        } catch (RuntimeException e) {</span>
+<span class="nc" id="L159">            return null;</span>
         }
     }
 
     private static String head(Path repository) {
-<span class="fc" id="L162">        try (Git git = Git.open(repository.toFile())) {</span>
-<span class="fc" id="L163">            return git.getRepository().resolve(&quot;HEAD&quot;).name();</span>
-<span class="nc" id="L164">        } catch (IOException e) {</span>
-<span class="nc" id="L165">            throw new UncheckedIOException(&quot;failed to resolve target HEAD&quot;, e);</span>
+<span class="fc" id="L164">        try (Git git = Git.open(repository.toFile())) {</span>
+<span class="fc" id="L165">            return git.getRepository().resolve(&quot;HEAD&quot;).name();</span>
+<span class="nc" id="L166">        } catch (IOException e) {</span>
+<span class="nc" id="L167">            throw new UncheckedIOException(&quot;failed to resolve target HEAD&quot;, e);</span>
         }
     }
 
     private static void deleteFile(Path path) {
-<span class="pc bpc" id="L170" title="1 of 2 branches missed.">        if (path == null) {</span>
-<span class="nc" id="L171">            return;</span>
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">        if (path == null) {</span>
+<span class="nc" id="L173">            return;</span>
         }
         try {
-<span class="fc" id="L174">            Files.deleteIfExists(path);</span>
-<span class="nc" id="L175">        } catch (IOException ignored) {</span>
+<span class="fc" id="L176">            Files.deleteIfExists(path);</span>
+<span class="nc" id="L177">        } catch (IOException ignored) {</span>
             // The cloned checkout owns all material state; this only removes its empty parent or a temp record.
-<span class="fc" id="L177">        }</span>
-<span class="fc" id="L178">    }</span>
+<span class="fc" id="L179">        }</span>
+<span class="fc" id="L180">    }</span>
 
     private static Path locateOwnJar() {
         try {
-<span class="nc" id="L182">            return Path.of(MutationCommand.class.getProtectionDomain().getCodeSource().getLocation().toURI());</span>
-<span class="nc" id="L183">        } catch (Exception e) {</span>
-<span class="nc" id="L184">            throw new IllegalStateException(&quot;could not locate this tool's own jar for -javaagent attachment&quot;, e);</span>
+<span class="nc" id="L184">            return Path.of(MutationCommand.class.getProtectionDomain().getCodeSource().getLocation().toURI());</span>
+<span class="nc" id="L185">        } catch (Exception e) {</span>
+<span class="nc" id="L186">            throw new IllegalStateException(&quot;could not locate this tool's own jar for -javaagent attachment&quot;, e);</span>
         }
     }
 }
