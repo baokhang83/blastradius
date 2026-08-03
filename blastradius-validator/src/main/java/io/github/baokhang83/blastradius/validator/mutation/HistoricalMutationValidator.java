@@ -29,13 +29,18 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /** Runs bounded synthetic mutants as evidence for one already-built historical pair. */
 public final class HistoricalMutationValidator {
 
-    /** Only production sources are mutable; a changed test or Kotlin file carries no candidate. */
+    /**
+     * Only production sources are worth mutating: a mutant in test code proves nothing about
+     * whether selection would catch a regression. Matching the path segment (rather than the
+     * module layout) keeps this independent of how deep in the reactor the module sits.
+     */
     private static final String PRODUCTION_SOURCE_MARKER = "src/main/java/";
 
     private final MutationCandidateGenerator candidateGenerator = new MutationCandidateGenerator();
@@ -52,7 +57,7 @@ public final class HistoricalMutationValidator {
 
     public PairMutationResult validate(
             CommitPair pair, CommitBuild base, CommitBuild head, CommitCheckout checkout,
-            MutationValidationConfig config, long deadlineNanos) {
+            MutationValidationConfig config, long deadlineNanos, MutationCache mutationCache) {
         Path headTree = checkout.checkoutCommit(pair.headCommit());
         // Mutate the code THIS pair changed, not the whole-tree first-yielding class: a real
         // regression lives in the changed surface, and the changed module's -amd fanout is
@@ -70,9 +75,9 @@ public final class HistoricalMutationValidator {
         if (candidates.isEmpty()) {
             // The pair changed no mutable production source (docs/config/test-only, or a changed
             // source with no boolean/operator token). Fall back to the whole-tree scan so the pair
-            // still exercises some mutant rather than silently validating nothing (§III). Every
-            // mutant this pair produces from here on asks the weaker "somewhere in the tree"
-            // question, not "in what this PR touched" — tagged so the report can tell them apart.
+            // still exercises some mutant rather than silently validating nothing (§III). The two
+            // pools answer different questions, so every mutant records which one it came from and
+            // the report splits its evidence accordingly.
             candidates = candidateGenerator.generate(headTree, config.classFilter(),
                     config.maxMutationClassesPerPair(), config.maxMutationsPerPair());
             origin = MutationCandidateOrigin.WHOLE_TREE_FALLBACK;
@@ -88,25 +93,43 @@ public final class HistoricalMutationValidator {
         head.groundTruth().forEach(result -> headOutcomes.put(result.test(), result.outcome()));
         List<MutationExperiment> experiments = new ArrayList<>();
         int timeSkipped = 0;
-        for (int index = 0; index < candidates.size(); index++) {
-            if (System.nanoTime() >= deadlineNanos) {
-                timeSkipped = candidates.size() - index;
-                break;
+        for (MutationCandidate candidate : candidates) {
+            // A cached mutant costs nothing to serve, so it neither consumes the time budget nor
+            // needs a rebuild — this is what lets a crashed run resume past the mutants it already
+            // completed instead of re-running the whole pair (headBaselineFailingTests came from the
+            // same head build, so a cached experiment stays consistent within this run). Because a
+            // cache hit is free, we keep scanning past the deadline for more hits rather than
+            // breaking — only an uncached mutant that would need a build is time-skipped.
+            Optional<MutationExperiment> cached =
+                    mutationCache == null ? Optional.empty() : mutationCache.load(pair, candidate);
+            if (cached.isPresent()) {
+                experiments.add(cached.get());
+                continue;
             }
-            MutationCandidate candidate = candidates.get(index);
+            if (System.nanoTime() >= deadlineNanos) {
+                timeSkipped++;
+                continue;
+            }
             checkout.checkoutCommit(pair.headCommit());
             String mutantCommit = commitMutation(checkout, candidate);
             String modulePath = modulePathFor(moduleGraph, candidate.sourcePath());
             GroundTruthResolution mutantResolution =
                     groundTruthResolver.resolve(checkout.workTree(), null, null, modulePath);
             if (buildFailureDetector.isBuildFailure(mutantResolution.initialBuild(), checkout.workTree())) {
-                experiments.add(new MutationExperiment(pair, candidate, origin, mutantCommit, MutationStatus.UNBUILDABLE,
+                // Unbuildable mutants are not cached (they recompute fast and could be transient),
+                // so a resume legitimately re-runs them; that is the intended trade (see MutationCache).
+                experiments.add(new MutationExperiment(pair, candidate, origin, mutantCommit,
+                        MutationStatus.UNBUILDABLE,
                         "mutant failed to build (exit " + mutantResolution.initialBuild().exitCode() + ")",
                         headFailures, List.of(), List.of(), List.of(), List.of()));
                 continue;
             }
-            experiments.add(analyzeMutant(pair, candidate, origin, mutantCommit, base, headFailures, headOutcomes,
-                    mutantResolution.results(), checkout.workTree()));
+            MutationExperiment experiment = analyzeMutant(pair, candidate, origin, mutantCommit, base, headFailures,
+                    headOutcomes, mutantResolution.results(), checkout.workTree());
+            if (mutationCache != null) {
+                mutationCache.store(experiment);
+            }
+            experiments.add(experiment);
         }
         return new PairMutationResult(experiments, candidates.size(), timeSkipped);
     }
