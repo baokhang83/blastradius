@@ -39,7 +39,7 @@ head and checks whether the tests selected catch them.
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 381 (376) | 223 | **528 / 528** | 338 / 190 |
 
 A "killing test" is one that actually caught an injected fault (passed on head, failed on the mutant, stayed failed on
-confirmation), so it is a test selection *must not* skip. 
+confirmation), so it is a test the selection *must not* skip. 
 
 ## How it works
 
