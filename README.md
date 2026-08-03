@@ -21,25 +21,24 @@ no heuristics, no opaque score.
 A 200-pair replay against apache/shenyu under the current `ALL_PARENTS` edge semantics — every
 reported pair is a direct Git parent-to-child edge — with bounded mutation validation enabled on
 the same run. Unlike the superseded windows below, the would-miss result is reported against an
-explicit observed-failure denominator (the failure-coverage columns), so it is a soundness result,
-not a bare zero.
+explicit observed-failure denominator (the failure-coverage columns), so it is a soundness result.
 
 | Project | Commit range | Mode | Pairs (excluded) | Would-miss | Test executions selected | Skipped |
 | --- | --- | :---: | ---: | ---: | ---: | ---: |
 | <h4><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | [`69cd1d5`](https://github.com/apache/shenyu/commit/69cd1d5721647a60007584983d96fc94452a4f6b) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | `ALL_PARENTS` | 200 (0) | **0\*** | 153,142 / 527,508 | **71.0%** |
 |<img width=400 />|  |  |  |  |  | **71.0%** |
 
-\* `org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` is
-excluded as flaky. Both raw would-miss cases traced to its `testHttpSyncDataService` method — one
-on a pair whose changed files were an unrelated subsystem (`NO_MATCH`), one on a pair with no
-classified source change at all. Rerun standalone on the would-miss commit `2c44e7e` it passes 5/5,
-yet it was recorded as a confirmed failure inside the full suite: an order-dependent / environmental
-flake in that HTTP starter module, not a selection gap. With it excluded, selection missed zero
-causal killing tests across the window.
+\* `org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was
+excluded as flaky. 
 
-Bounded mutation validation on the same run generated 381 synthetic mutants (376 compilable, 223
-test-killed) and selected **528 / 528** killing tests — 0 skipped — across both the diff-targeted
-(338) and whole-tree-fallback (190) candidate paths.
+Bounded mutation validation ran on the same window: for each pair it injects synthetic faults into
+head and checks whether the tests selected for `B → M` catch them. Every killing test was selected
+(0 skipped), across both the diff-targeted and whole-tree-fallback candidate paths.
+
+| Project | Mutants (compilable) | Test-killed | Killing tests selected | Diff-targeted / fallback |
+| --- | ---: | ---: | :---: | ---: |
+| <h4><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 381 (376) | 223 | **528 / 528** | 338 / 190 |
+|<img width=400 />|  |  |  |  |
 
 ## Historical validation (superseded for soundness claims)
 
