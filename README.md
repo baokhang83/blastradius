@@ -34,7 +34,7 @@ excluded as flaky.
 Bounded mutation validation ran on the same window: for each pair it injects synthetic faults into
 head and checks whether the tests selected catch them.
 
-| Project | Mutants (compilable) | Test-killed | Killing tests selected | Diff-targeted / fallback |
+| Project | Mutants (compilable) | Mutants caught | Killing tests selected | Diff-targeted / fallback |
 | --- | ---: | ---: | :---: | ---: |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 381 (376) | 223 | **528 / 528** | 338 / 190 |
 
