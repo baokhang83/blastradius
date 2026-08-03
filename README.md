@@ -18,8 +18,9 @@ no heuristics, no opaque score.
 
 ## Historical replay
 
-A 200-pair replay against apache/shenyu — the 200 most recent commits ending at `3a411e0`, each
-replayed as its own parent→commit diff — with bounded mutation validation enabled on the same run.
+A 200-pair replay against apache/shenyu — the 200 most recent commits, each
+replayed as the change it introduced over the commit before it — with bounded mutation validation
+enabled on the same run.
 The would-miss result is reported against real observed failures, so it is a soundness result: it
 counts tests that actually failed on a commit and would have been skipped.
 
