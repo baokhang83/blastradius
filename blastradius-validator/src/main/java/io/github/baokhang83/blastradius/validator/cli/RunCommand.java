@@ -142,7 +142,7 @@ public final class RunCommand {
             // -amd pair can run for the better part of an hour), and each completed experiment is
             // written here rather than held resident for the whole window.
             MutationCache mutationCache = config.mutationValidation() == null ? null
-                    : new MutationCache(mutationCacheDirectory(config.reportOutputPath()));
+                    : new MutationCache(mutationCacheDirectory(config.reportOutputPath()), config.skippedTests());
             try (CheckoutPool pool = CheckoutPool.of(config.projectPath(), scratchParent, concurrency)) {
                 // Phase 1 (expensive, now core-saturated): build every commit the window needs,
                 // concurrently across the pool of isolated clones, persisting each to the cache.
