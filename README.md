@@ -37,6 +37,18 @@ head and checks whether the tests selected for `B → M` catch them.
 | Project | Mutants (compilable) | Test-killed | Killing tests selected | Diff-targeted / fallback |
 | --- | ---: | ---: | :---: | ---: |
 | <h4><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 381 (376) | 223 | **528 / 528** | 338 / 190 |
+|<img width=400 />|  |  |  |  |
+
+The **528 / 528** is the soundness check, not a coverage figure: a "killing test" is one that
+actually caught an injected fault (passed on head, failed on the mutant, stayed failed on
+confirmation), so it is a test selection *must not* skip. Every one of the 528 was selected —
+across 223 killed mutants, selection dropped zero tests that could have caught the fault, which is
+exactly the false-PASS direction the tool is built to avoid. This is sampled evidence over the
+mutants generated, not a claim that every possible defect is covered.
+
+| Project | Mutants (compilable) | Test-killed | Killing tests selected | Diff-targeted / fallback |
+| --- | ---: | ---: | :---: | ---: |
+| <h4><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 381 (376) | 223 | **528 / 528** | 338 / 190 |
 
 ## How it works
 
