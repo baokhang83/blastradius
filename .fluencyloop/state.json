@@ -1,8 +1,10 @@
 {
-  "feature": "refactor-mutation-validation-into-historical-run-replay",
-  "branch": "feature/refactor-mutation-validation-into-historical-run-replay",
+  "feature": "parallelize-phase-2-bounded-mutation-validation-across-the-i",
+  "branch": "feature/parallelize-phase-2-bounded-mutation-validation-across-the-i",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/refactor-mutation-validation-into-historical-run-replay/sessions/replay-synthetic-mutations-within-every-historical-pair.md",
-  "base_ref": "main",
-  "updated": "2026-08-02"
+  "last_session": "docs/fluencyloop/features/parallelize-phase-2-bounded-mutation-validation-across-the-i/sessions/001-fan-phase-2-mutation-validation-across-the-idle-checkout.md",
+  "base_ref": "feature/target-mutation-candidates-at-each-pair-s-changed-source-fil",
+  "feature_dir": "",
+  "plan": "",
+  "updated": "2026-08-03"
 }
