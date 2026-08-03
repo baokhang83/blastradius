@@ -32,8 +32,7 @@ explicit observed-failure denominator (the failure-coverage columns), so it is a
 excluded as flaky. 
 
 Bounded mutation validation ran on the same window: for each pair it injects synthetic faults into
-head and checks whether the tests selected for `B → M` catch them. Every killing test was selected
-(0 skipped), across both the diff-targeted and whole-tree-fallback candidate paths.
+head and checks whether the tests selected for `B → M` catch them.
 
 | Project | Mutants (compilable) | Test-killed | Killing tests selected | Diff-targeted / fallback |
 | --- | ---: | ---: | :---: | ---: |
