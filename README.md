@@ -28,8 +28,7 @@ enabled on the same run.
 |<img width=400 />|  |  |  |  | **71.0%** |
 
 \* based on below bounded mutation validation.    
-\*\*`org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest#testHttpSyncDataService`
-was excluded as flaky.
+\*\*`org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was excluded as flaky.
 
 Bounded mutation validation ran on the same window: for each pair it injects synthetic faults into
 head and checks whether the tests selected catch them.
@@ -41,12 +40,6 @@ head and checks whether the tests selected catch them.
 A "killing test" is one that actually caught an injected fault (passed on head, failed on the mutant, stayed failed on
 confirmation), so it is a test the selection *must not* skip. Every one of the 943 was selected —
 across 872 injected faults, selection never skipped a test that would have caught one.
-
-Mutants are drawn from the code each pair actually changed ("diff-targeted"); when a pair changes no
-mutable production source, the validator falls back to a whole-tree scan rather than validating
-nothing, and the two pools are reported separately because they answer different questions. Of the
-872 generated, 791 were attempted (81 hit the run's mutation time budget) and 13 of those failed to
-compile, leaving 778 compilable mutants. 40 mutant failures were identified as flaky and excluded.
 
 ## How it works
 
