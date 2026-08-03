@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.core.git.FileKind;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import io.github.baokhang83.blastradius.validator.build.SkippedTests;
 import io.github.baokhang83.blastradius.validator.git.CommitPair;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -72,6 +73,23 @@ class MutationCacheTest {
         // Same pair and file, different token offset — a genuinely different mutant, so a miss.
         assertTrue(cache.load(pair, at42).isPresent());
         assertEquals(Optional.empty(), cache.load(pair, at99));
+    }
+
+    @Test
+    void aDifferentSkippedTestsConfigurationIsADistinctEntrySoTheSkipFlagStaysHonored(@TempDir Path dir) {
+        Path cacheDir = dir.resolve("cache");
+        CommitPair pair = pair();
+        MutationCandidate candidate = candidate();
+
+        MutationCache withoutSkips = new MutationCache(cacheDir);
+        withoutSkips.store(killed(pair, candidate));
+        assertTrue(withoutSkips.load(pair, candidate).isPresent());
+
+        // A run with --skipped-tests must not silently reuse an experiment computed without it —
+        // the skip list changes which tests actually run, so it must change the cache key too.
+        MutationCache withSkips = new MutationCache(
+                cacheDir, SkippedTests.parse(List.of("com.example.SlowTest")));
+        assertEquals(Optional.empty(), withSkips.load(pair, candidate));
     }
 
     @Test

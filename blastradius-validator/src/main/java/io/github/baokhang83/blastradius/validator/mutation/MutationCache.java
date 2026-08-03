@@ -1,6 +1,7 @@
 package io.github.baokhang83.blastradius.validator.mutation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.baokhang83.blastradius.validator.build.SkippedTests;
 import io.github.baokhang83.blastradius.validator.git.CommitPair;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -30,13 +31,20 @@ import java.util.Optional;
  *       every mutant's full test-identity lists resident for the whole window.</li>
  * </ul>
  *
- * <p><b>The cache key is the mutant's identity, not the bounding config.</b> A mutant is fully
- * described by its pair ({@code base -> head}) and its single-token source edit ({@code
- * sourcePath}, {@code offset}, {@code operator}, {@code original}, {@code replacement}); its build
- * outcome and selection comparison are deterministic given those. {@code --max-mutations-per-pair}
- * and the class filter change <em>which</em> candidates are generated, not the outcome of any one
- * of them — so they are deliberately kept out of the key, which maximises resume hits (a re-run
- * with a wider bound still reuses every mutant the narrower run already validated).
+ * <p><b>The cache key is the mutant's identity plus whatever changes its build outcome.</b> A
+ * mutant is fully described by its pair ({@code base -> head}) and its single-token source edit
+ * ({@code sourcePath}, {@code offset}, {@code operator}, {@code original}, {@code replacement});
+ * given those <em>and</em> the set of {@link SkippedTests} excluded from every target build, its
+ * build outcome and selection comparison are deterministic. {@code --max-mutations-per-pair} and
+ * the class filter change <em>which</em> candidates are generated, not the outcome of any one of
+ * them — so they are deliberately kept out of the key, which maximises resume hits (a re-run with
+ * a wider bound still reuses every mutant the narrower run already validated). {@code
+ * --skipped-tests} is different: it changes which tests actually run in the mutant's build, so it
+ * changes {@code killingTests}/{@code selectedKillingTests}/{@code skippedTests} on the resulting
+ * experiment — omitting it from the key would let a run with a different skip list silently reuse
+ * an experiment computed under the old one, making {@code --skipped-tests} appear to stop applying
+ * once entries exist on disk. It is folded into the key precisely so that changing it invalidates
+ * the affected entries instead of serving stale ones.
  *
  * <p><b>Only compilable outcomes are cached</b> (see {@link #store}). A {@code KILLED}/{@code
  * SURVIVED} experiment is the deterministic result of a build that ran to completion; an {@code
@@ -51,10 +59,21 @@ import java.util.Optional;
 public final class MutationCache {
 
     private final Path directory;
+    private final SkippedTests skippedTests;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public MutationCache(Path directory) {
+        this(directory, SkippedTests.none());
+    }
+
+    /**
+     * @param skippedTests the exclusions applied to every target build for this run — folded into
+     *                      the cache key (see the class note) so a run with a different skip list
+     *                      never reuses an experiment computed under a different one.
+     */
+    public MutationCache(Path directory, SkippedTests skippedTests) {
         this.directory = directory;
+        this.skippedTests = java.util.Objects.requireNonNull(skippedTests, "skippedTests");
     }
 
     /**
@@ -115,7 +134,8 @@ public final class MutationCache {
         String identity = String.join("\0",
                 pair.baseCommit(), pair.headCommit(), candidate.sourcePath(),
                 Integer.toString(candidate.offset()), candidate.operator().name(),
-                candidate.original(), candidate.replacement());
+                candidate.original(), candidate.replacement(),
+                String.join(",", skippedTests.classes()));
         return directory.resolve(sha256Hex(identity) + ".json");
     }
 
