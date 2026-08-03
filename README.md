@@ -24,7 +24,7 @@ the same run. Unlike the superseded windows below, the would-miss result is repo
 explicit observed-failure denominator (the failure-coverage columns), so it is a soundness result.
 
 | Project | Commit range | Commit pairs (excluded) | Would-miss | Test executions selected | Skipped |
-| --- | --- | :---: | ---: | ---: | ---: | ---: |
+| --- | --- | :---: | ---: | ---: | ---: |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | [`69cd1d5`](https://github.com/apache/shenyu/commit/69cd1d5721647a60007584983d96fc94452a4f6b) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | 200 (0) | **0\*** | 153,142 / 527,508 | **71.0%** |
 |<img width=400 />|  |  |  |  | **71.0%** |
 
