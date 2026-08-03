@@ -16,12 +16,12 @@ train something probabilistic on historical flakiness. Blastradius does neither:
 uses that real, per-test dependency map to decide what to run next time. No training data,
 no heuristics, no opaque score.
 
-## Historical replay (current edge semantics)
+## Historical replay
 
-A 200-pair replay against apache/shenyu under the current `ALL_PARENTS` edge semantics — every
-reported pair is a direct Git parent-to-child edge — with bounded mutation validation enabled on
-the same run. Unlike the superseded windows below, the would-miss result is reported against an
-explicit observed-failure denominator (the failure-coverage columns), so it is a soundness result.
+A 200-pair replay against apache/shenyu — the 200 most recent commits ending at `3a411e0`, each
+replayed as its own parent→commit diff — with bounded mutation validation enabled on the same run.
+The would-miss result is reported against real observed failures, so it is a soundness result: it
+counts tests that actually failed on a commit and would have been skipped.
 
 | Project | Commit range | Commit pairs (excluded) | Would-miss | Test executions selected | Skipped |
 | --- | --- | :---: | ---: | ---: | ---: |
