@@ -28,18 +28,18 @@ enabled on the same run.
 |<img width=400 />|  |  |  |  | **71.0%** |
 
 \* based on below bounded mutation validation.    
-\*\*`org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was
-excluded as flaky. 
+\*\*`org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was excluded as flaky.
 
 Bounded mutation validation ran on the same window: for each pair it injects synthetic faults into
 head and checks whether the tests selected catch them.
 
 | Project | Mutants (compilable) | Mutants caught | Killing tests selected | Diff-targeted / fallback |
 | --- | ---: | ---: | :---: | ---: |
-| <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 381 (376) | 223 | **528 / 528** | 338 / 190 |
+| <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 872 (778) | 339 | **943 / 943** | 686 / 257 |
 
 A "killing test" is one that actually caught an injected fault (passed on head, failed on the mutant, stayed failed on
-confirmation), so it is a test the selection *must not* skip. 
+confirmation), so it is a test the selection *must not* skip. Every one of the 943 was selected —
+across 872 injected faults, selection never skipped a test that would have caught one.
 
 ## How it works
 
@@ -59,9 +59,9 @@ confirmation), so it is a test the selection *must not* skip.
 
 | Module | What it is | Status |
 |---|---|---|
-| **[`blastradius-core`](blastradius-core)** | The shared engine — the dependency-tracking agent and the selection rules (dependency match, conservative fallback, always-select-new/modified). Built and proven first; reused unmodified by both modules below. | Complete, 41 tests |
-| **[`blastradius-maven-plugin`](blastradius-maven-plugin)** | **The product.** A real, installable `blastradius:select` Maven goal that gates CI by actually skipping tests during a live build. See its own [README](blastradius-maven-plugin/README.md) for adoption, configuration, and console output reference. | Complete, 46 tests |
-| **[`blastradius-validator`](blastradius-validator)** | The shadow-mode harness that produced the real-project numbers above — replays a project's own commit history, compares what would have been skipped against ground truth, and reports would-miss cases. Still here if you want to validate the mechanism against a project of your own before adopting the plugin. | Complete, 60 tests |
+| **[`blastradius-core`](blastradius-core)** | The shared engine — the dependency-tracking agent and the selection rules (dependency match, conservative fallback, always-select-new/modified). Built and proven first; reused unmodified by both modules below. | Complete, 118 tests |
+| **[`blastradius-maven-plugin`](blastradius-maven-plugin)** | **The product.** A real, installable `blastradius:select` Maven goal that gates CI by actually skipping tests during a live build. See its own [README](blastradius-maven-plugin/README.md) for adoption, configuration, and console output reference. | Complete, 79 tests |
+| **[`blastradius-validator`](blastradius-validator)** | The shadow-mode harness that produced the real-project numbers above — replays a project's own commit history, compares what would have been skipped against ground truth, and reports would-miss cases. Still here if you want to validate the mechanism against a project of your own before adopting the plugin. | Complete, 170 tests |
 
 ## Quick start
 
