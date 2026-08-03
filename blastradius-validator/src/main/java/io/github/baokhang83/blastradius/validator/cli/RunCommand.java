@@ -26,6 +26,8 @@ import io.github.baokhang83.blastradius.validator.selection.PairSelectionResult;
 import io.github.baokhang83.blastradius.validator.report.FailureCoverage;
 import io.github.baokhang83.blastradius.validator.git.PairStatus;
 import io.github.baokhang83.blastradius.validator.mutation.HistoricalMutationValidator;
+import io.github.baokhang83.blastradius.validator.mutation.HistoricalMutationValidator.PairMutationResult;
+import io.github.baokhang83.blastradius.validator.mutation.MutationCache;
 import io.github.baokhang83.blastradius.validator.mutation.MutationExperiment;
 import io.github.baokhang83.blastradius.validator.mutation.MutationValidationReport;
 import io.github.baokhang83.blastradius.validator.report.AnalysisReport;
@@ -47,11 +49,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * Wires the full pipeline together: for each commit pair in the resolved window, checks
@@ -133,27 +137,29 @@ public final class RunCommand {
             // bounds phase 1's heap — each build is written here and evicted from memory rather
             // than accumulated for the whole window (the OOM this fixes).
             BuildCache cache = new BuildCache(buildCacheDirectory(config.reportOutputPath()));
+            // Phase 2's analogue, beside the same report for the same reason: a run killed partway
+            // through mutation validation resumes past the mutants it already completed (a single
+            // -amd pair can run for the better part of an hour), and each completed experiment is
+            // written here rather than held resident for the whole window.
+            MutationCache mutationCache = config.mutationValidation() == null ? null
+                    : new MutationCache(mutationCacheDirectory(config.reportOutputPath()));
             try (CheckoutPool pool = CheckoutPool.of(config.projectPath(), scratchParent, concurrency)) {
                 // Phase 1 (expensive, now core-saturated): build every commit the window needs,
                 // concurrently across the pool of isolated clones, persisting each to the cache.
                 Map<BuildKey, BuildOutcome> outcomes =
                         buildAllCommits(window, config.fastGroundTruth(), agentJar, pool, executor, cache);
 
-                // Phase 2 (cheap, serial): select + compare per pair, loading each build from the
-                // cache on demand so the full payloads are never all resident at once.
+                // Phase 2: select + compare per pair (cheap), then bounded mutation validation
+                // (expensive) — fanned across the same pool phase 1 used, loading each build from
+                // the cache on demand so the full payloads are never all resident at once.
                 long mutationDeadlineNanos = config.mutationValidation() == null ? Long.MAX_VALUE
                         : System.nanoTime() + Duration.ofMinutes(config.mutationValidation().timeLimitMinutes()).toNanos();
-                AnalysisReport report = analyzeWindow(window, config, outcomes, cache, pool, mutationDeadlineNanos);
+                AnalysisReport report = analyzeWindow(
+                        window, config, outcomes, cache, mutationCache, pool, executor, mutationDeadlineNanos);
                 reportWriter.write(config.reportOutputPath(), report);
 
                 progress.summary(report.verdict().name(), System.currentTimeMillis() - runStart);
-                return switch (report.verdict()) {
-                    case PASS -> 0;
-                    case FAIL -> 1;
-                    // Distinct from 2, which means the tool itself errored (see the catch below):
-                    // this is a clean run that simply never confirmed a killed mutant.
-                    case INCONCLUSIVE -> 3;
-                };
+                return report.verdict() == Verdict.PASS ? 0 : 1;
             } finally {
                 executor.shutdownNow();
             }
@@ -189,14 +195,16 @@ public final class RunCommand {
     }
 
     /**
-     * Phase 2: the cheap per-pair selection + comparison, run serially over the already-built
-     * commits. Holds a single borrowed clone for the whole phase, used only to materialize a
-     * head tree when a pair actually needs a reactor scope (a NON_SOURCE change); since phase 1
-     * has finished, every clone is idle, so this borrow never blocks.
+     * Phase 2: per-pair selection + comparison plus bounded mutation validation, fanned across
+     * the same executor + clone pool phase 1 used. Each pair runs as its own task and borrows its
+     * own clone (§VII) for the duration; the pool — not the executor — throttles how many run at
+     * once. Tasks are submitted in window order and their futures drained in that same order, so
+     * the assembled report is deterministic regardless of which pair finishes first (§IV).
      */
     private AnalysisReport analyzeWindow(
             List<CommitPair> window, RunConfig config, Map<BuildKey, BuildOutcome> outcomes,
-            BuildCache cache, CheckoutPool pool, long mutationDeadlineNanos)
+            BuildCache cache, MutationCache mutationCache, CheckoutPool pool, ExecutorService executor,
+            long mutationDeadlineNanos)
             throws InterruptedException {
         List<CommitPair> analyzedPairs = new ArrayList<>();
         List<CommitPair> excludedPairs = new ArrayList<>();
@@ -210,67 +218,61 @@ public final class RunCommand {
         HistoricalMutationValidator mutationValidator = config.mutationValidation() == null
                 ? null : new HistoricalMutationValidator(groundTruthResolver);
         // Reactor scope per HEAD commit: a repeated head across the window repays neither the
-        // checkout nor the tree walk. Only populated for pairs with a NON_SOURCE change.
-        Map<String, ReactorScope> reactorScopeCache = new HashMap<>();
+        // checkout nor the tree walk. Only populated for pairs with a NON_SOURCE change. Concurrent
+        // because pairs run in parallel — computeIfAbsent keeps the repeated-head saving race-free.
+        Map<String, ReactorScope> reactorScopeCache = new ConcurrentHashMap<>();
 
-        CommitCheckout scopeCheckout = pool.borrow();
-        try {
-            int pairIndex = 0;
-            for (CommitPair pair : window) {
-                pairIndex++;
-                long pairStart = System.currentTimeMillis();
-                PairAnalysis analysis;
-                try {
-                    analysis = analyzePair(
-                            pair, config.projectPath(), outcomes, cache, config.fastGroundTruth(),
-                            scopeCheckout, reactorScopeCache);
-                } catch (Exception e) {
-                    analysis = excluded(pair, "analysis failed: " + e.getMessage());
-                }
-                if (analysis.pair().status() != PairStatus.EXCLUDED && mutationValidator != null) {
-                    try {
-                        CommitBuild base = cache.load(new BuildKey(pair.baseCommit(), true)).orElseThrow();
-                        CommitBuild head = cache.load(new BuildKey(pair.headCommit(), config.fastGroundTruth())).orElseThrow();
-                        HistoricalMutationValidator.PairMutationResult mutation = mutationValidator.validate(
-                                pair, base, head, scopeCheckout, config.mutationValidation(), mutationDeadlineNanos);
-                        mutationExperiments.addAll(mutation.experiments());
-                        generatedMutations += mutation.generated();
-                        timeLimitSkippedMutations += mutation.timeLimitSkipped();
-                    } catch (Exception e) {
-                        analysis = excluded(pair, "mutation validation failed: " + e.getMessage());
-                    }
-                }
-                long pairMillis = System.currentTimeMillis() - pairStart;
-                if (analysis.pair().status() == PairStatus.EXCLUDED) {
-                    excludedPairs.add(analysis.pair());
-                    progress.pairExcluded(pairIndex, window.size(), analysis.pair().exclusionReason());
-                } else {
-                    analyzedPairs.add(analysis.pair());
-                    allMisses.addAll(analysis.misses());
-                    allDecisions.addAll(analysis.decisions());
-                    allFlaky.addAll(analysis.flakyFailures());
-                    failureCoverage = failureCoverage.plus(analysis.failureCoverage());
-                    progress.pairCompleted(pairIndex, window.size(), analysis.misses().size(), pairMillis);
-                }
+        // Fan each pair out across the same executor + clone pool phase 1 used: while phase 1 is
+        // done, every clone sits idle, so per-pair mutation validation (the expensive part) reclaims
+        // them. The pool — not the executor — throttles concurrency (analyzeOnePair blocks on
+        // borrow() past pool size). Submit in window order; drain the futures in that same order so
+        // the report is folded deterministically regardless of which pair finishes first (§IV).
+        List<Future<PairOutcome>> futures = new ArrayList<>();
+        for (int i = 0; i < window.size(); i++) {
+            int index = i;
+            CommitPair pair = window.get(i);
+            futures.add(executor.submit(() -> analyzeOnePair(
+                    pair, index, config, outcomes, cache, mutationCache, pool, mutationValidator,
+                    reactorScopeCache, mutationDeadlineNanos)));
+        }
+        List<PairOutcome> pairOutcomes = new ArrayList<>();
+        for (Future<PairOutcome> future : futures) {
+            try {
+                pairOutcomes.add(future.get());
+            } catch (ExecutionException e) {
+                // analyzeOnePair converts every per-pair failure into an excluded PairOutcome and
+                // never throws, so an ExecutionException here can only be an unchecked error in the
+                // orchestration itself — abort the phase rather than mask it.
+                throw new IllegalStateException("unexpected failure while analyzing a commit pair", e.getCause());
             }
-        } finally {
-            pool.release(scopeCheckout);
+        }
+
+        for (PairOutcome outcome : pairOutcomes) {
+            PairAnalysis analysis = outcome.analysis();
+            if (outcome.mutation() != null) {
+                mutationExperiments.addAll(outcome.mutation().experiments());
+                generatedMutations += outcome.mutation().generated();
+                timeLimitSkippedMutations += outcome.mutation().timeLimitSkipped();
+            }
+            if (analysis.pair().status() == PairStatus.EXCLUDED) {
+                excludedPairs.add(analysis.pair());
+                progress.pairExcluded(outcome.index() + 1, window.size(), analysis.pair().exclusionReason());
+            } else {
+                analyzedPairs.add(analysis.pair());
+                allMisses.addAll(analysis.misses());
+                allDecisions.addAll(analysis.decisions());
+                allFlaky.addAll(analysis.flakyFailures());
+                failureCoverage = failureCoverage.plus(analysis.failureCoverage());
+                progress.pairCompleted(outcome.index() + 1, window.size(), analysis.misses().size(), outcome.millis());
+            }
         }
 
         Verdict historyVerdict = verdictCalculator.calculate(allMisses);
         MutationValidationReport mutationValidation = mutationValidator == null ? null
                 : MutationValidationReport.from(mutationExperiments, generatedMutations, timeLimitSkippedMutations);
-        // Precedence FAIL > INCONCLUSIVE > PASS: a confirmed miss always wins regardless of how
-        // much mutation evidence backs it, but absent that, an INCONCLUSIVE mutation leg (no
-        // mutant was actually killed) must not be swallowed into an unearned overall PASS (§III).
-        Verdict verdict;
-        if (historyVerdict == Verdict.FAIL || mutationValidation != null && mutationValidation.verdict() == Verdict.FAIL) {
-            verdict = Verdict.FAIL;
-        } else if (mutationValidation != null && mutationValidation.verdict() == Verdict.INCONCLUSIVE) {
-            verdict = Verdict.INCONCLUSIVE;
-        } else {
-            verdict = Verdict.PASS;
-        }
+        Verdict verdict = historyVerdict == Verdict.FAIL
+                || mutationValidation != null && mutationValidation.verdict() == Verdict.FAIL
+                ? Verdict.FAIL : Verdict.PASS;
         SavingsSummary savingsSummary = savingsSummaryAggregator.aggregate(allDecisions);
         return new AnalysisReport(verdict, config.historyMode(), analyzedPairs, excludedPairs, failureCoverage,
                 allMisses, allFlaky, savingsSummary, config.skippedTests().classes(), mutationValidation);
@@ -282,6 +284,58 @@ public final class RunCommand {
             FailureCoverage failureCoverage,
             List<SelectionDecision> decisions,
             List<FlakyFailure> flakyFailures) {}
+
+    /**
+     * One pair's fully-computed result, tagged with its {@code index} in the window so the
+     * report can be folded in window order regardless of which pair finished first (§IV).
+     * {@code mutation} is {@code null} when mutation validation is off or the pair was excluded
+     * before it ran. {@code millis} is the wall-clock this pair took, for the progress log.
+     */
+    private record PairOutcome(int index, PairAnalysis analysis, PairMutationResult mutation, long millis) {}
+
+    /**
+     * Computes one pair end-to-end on its own borrowed clone: selection analysis, then (unless the
+     * pair is excluded) bounded mutation validation. Borrowing a dedicated checkout per pair — not
+     * one shared for the whole phase — is what lets pairs run concurrently without stomping each
+     * other's working tree (§VII); the borrow blocks past pool size, so the pool itself throttles
+     * concurrency. Returns a self-contained {@link PairOutcome}; the caller folds it into the
+     * report. Never throws — an analysis or mutation failure becomes an excluded pair (FR-009).
+     */
+    private PairOutcome analyzeOnePair(
+            CommitPair pair, int index, RunConfig config, Map<BuildKey, BuildOutcome> outcomes,
+            BuildCache cache, MutationCache mutationCache, CheckoutPool pool,
+            HistoricalMutationValidator mutationValidator,
+            Map<String, ReactorScope> reactorScopeCache, long mutationDeadlineNanos)
+            throws InterruptedException {
+        long pairStart = System.currentTimeMillis();
+        CommitCheckout checkout = pool.borrow();
+        try {
+            PairAnalysis analysis;
+            try {
+                analysis = analyzePair(
+                        pair, config.projectPath(), outcomes, cache, config.fastGroundTruth(),
+                        checkout, reactorScopeCache);
+            } catch (Exception e) {
+                analysis = excluded(pair, "analysis failed: " + e.getMessage());
+            }
+            PairMutationResult mutation = null;
+            if (analysis.pair().status() != PairStatus.EXCLUDED && mutationValidator != null) {
+                try {
+                    CommitBuild base = cache.load(new BuildKey(pair.baseCommit(), true)).orElseThrow();
+                    CommitBuild head = cache.load(new BuildKey(pair.headCommit(), config.fastGroundTruth())).orElseThrow();
+                    mutation = mutationValidator.validate(
+                            pair, base, head, checkout, config.mutationValidation(),
+                            mutationDeadlineNanos, mutationCache);
+                } catch (Exception e) {
+                    analysis = excluded(pair, "mutation validation failed: " + e.getMessage());
+                    mutation = null;
+                }
+            }
+            return new PairOutcome(index, analysis, mutation, System.currentTimeMillis() - pairStart);
+        } finally {
+            pool.release(checkout);
+        }
+    }
 
     private PairAnalysis analyzePair(
             CommitPair pair, Path targetRepo, Map<BuildKey, BuildOutcome> outcomes, BuildCache cache,
@@ -413,9 +467,17 @@ public final class RunCommand {
      * cross-contaminating — a cache.
      */
     private static Path buildCacheDirectory(Path reportOutputPath) {
+        return cacheDirectory(reportOutputPath, ".blastradius-build-cache");
+    }
+
+    private static Path mutationCacheDirectory(Path reportOutputPath) {
+        return cacheDirectory(reportOutputPath, ".blastradius-mutation-cache");
+    }
+
+    private static Path cacheDirectory(Path reportOutputPath, String suffix) {
         Path report = reportOutputPath.toAbsolutePath();
         Path parent = report.getParent();
-        String name = report.getFileName().toString() + ".blastradius-build-cache";
+        String name = report.getFileName().toString() + suffix;
         return parent == null ? Path.of(name) : parent.resolve(name);
     }
 
