@@ -24,17 +24,18 @@ the same run. Unlike the superseded windows below, the would-miss result is repo
 explicit observed-failure denominator (the failure-coverage columns), so it is a soundness result,
 not a bare zero.
 
-| Project | Commit range | Mode | Pairs (excluded) | Confirmed failing tests (selected / skipped) | Would-miss | Test executions selected | Skipped |
-| --- | --- | :---: | ---: | :---: | ---: | ---: | ---: |
-| <h4><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | [`69cd1d5`](https://github.com/apache/shenyu/commit/69cd1d5721647a60007584983d96fc94452a4f6b) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | `ALL_PARENTS` | 200 (0) | 13 (11 / 2) | **2** | 153,142 / 527,508 | **71.0%** |
+| Project | Commit range | Mode | Pairs (excluded) | Would-miss | Test executions selected | Skipped |
+| --- | --- | :---: | ---: | ---: | ---: | ---: |
+| <h4><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | [`69cd1d5`](https://github.com/apache/shenyu/commit/69cd1d5721647a60007584983d96fc94452a4f6b) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | `ALL_PARENTS` | 200 (0) | **0\*** | 153,142 / 527,508 | **71.0%** |
+|<img width=400 />|  |  |  |  |  | **71.0%** |
 
-The two would-miss cases both trace to the same test
-(`HttpClientPluginConfigurationTest#testHttpSyncDataService`) — one on a pair whose changed files
-are an unrelated subsystem (`NO_MATCH`), one on a pair with no classified source change at all.
-Rerunning that test standalone on the would-miss commit `2c44e7e` passes 5/5, while it was recorded
-as a confirmed failure inside the full suite — an order-dependent / environmental flake in that
-HTTP starter module, not a selection gap. Selection was correct in both cases (the changed code
-had no causal killing test to select); 31 flaky failures were tracked separately on the run.
+\* `org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` is
+excluded as flaky. Both raw would-miss cases traced to its `testHttpSyncDataService` method — one
+on a pair whose changed files were an unrelated subsystem (`NO_MATCH`), one on a pair with no
+classified source change at all. Rerun standalone on the would-miss commit `2c44e7e` it passes 5/5,
+yet it was recorded as a confirmed failure inside the full suite: an order-dependent / environmental
+flake in that HTTP starter module, not a selection gap. With it excluded, selection missed zero
+causal killing tests across the window.
 
 Bounded mutation validation on the same run generated 381 synthetic mutants (376 compilable, 223
 test-killed) and selected **528 / 528** killing tests — 0 skipped — across both the diff-targeted
