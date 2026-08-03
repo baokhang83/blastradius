@@ -31,7 +31,8 @@ class MutationCacheTest {
 
     private static MutationExperiment killed(CommitPair pair, MutationCandidate candidate) {
         TestIdentity killer = new TestIdentity("com.example.FooTest", "detectsIt");
-        return new MutationExperiment(pair, candidate, "mutant1", MutationStatus.KILLED, null,
+        return new MutationExperiment(pair, candidate, MutationCandidateOrigin.DIFF_TARGETED, "mutant1",
+                MutationStatus.KILLED, null,
                 List.of(), List.of(killer), List.of(killer), List.of(), List.of());
     }
 
@@ -96,7 +97,8 @@ class MutationCacheTest {
         MutationCache cache = new MutationCache(dir.resolve("cache"));
         CommitPair pair = pair();
         MutationCandidate candidate = candidate();
-        MutationExperiment unbuildable = new MutationExperiment(pair, candidate, "mutant1",
+        MutationExperiment unbuildable = new MutationExperiment(pair, candidate,
+                MutationCandidateOrigin.DIFF_TARGETED, "mutant1",
                 MutationStatus.UNBUILDABLE, "mutant failed to build (exit 1)",
                 List.of(), List.of(), List.of(), List.of(), List.of());
 
