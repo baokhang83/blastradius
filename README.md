@@ -18,18 +18,19 @@ no heuristics, no opaque score.
 
 ## Historical replay
 
-A 200-pair replay against apache/shenyu — the 200 most recent commits, each
+A 200-pair replay against apache/shenyu — the 200 most recent commits ending at `3a411e0`, each
 replayed as the change it introduced over the commit before it — with bounded mutation validation
 enabled on the same run.
 The would-miss result is reported against real observed failures, so it is a soundness result: it
 counts tests that actually failed on a commit and would have been skipped.
 
-| Project | Commit range | Commit pairs (excluded) | Would-miss | Test executions selected | Skipped |
+| Project | Commit range | Commit pairs (excluded) | Would-miss* | Test executions selected | Skipped |
 | --- | --- | :---: | ---: | ---: | ---: |
-| <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | [`69cd1d5`](https://github.com/apache/shenyu/commit/69cd1d5721647a60007584983d96fc94452a4f6b) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | 200 (0) | **0\*** | 153,142 / 527,508 | **71.0%** |
+| <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | [`69cd1d5`](https://github.com/apache/shenyu/commit/69cd1d5721647a60007584983d96fc94452a4f6b) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | 200 (0) | **0\*\*** | 153,142 / 527,508 | **71.0%** |
 |<img width=400 />|  |  |  |  | **71.0%** |
 
-\* results based on below bounded mutation validation. `org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was
+\* results based on below bounded mutation validation. 
+\*\* `org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was
 excluded as flaky. 
 
 Bounded mutation validation ran on the same window: for each pair it injects synthetic faults into
