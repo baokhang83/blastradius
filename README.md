@@ -38,7 +38,6 @@ head and checks whether the tests selected for `B → M` catch them. Every killi
 | Project | Mutants (compilable) | Test-killed | Killing tests selected | Diff-targeted / fallback |
 | --- | ---: | ---: | :---: | ---: |
 | <h4><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 381 (376) | 223 | **528 / 528** | 338 / 190 |
-|<img width=400 />|  |  |  |  |
 
 ## Historical validation (superseded for soundness claims)
 
