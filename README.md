@@ -16,65 +16,30 @@ train something probabilistic on historical flakiness. Blastradius does neither:
 uses that real, per-test dependency map to decide what to run next time. No training data,
 no heuristics, no opaque score.
 
-## Historical validation (superseded for soundness claims)
+## Historical replay
 
-These four 300-pair analyses used the validator's former traversal-adjacency semantics: each
-reported pair was adjacent in a `RevWalk`, but was not necessarily a direct Git parent-to-child
-edge. They are retained as historical operational data, including their selection reductions,
-but are superseded as soundness evidence and must be rerun with the current edge semantics before
-being compared to new results.
+A 200-pair replay against apache/shenyu — the 200 most recent commits ending at `3a411e0`, each
+replayed as the change it introduced over the commit before it — with bounded mutation validation
+enabled on the same run.
 
-| Project | Commit range | Pairs analyzed (excluded) | Would-miss cases | Test executions selected | Skipped |
-| --- | --- | ---: | ---: | ---: | ---: |
-| <h4><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | [`ce3719d`](https://github.com/apache/shenyu/commit/ce3719d4d68cb51df0704a154fb1da8b2a1778ed) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | 300 (0) | 0 | 233,603 / 747,680 | **68.8%** |
-| <h4><a href="https://github.com/apache/commons-lang"><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/>commons-lang</a></h4>  | [`13c9949`](https://github.com/apache/commons-lang/commit/13c99492bf695b8ca378d0976919fcea10010c7f) → [`8f8f3b2`](https://github.com/apache/commons-lang/commit/8f8f3b26e8cb81e0879fc676068db1212652dcaf) | 300 (0) | 0 | 9,297,241 / 23,610,943 | **60.6%** |
-| <h4><a href="https://github.com/jhy/jsoup">jsoup</a></h4> | [`e10e04d`](https://github.com/jhy/jsoup/commit/e10e04da6c7d93daf5f74d449594cba7ea3683e3) → [`9d2241f`](https://github.com/jhy/jsoup/commit/9d2241ff467d03accbf902a650adc60513bf5c11) | 300 (0) | 0 | 304,060 / 536,850 | **43.4%** |
-| <h4><img width="20" height="20" align="center" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/httpcomponents-client">httpclient</a></h4> | [`d84079d`](https://github.com/apache/httpcomponents-client/commit/d84079d9fc1c252f4262d0246a0f012ac22f811e) → [`3b4ff29`](https://github.com/apache/httpcomponents-client/commit/3b4ff29208b307f141a1989cbf038941d445a72e) | 300 (0) | **13** | 282,351 / 670,643 | **57.9%** |
-|<img width=400 />|  |  |  |  | **57.7%** |
+| Project | Commit range | Commit pairs (excluded) | Would-miss* | Test executions selected | Skipped |
+| --- | --- | :---: | ---: | ---: | ---: |
+| <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | [`69cd1d5`](https://github.com/apache/shenyu/commit/69cd1d5721647a60007584983d96fc94452a4f6b) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | 200 (0) | **0\*\*** | 153,142 / 527,508 | **71.0%** |
+|<img width=400 />|  |  |  |  | **71.0%** |
 
-These historical windows are not a universal guarantee. Current validator reports identify their
-`ALL_PARENTS` or `FIRST_PARENT` replay mode and make the observed-failure denominator explicit;
-zero would-miss cases without that denominator are not a soundness result. Full suites remain the
-recommended daily safety net.
+\* based on below bounded mutation validation.    
+\*\*`org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was
+excluded as flaky. 
 
-## Controlled mutation validation
+Bounded mutation validation ran on the same window: for each pair it injects synthetic faults into
+head and checks whether the tests selected catch them.
 
-Historical replay can contain few newly confirmed failures. Add opt-in, bounded mutation
-validation to the same `run`: for every eligible historical pair `B → H`, it creates synthetic
-children `M` from `H`, runs their full suites, and checks whether the tests selected for `B → M`
-detect each controlled fault. It never changes the project working tree you point it at.
+| Project | Mutants (compilable) | Test-killed | Killing tests selected | Diff-targeted / fallback |
+| --- | ---: | ---: | :---: | ---: |
+| <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 381 (376) | 223 | **528 / 528** | 338 / 190 |
 
-```sh
-java -jar blastradius-validator/target/blastradius-validator-0.3.2.jar run \
-  --project-path ../your-maven-project \
-  --commits 300 \
-  --report-out report.json \
-  --mutation-validation \
-  --max-mutation-classes-per-pair 10 \
-  --max-mutations-per-pair 10 \
-  --mutation-time-limit-minutes 60
-```
-
-The first deterministic corpus inverts boolean literals and equality or relational operators in
-`src/main/java`. A killing test must pass on historical head `H`, fail on mutant `M`, and remain
-failed on confirmation. Unbuildable mutants, head-baseline failures, and flakes are reported
-separately and do not become soundness failures. This is sampled fault evidence, not a claim that
-all real changes or every possible defect are covered. Use the optional `--mutation-class <FQCN>`
-to focus the bounded per-pair corpus on one production class.
-
-### Excluding known flaky tests
-
-Both validator actions accept `--skipped-tests` with one or more comma-separated, fully qualified
-test-class names. The named tests are excluded from every target Maven build, including baseline,
-head, mutation, and confirmation runs. The JSON and text reports list them explicitly, so the
-result is clear about the test population it did not observe.
-
-```sh
---skipped-tests org.app.FlakyTest,org.app2.Flaky2Test
-```
-
-This is an opt-in evidence boundary, not a pass verdict for the skipped tests. Use exact class
-names only; method patterns and wildcard expressions are intentionally not accepted.
+A "killing test" is one that actually caught an injected fault (passed on head, failed on the mutant, stayed failed on
+confirmation), so it is a test the selection *must not* skip. 
 
 ## How it works
 
