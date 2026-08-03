@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>MutationCache.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.mutation</a> &gt; <span class="el_source">MutationCache.java</span></div><h1>MutationCache.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.mutation;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.baokhang83.blastradius.validator.git.CommitPair;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.Optional;
+
+/**
+ * A disk-backed cache of completed {@linkplain MutationExperiment mutant experiments}, the phase-2
+ * analogue of {@link io.github.baokhang83.blastradius.validator.build.BuildCache}. It serves the
+ * same two ends for the expensive part of phase 2 — the per-mutant {@code -pl/-am/-amd} Maven build
+ * inside {@link HistoricalMutationValidator#validate}:
+ *
+ * &lt;ul&gt;
+ *   &lt;li&gt;&lt;b&gt;Enables recovery.&lt;/b&gt; A single {@code -amd} pair can run for the better part of an hour;
+ *       a run killed partway through phase 2 (an OOM, a killed terminal) used to re-run every
+ *       mutant it had already validated. An experiment already on disk is returned straight from
+ *       the cache, so a resumed run picks up from the mutant it died on instead of the first.&lt;/li&gt;
+ *   &lt;li&gt;&lt;b&gt;Bounds memory.&lt;/b&gt; Writing each experiment here and letting the caller add it to the
+ *       report as it goes keeps the live set to what is actually in flight, rather than holding
+ *       every mutant's full test-identity lists resident for the whole window.&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;&lt;b&gt;The cache key is the mutant's identity, not the bounding config.&lt;/b&gt; A mutant is fully
+ * described by its pair ({@code base -&gt; head}) and its single-token source edit ({@code
+ * sourcePath}, {@code offset}, {@code operator}, {@code original}, {@code replacement}); its build
+ * outcome and selection comparison are deterministic given those. {@code --max-mutations-per-pair}
+ * and the class filter change &lt;em&gt;which&lt;/em&gt; candidates are generated, not the outcome of any one
+ * of them — so they are deliberately kept out of the key, which maximises resume hits (a re-run
+ * with a wider bound still reuses every mutant the narrower run already validated).
+ *
+ * &lt;p&gt;&lt;b&gt;Only compilable outcomes are cached&lt;/b&gt; (see {@link #store}). A {@code KILLED}/{@code
+ * SURVIVED} experiment is the deterministic result of a build that ran to completion; an {@code
+ * UNBUILDABLE} one is phase 2's analogue of a failed build — it recomputes fast (a compile failure
+ * fails in seconds) and could in principle reflect a transient build interruption, which cached
+ * would poison every later resume. Mirrors {@code BuildCache}'s &quot;only successful builds&quot; stance.
+ *
+ * &lt;p&gt;&lt;b&gt;Cache validity is the operator's responsibility&lt;/b&gt;, exactly as for {@code BuildCache}: the
+ * key fingerprints neither the target repository nor this tool's version. Point the run at a
+ * different repository or upgrade the tracking agent and you must clear the cache directory first.
+ */
+public final class MutationCache {
+
+    private final Path directory;
+<span class="fc" id="L54">    private final ObjectMapper mapper = new ObjectMapper();</span>
+
+<span class="fc" id="L56">    public MutationCache(Path directory) {</span>
+<span class="fc" id="L57">        this.directory = directory;</span>
+<span class="fc" id="L58">    }</span>
+
+    /**
+     * Reads back a previously {@linkplain #store stored} experiment for this candidate on this
+     * pair, or {@link Optional#empty()} if none is cached — or if the cached file is
+     * unreadable/corrupt (a crash could, absent the atomic write below, have left a truncated
+     * file). Treating a corrupt entry as a miss lets the caller re-run the mutant rather than
+     * crash the run on a bad cache.
+     */
+    public Optional&lt;MutationExperiment&gt; load(CommitPair pair, MutationCandidate candidate) {
+<span class="fc" id="L68">        Path file = fileFor(pair, candidate);</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">        if (!Files.isRegularFile(file)) {</span>
+<span class="fc" id="L70">            return Optional.empty();</span>
+        }
+        try {
+<span class="fc" id="L73">            return Optional.of(mapper.readValue(file.toFile(), MutationExperiment.class));</span>
+<span class="fc" id="L74">        } catch (IOException | RuntimeException e) {</span>
+<span class="fc" id="L75">            return Optional.empty();</span>
+        }
+    }
+
+    /**
+     * Persists a completed experiment under its mutant identity. Written atomically — to a temp
+     * file, then moved into place — so a crash mid-write can never leave a half-written file a
+     * later resume would read as valid evidence. Rejects an {@code UNBUILDABLE} experiment:
+     * unbuildable mutants are intentionally not cached (see the class note).
+     */
+    public void store(MutationExperiment experiment) {
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        if (experiment.status() == MutationStatus.UNBUILDABLE) {</span>
+<span class="fc" id="L87">            throw new IllegalArgumentException(</span>
+                    &quot;only compilable experiments are cached; refusing to cache an unbuildable mutant&quot;);
+        }
+        try {
+<span class="fc" id="L91">            Files.createDirectories(directory);</span>
+<span class="fc" id="L92">            Path tmp = Files.createTempFile(directory, &quot;mutant-&quot;, &quot;.json.tmp&quot;);</span>
+<span class="fc" id="L93">            mapper.writeValue(tmp.toFile(), experiment);</span>
+<span class="fc" id="L94">            moveIntoPlace(tmp, fileFor(experiment.historicalPair(), experiment.mutation()));</span>
+<span class="nc" id="L95">        } catch (IOException e) {</span>
+<span class="nc" id="L96">            throw new UncheckedIOException(&quot;failed to write mutation cache entry&quot;, e);</span>
+<span class="fc" id="L97">        }</span>
+<span class="fc" id="L98">    }</span>
+
+    private static void moveIntoPlace(Path tmp, Path target) throws IOException {
+        try {
+<span class="fc" id="L102">            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);</span>
+<span class="nc" id="L103">        } catch (AtomicMoveNotSupportedException e) {</span>
+            // Some filesystems can't do an atomic move; a plain replace is the best available.
+<span class="nc" id="L105">            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);</span>
+<span class="fc" id="L106">        }</span>
+<span class="fc" id="L107">    }</span>
+
+    /**
+     * A collision-resistant filename derived from the mutant's full identity. The parts contain
+     * slashes and arbitrary source tokens, so they are hashed rather than used as a path; a NUL
+     * separator keeps the fields unambiguous (no source token or path contains a NUL byte).
+     */
+    private Path fileFor(CommitPair pair, MutationCandidate candidate) {
+<span class="fc" id="L115">        String identity = String.join(&quot;\0&quot;,</span>
+<span class="fc" id="L116">                pair.baseCommit(), pair.headCommit(), candidate.sourcePath(),</span>
+<span class="fc" id="L117">                Integer.toString(candidate.offset()), candidate.operator().name(),</span>
+<span class="fc" id="L118">                candidate.original(), candidate.replacement());</span>
+<span class="fc" id="L119">        return directory.resolve(sha256Hex(identity) + &quot;.json&quot;);</span>
+    }
+
+    private static String sha256Hex(String value) {
+        try {
+<span class="fc" id="L124">            byte[] digest = MessageDigest.getInstance(&quot;SHA-256&quot;).digest(value.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L125">            return HexFormat.of().formatHex(digest);</span>
+<span class="nc" id="L126">        } catch (NoSuchAlgorithmException e) {</span>
+<span class="nc" id="L127">            throw new IllegalStateException(&quot;SHA-256 unavailable&quot;, e);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
