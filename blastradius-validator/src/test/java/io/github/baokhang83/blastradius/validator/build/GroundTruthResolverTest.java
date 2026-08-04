@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.baokhang83.blastradius.core.testsupport.FixtureProjectBuilder;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -161,6 +162,80 @@ class GroundTruthResolverTest {
 
         assertEquals(Outcome.PASSED, outcomeOf(results, "com.example.a.WidgetTest", "passes"));
         assertEquals(Outcome.PASSED, outcomeOf(results, "com.example.b.DownstreamTest", "seesWidget"));
+    }
+
+    @Test
+    void manyFailuresAreConfirmedInOneRerunNotOnePerFailure(@TempDir Path projectDir) throws Exception {
+        // The mutation-validation bottleneck this batching exists for. A synthetic mutant in a
+        // low-level class fails a large slice of the suite (244 tests observed on jsoup's
+        // StringUtil), and confirmFailure used to launch one whole `mvn` per failure — ~27 per
+        // mutant on average, turning a pair into hours. Batching makes it one rerun regardless
+        // of how many tests failed, while every test still gets its own confirming execution.
+        //
+        // Counted by JVM identity rather than by mocking the runner: each `mvn test` gets its own
+        // Surefire fork, so the number of distinct pids that ran a test IS the number of Maven
+        // invocations — which is precisely the cost being removed.
+        Path forkLog = projectDir.resolve("forks.txt");
+        String forkLogLiteral = forkLog.toAbsolutePath().toString().replace("\\", "\\\\");
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        for (String name : List.of("One", "Two", "Three", "Four")) {
+            fixture.writeTest("com.example.Fails" + name + "Test", """
+                    package com.example;
+                    import org.junit.jupiter.api.Test;
+                    import java.nio.file.*;
+                    import static org.junit.jupiter.api.Assertions.fail;
+                    class Fails%sTest {
+                        @Test
+                        void alwaysFails() throws Exception {
+                            Files.writeString(Path.of("%s"),
+                                    ProcessHandle.current().pid() + "\\n",
+                                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                            fail("deliberate, deterministic failure");
+                        }
+                    }
+                    """.formatted(name, forkLogLiteral));
+        }
+        fixture.commit("initial");
+
+        List<GroundTruthResult> results = resolver.resolve(projectDir, null, null).results();
+
+        // Every failure still individually confirmed — the evidence is unchanged...
+        for (String name : List.of("One", "Two", "Three", "Four")) {
+            assertEquals(Outcome.CONFIRMED_FAILED,
+                    outcomeOf(results, "com.example.Fails" + name + "Test", "alwaysFails"));
+        }
+        // ...but the initial suite run plus ONE batched confirmation rerun means two JVMs ran
+        // tests. One rerun per failure would be five.
+        long distinctForks = Files.readAllLines(forkLog).stream().filter(line -> !line.isBlank()).distinct().count();
+        assertEquals(2, distinctForks,
+                "expected the full run + one batched rerun; per-failure reruns would be 5 forks");
+    }
+
+    @Test
+    void aRunWithNoFailuresLaunchesNoConfirmationRerunAtAll(@TempDir Path projectDir) throws Exception {
+        Path forkLog = projectDir.resolve("forks.txt");
+        String forkLogLiteral = forkLog.toAbsolutePath().toString().replace("\\", "\\\\");
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        fixture.writeTest("com.example.PassesTest", """
+                package com.example;
+                import org.junit.jupiter.api.Test;
+                import java.nio.file.*;
+                class PassesTest {
+                    @Test
+                    void passes() throws Exception {
+                        Files.writeString(Path.of("%s"),
+                                ProcessHandle.current().pid() + "\\n",
+                                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                    }
+                }
+                """.formatted(forkLogLiteral));
+        fixture.commit("initial");
+
+        resolver.resolve(projectDir, null, null);
+
+        // Nothing failed, so there is nothing to confirm: exactly one JVM ever ran a test.
+        long distinctForks = Files.readAllLines(forkLog).stream().filter(line -> !line.isBlank()).distinct().count();
+        assertEquals(1, distinctForks, "a clean run must launch no confirmation rerun at all");
     }
 
     private static Outcome outcomeOf(List<GroundTruthResult> results, String className, String methodName) {

@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Invokes a target project's own {@code mvn test} as a subprocess — never reimplementing
@@ -179,14 +180,42 @@ public final class MavenBuildRunner {
      *                   lives in)
      */
     public BuildResult runSingleTest(Path projectDir, TestIdentity test, Path moduleDir) {
-        String selector = test.methodName() == null
-                ? test.className()
-                : test.className() + "#" + test.methodName();
+        return runTests(projectDir, List.of(test), moduleDir);
+    }
+
+    /**
+     * Confirms a whole batch of failures in a <em>single</em> {@code mvn} invocation, by naming
+     * every test in one comma-separated {@code -Dtest=} selector. Surefire reads that as "run each
+     * of these", and each named test still executes in the same forked-JVM isolation it would get
+     * if it were named alone — so the per-test verdict is identical to N separate reruns, while the
+     * process count drops from N to 1.
+     *
+     * <p>That difference is the whole point. Mutation validation confirms every test a mutant broke,
+     * and a mutant in a low-level class breaks a large slice of the suite (244 tests observed on a
+     * single jsoup {@code StringUtil} mutant, ~27 on average). One {@code mvn} per failure made a
+     * mutant cost tens of minutes and a pair cost hours; one {@code mvn} per <em>mutant</em> makes
+     * that a single rerun regardless of how wide the blast radius was.
+     *
+     * @param tests the failures to confirm — must be non-empty, since an absent {@code -Dtest=}
+     *              selector means "run the entire suite", the opposite of what a rerun wants
+     * @param moduleDir the reactor module containing {@code tests}, or {@code null} to run unscoped;
+     *                  callers group by module so one batch never spans two {@code -pl} scopes
+     */
+    public BuildResult runTests(Path projectDir, List<TestIdentity> tests, Path moduleDir) {
+        if (tests.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "refusing to rerun an empty batch: with no -Dtest= selector Maven runs the whole suite");
+        }
+        String selector = tests.stream().map(MavenBuildRunner::selectorFor).collect(Collectors.joining(","));
         // clean=false: this rerun happens on the same checkout the caller already built
         // once (run()) before any confirmFailure call — see the note on the private
         // command() overload for why skipping clean here is safe and, at N+1 rerun
         // scale, the difference between minutes and hours per candidate.
         return execute(projectDir, command(selector, relativeModulePath(projectDir, moduleDir), false), null, null);
+    }
+
+    private static String selectorFor(TestIdentity test) {
+        return test.methodName() == null ? test.className() : test.className() + "#" + test.methodName();
     }
 
     /**

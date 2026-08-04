@@ -245,6 +245,62 @@ class MavenBuildRunnerTest {
     }
 
     @Test
+    void aBatchOfTestsBecomesOneCommaSeparatedSelector() {
+        // One mvn invocation for N failures instead of N invocations. Surefire treats a
+        // comma-separated -Dtest= as "run each of these", and each still runs in the same
+        // forked-JVM isolation it got when it was named alone — so the per-test verdict is
+        // unchanged while the process count drops from N to 1.
+        assertArrayEquals(
+                new String[] {
+                    MavenLauncher.resolve(), "-B", "--no-transfer-progress", "test",
+                    "-Dtest=com.example.FooTest#passes,com.example.BarTest#fails",
+                    "-DfailIfNoTests=false", "-Dsurefire.failIfNoSpecifiedTests=false",
+                    "-pl", "moduleB", "-am"
+                },
+                new MavenBuildRunner().command(
+                        "com.example.FooTest#passes,com.example.BarTest#fails", "moduleB", false));
+    }
+
+    @Test
+    void batchedRerunRunsEveryNamedTestInOneInvocation(@TempDir Path projectDir) {
+        // The behavioural half of the batching change: three failures confirmed by ONE mvn
+        // call must each actually execute, or confirmFailure would read back no report and
+        // misclassify a genuine failure as flaky.
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        for (String name : List.of("Alpha", "Beta", "Gamma")) {
+            fixture.writeTest("com.example." + name + "Test", """
+                    package com.example;
+                    import org.junit.jupiter.api.Test;
+                    import static org.junit.jupiter.api.Assertions.assertTrue;
+                    class %sTest {
+                        @Test
+                        void runs() {
+                            assertTrue(true);
+                        }
+                    }
+                    """.formatted(name));
+        }
+        fixture.commit("initial");
+
+        BuildResult result = runner.runTests(projectDir, List.of(
+                new TestIdentity("com.example.AlphaTest", "runs"),
+                new TestIdentity("com.example.BetaTest", "runs"),
+                new TestIdentity("com.example.GammaTest", "runs")), null);
+
+        assertEquals(0, result.exitCode(), "batched rerun should succeed:\n" + result.output());
+        assertTrue(result.output().contains("Tests run: 3"),
+                "all three named tests should run in the one invocation:\n" + result.output());
+    }
+
+    @Test
+    void anEmptyBatchIsNotRunAtAllRatherThanBecomingAFullSuiteRun() {
+        // Guards the dangerous degenerate case: an empty selector would mean "-Dtest=" absent,
+        // i.e. run EVERYTHING. A batch with no tests must do nothing instead.
+        assertThrows(IllegalArgumentException.class,
+                () -> new MavenBuildRunner().runTests(Path.of("."), List.of(), null));
+    }
+
+    @Test
     void fullSuiteCommandCarriesExplicitNegativeTestSelectors() {
         SkippedTests skipped = SkippedTests.parse(List.of("org.app.FlakyTest,org.app2.Flaky2Test"));
 
