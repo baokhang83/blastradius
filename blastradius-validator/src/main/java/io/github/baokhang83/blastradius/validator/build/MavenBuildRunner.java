@@ -258,11 +258,18 @@ public final class MavenBuildRunner {
 
             Set<ProcessHandle> descendants =
                     awaitDescendantsWhileAlive(process, Duration.ofMinutes(timeoutMinutes));
-            outputReader.join();
-
-            if (process.isAlive()) {
+            // A timed-out process is still alive here, so its stdout pipe is still open and
+            // outputReader.join() below would block on it forever — the kill must happen
+            // before the join, not after, or the deadline above never actually terminates
+            // anything (found running 14+ hours past a 60-minute budget in practice).
+            boolean timedOut = process.isAlive();
+            if (timedOut) {
                 process.destroyForcibly();
                 descendants.forEach(ProcessHandle::destroyForcibly);
+            }
+            outputReader.join();
+
+            if (timedOut) {
                 throw new IllegalStateException(
                         "mvn test timed out against " + projectDir + " after " + timeoutMinutes + "m");
             }
