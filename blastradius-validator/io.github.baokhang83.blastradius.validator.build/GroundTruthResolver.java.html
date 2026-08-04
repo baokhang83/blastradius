@@ -9,7 +9,9 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,25 +27,33 @@ import java.util.Map;
  */
 public final class GroundTruthResolver {
 
+    /**
+     * Ceiling on the joined {@code -Dtest=} selector's length, in characters. Windows caps a command
+     * line at ~32 KB and Linux caps the whole argument block at ~128 KB, so this leaves ample room
+     * for the rest of the {@code mvn} invocation while still fitting the widest blast radius observed
+     * (244 tests ≈ 12 KB) in a single rerun.
+     */
+    private static final int MAX_SELECTOR_LENGTH = 16_000;
+
     private final MavenBuildRunner buildRunner;
     private final SurefireReportParser reportParser;
 
     public GroundTruthResolver() {
-<span class="fc" id="L32">        this(new MavenBuildRunner(), new SurefireReportParser());</span>
-<span class="fc" id="L33">    }</span>
+<span class="fc" id="L42">        this(new MavenBuildRunner(), new SurefireReportParser());</span>
+<span class="fc" id="L43">    }</span>
 
     /** Shares one {@link MavenBuildRunner} (e.g. its {@code -T} setting) with a caller's own. */
     public GroundTruthResolver(MavenBuildRunner buildRunner) {
-<span class="fc" id="L37">        this(buildRunner, new SurefireReportParser());</span>
-<span class="fc" id="L38">    }</span>
+<span class="fc" id="L47">        this(buildRunner, new SurefireReportParser());</span>
+<span class="fc" id="L48">    }</span>
 
-<span class="fc" id="L40">    GroundTruthResolver(MavenBuildRunner buildRunner, SurefireReportParser reportParser) {</span>
-<span class="fc" id="L41">        this.buildRunner = buildRunner;</span>
-<span class="fc" id="L42">        this.reportParser = reportParser;</span>
-<span class="fc" id="L43">    }</span>
+<span class="fc" id="L50">    GroundTruthResolver(MavenBuildRunner buildRunner, SurefireReportParser reportParser) {</span>
+<span class="fc" id="L51">        this.buildRunner = buildRunner;</span>
+<span class="fc" id="L52">        this.reportParser = reportParser;</span>
+<span class="fc" id="L53">    }</span>
 
     public GroundTruthResolution resolve(Path projectDir, Path agentJar, Path dependencyRecordOutputFile) {
-<span class="fc" id="L46">        return resolve(projectDir, agentJar, dependencyRecordOutputFile, null);</span>
+<span class="fc" id="L56">        return resolve(projectDir, agentJar, dependencyRecordOutputFile, null);</span>
     }
 
     /**
@@ -56,27 +66,93 @@ public final class GroundTruthResolver {
      */
     public GroundTruthResolution resolve(
             Path projectDir, Path agentJar, Path dependencyRecordOutputFile, String modulePath) {
-<span class="fc" id="L59">        BuildResult initialBuild = buildRunner.run(projectDir, agentJar, dependencyRecordOutputFile, modulePath);</span>
-<span class="fc" id="L60">        Map&lt;TestIdentity, Path&gt; moduleByTest = new HashMap&lt;&gt;();</span>
-<span class="fc" id="L61">        Map&lt;TestIdentity, Boolean&gt; initialResults = parseAllReports(projectDir, moduleByTest);</span>
+<span class="fc" id="L69">        BuildResult initialBuild = buildRunner.run(projectDir, agentJar, dependencyRecordOutputFile, modulePath);</span>
+<span class="fc" id="L70">        Map&lt;TestIdentity, Path&gt; moduleByTest = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L71">        Map&lt;TestIdentity, Boolean&gt; initialResults = parseAllReports(projectDir, moduleByTest);</span>
 
-<span class="fc" id="L63">        List&lt;GroundTruthResult&gt; results = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L64" title="All 2 branches covered.">        for (Map.Entry&lt;TestIdentity, Boolean&gt; entry : initialResults.entrySet()) {</span>
-<span class="fc" id="L65">            TestIdentity test = entry.getKey();</span>
-<span class="fc" id="L66">            boolean passed = entry.getValue();</span>
-<span class="fc bfc" id="L67" title="All 2 branches covered.">            if (passed) {</span>
-<span class="fc" id="L68">                results.add(new GroundTruthResult(test, Outcome.PASSED));</span>
-<span class="fc" id="L69">                continue;</span>
-            }
-<span class="fc" id="L71">            results.add(new GroundTruthResult(test, confirmFailure(projectDir, test, moduleByTest.get(test))));</span>
-<span class="fc" id="L72">        }</span>
-<span class="fc" id="L73">        return new GroundTruthResolution(initialBuild, results);</span>
+<span class="fc" id="L73">        Map&lt;TestIdentity, Outcome&gt; confirmed = confirmFailures(projectDir, initialResults, moduleByTest);</span>
+<span class="fc" id="L74">        List&lt;GroundTruthResult&gt; results = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        for (Map.Entry&lt;TestIdentity, Boolean&gt; entry : initialResults.entrySet()) {</span>
+<span class="fc" id="L76">            TestIdentity test = entry.getKey();</span>
+<span class="fc" id="L77">            results.add(new GroundTruthResult(</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">                    test, entry.getValue() ? Outcome.PASSED : confirmed.get(test)));</span>
+<span class="fc" id="L79">        }</span>
+<span class="fc" id="L80">        return new GroundTruthResolution(initialBuild, results);</span>
     }
 
-    private Outcome confirmFailure(Path projectDir, TestIdentity test, Path moduleDir) {
-<span class="fc" id="L77">        buildRunner.runSingleTest(projectDir, test, moduleDir);</span>
-<span class="fc" id="L78">        Boolean confirmedPassed = parseAllReports(projectDir, new HashMap&lt;&gt;()).get(test);</span>
-<span class="fc bfc" id="L79" title="All 2 branches covered.">        return Boolean.TRUE.equals(confirmedPassed) ? Outcome.FLAKY : Outcome.CONFIRMED_FAILED;</span>
+    /**
+     * Re-runs every failure to tell a genuine failure apart from a flaky one (FR-013), batching them
+     * so the number of {@code mvn} invocations tracks the number of &lt;em&gt;modules&lt;/em&gt; that failed, not
+     * the number of failing tests. Verdicts are unchanged: each named test still runs, and each is
+     * still judged only by its own freshly-overwritten report.
+     *
+     * &lt;p&gt;Batching is what makes mutation validation tractable. A mutant in a low-level class fails a
+     * wide slice of the suite (~27 tests on average, 244 at the extreme on jsoup), and one {@code mvn}
+     * per failure meant tens of minutes per mutant.
+     *
+     * @return the confirmed outcome for each failing test in {@code initialResults}; passing tests
+     *         are absent, since they are never rerun
+     */
+    private Map&lt;TestIdentity, Outcome&gt; confirmFailures(
+            Path projectDir, Map&lt;TestIdentity, Boolean&gt; initialResults, Map&lt;TestIdentity, Path&gt; moduleByTest) {
+        // Grouped by module because a batch becomes one -pl-scoped build: mixing modules would
+        // either widen the scope to the whole reactor or drop the tests outside it. LinkedHashMap
+        // (and the sort within each group) keeps the rerun order a function of the failures alone,
+        // so a re-run of the same window issues the same builds in the same order (§IV).
+<span class="fc" id="L102">        Map&lt;Path, List&lt;TestIdentity&gt;&gt; failuresByModule = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L103">        initialResults.entrySet().stream()</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">                .filter(entry -&gt; !entry.getValue())</span>
+<span class="fc" id="L105">                .map(Map.Entry::getKey)</span>
+<span class="fc" id="L106">                .sorted(Comparator.comparing(TestIdentity::className)</span>
+<span class="fc" id="L107">                        .thenComparing(TestIdentity::methodName, Comparator.nullsFirst(Comparator.naturalOrder())))</span>
+<span class="fc" id="L108">                .forEach(test -&gt; failuresByModule</span>
+<span class="fc" id="L109">                        .computeIfAbsent(moduleByTest.get(test), module -&gt; new ArrayList&lt;&gt;())</span>
+<span class="fc" id="L110">                        .add(test));</span>
+
+<span class="fc" id="L112">        Map&lt;TestIdentity, Outcome&gt; confirmed = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L113">        failuresByModule.forEach((moduleDir, failures) -&gt; {</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">            for (List&lt;TestIdentity&gt; batch : batched(failures)) {</span>
+<span class="fc" id="L115">                buildRunner.runTests(projectDir, batch, moduleDir);</span>
+<span class="fc" id="L116">                Map&lt;TestIdentity, Boolean&gt; rerunResults = parseAllReports(projectDir, new HashMap&lt;&gt;());</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">                for (TestIdentity test : batch) {</span>
+                    // Absent from the rerun's reports means the test never ran (e.g. its module
+                    // failed to compile), which is not evidence of flakiness — treat it as the
+                    // failure the full run already observed (§III).
+<span class="fc bfc" id="L121" title="All 2 branches covered.">                    confirmed.put(test, Boolean.TRUE.equals(rerunResults.get(test))</span>
+<span class="fc" id="L122">                            ? Outcome.FLAKY</span>
+<span class="fc" id="L123">                            : Outcome.CONFIRMED_FAILED);</span>
+<span class="fc" id="L124">                }</span>
+<span class="fc" id="L125">            }</span>
+<span class="fc" id="L126">        });</span>
+<span class="fc" id="L127">        return confirmed;</span>
+    }
+
+    /**
+     * Splits {@code failures} into batches whose joined {@code -Dtest=} selector stays within
+     * {@link #MAX_SELECTOR_LENGTH}. Without a bound, a wide mutant's 244-test selector would build a
+     * command line past the OS argument limit and the rerun would fail outright rather than run
+     * slowly — so the cap is a correctness guard, not a tuning knob. Even at the extreme it costs a
+     * handful of invocations instead of one per failure.
+     */
+    private static List&lt;List&lt;TestIdentity&gt;&gt; batched(List&lt;TestIdentity&gt; failures) {
+<span class="fc" id="L138">        List&lt;List&lt;TestIdentity&gt;&gt; batches = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L139">        List&lt;TestIdentity&gt; current = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L140">        int length = 0;</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">        for (TestIdentity test : failures) {</span>
+<span class="fc" id="L142">            int cost = test.className().length()</span>
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">                    + (test.methodName() == null ? 0 : test.methodName().length() + 1) + 1;</span>
+<span class="pc bpc" id="L144" title="1 of 4 branches missed.">            if (!current.isEmpty() &amp;&amp; length + cost &gt; MAX_SELECTOR_LENGTH) {</span>
+<span class="nc" id="L145">                batches.add(current);</span>
+<span class="nc" id="L146">                current = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L147">                length = 0;</span>
+            }
+<span class="fc" id="L149">            current.add(test);</span>
+<span class="fc" id="L150">            length += cost;</span>
+<span class="fc" id="L151">        }</span>
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">        if (!current.isEmpty()) {</span>
+<span class="fc" id="L153">            batches.add(current);</span>
+        }
+<span class="fc" id="L155">        return batches;</span>
     }
 
     /**
@@ -85,44 +161,44 @@ public final class GroundTruthResolver {
      *                     scope its rerun instead of walking the whole reactor
      */
     private Map&lt;TestIdentity, Boolean&gt; parseAllReports(Path projectDir, Map&lt;TestIdentity, Path&gt; moduleByTest) {
-<span class="fc" id="L88">        Map&lt;TestIdentity, Boolean&gt; merged = new HashMap&lt;&gt;();</span>
-<span class="fc bfc" id="L89" title="All 2 branches covered.">        for (Path reportsDir : findReportsDirectories(projectDir)) {</span>
-<span class="fc" id="L90">            Map&lt;TestIdentity, Boolean&gt; parsed = reportParser.parse(reportsDir);</span>
-<span class="fc" id="L91">            merged.putAll(parsed);</span>
+<span class="fc" id="L164">        Map&lt;TestIdentity, Boolean&gt; merged = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">        for (Path reportsDir : findReportsDirectories(projectDir)) {</span>
+<span class="fc" id="L166">            Map&lt;TestIdentity, Boolean&gt; parsed = reportParser.parse(reportsDir);</span>
+<span class="fc" id="L167">            merged.putAll(parsed);</span>
             // &lt;module&gt;/target/surefire-reports -&gt; target -&gt; module root.
-<span class="fc" id="L93">            Path moduleDir = reportsDir.getParent().getParent();</span>
-<span class="fc" id="L94">            parsed.keySet().forEach(test -&gt; moduleByTest.put(test, moduleDir));</span>
-<span class="fc" id="L95">        }</span>
-<span class="fc" id="L96">        return merged;</span>
+<span class="fc" id="L169">            Path moduleDir = reportsDir.getParent().getParent();</span>
+<span class="fc" id="L170">            parsed.keySet().forEach(test -&gt; moduleByTest.put(test, moduleDir));</span>
+<span class="fc" id="L171">        }</span>
+<span class="fc" id="L172">        return merged;</span>
     }
 
     private static List&lt;Path&gt; findReportsDirectories(Path projectDir) {
-<span class="fc" id="L100">        List&lt;Path&gt; reportDirs = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L176">        List&lt;Path&gt; reportDirs = new ArrayList&lt;&gt;();</span>
         try {
             // walkFileTree pruning .git: reports live under target/, so that can't be skipped,
             // but .git holds no reports and (on a big repo) is the largest tree — not descending
             // it is the win. This scan runs after every build AND every confirmFailure rerun,
             // so its cost is paid many times per pair.
-<span class="fc" id="L106">            Files.walkFileTree(projectDir, new SimpleFileVisitor&lt;&gt;() {</span>
+<span class="fc" id="L182">            Files.walkFileTree(projectDir, new SimpleFileVisitor&lt;&gt;() {</span>
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-<span class="pc bpc" id="L109" title="1 of 2 branches missed.">                    String name = dir.getFileName() == null ? &quot;&quot; : dir.getFileName().toString();</span>
-<span class="fc bfc" id="L110" title="All 2 branches covered.">                    if (&quot;.git&quot;.equals(name)) {</span>
-<span class="fc" id="L111">                        return FileVisitResult.SKIP_SUBTREE;</span>
+<span class="pc bpc" id="L185" title="1 of 2 branches missed.">                    String name = dir.getFileName() == null ? &quot;&quot; : dir.getFileName().toString();</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">                    if (&quot;.git&quot;.equals(name)) {</span>
+<span class="fc" id="L187">                        return FileVisitResult.SKIP_SUBTREE;</span>
                     }
-<span class="pc bpc" id="L113" title="1 of 4 branches missed.">                    if (name.equals(&quot;surefire-reports&quot;) || name.equals(&quot;failsafe-reports&quot;)) {</span>
-<span class="fc" id="L114">                        reportDirs.add(dir);</span>
+<span class="pc bpc" id="L189" title="1 of 4 branches missed.">                    if (name.equals(&quot;surefire-reports&quot;) || name.equals(&quot;failsafe-reports&quot;)) {</span>
+<span class="fc" id="L190">                        reportDirs.add(dir);</span>
                         // A reports dir contains only report files — no nested reports dir — so
                         // there's nothing to gain from descending into it.
-<span class="fc" id="L117">                        return FileVisitResult.SKIP_SUBTREE;</span>
+<span class="fc" id="L193">                        return FileVisitResult.SKIP_SUBTREE;</span>
                     }
-<span class="fc" id="L119">                    return FileVisitResult.CONTINUE;</span>
+<span class="fc" id="L195">                    return FileVisitResult.CONTINUE;</span>
                 }
             });
-<span class="nc" id="L122">        } catch (IOException e) {</span>
-<span class="nc" id="L123">            throw new UncheckedIOException(&quot;failed to scan for test reports under &quot; + projectDir, e);</span>
-<span class="fc" id="L124">        }</span>
-<span class="fc" id="L125">        return reportDirs;</span>
+<span class="nc" id="L198">        } catch (IOException e) {</span>
+<span class="nc" id="L199">            throw new UncheckedIOException(&quot;failed to scan for test reports under &quot; + projectDir, e);</span>
+<span class="fc" id="L200">        }</span>
+<span class="fc" id="L201">        return reportDirs;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

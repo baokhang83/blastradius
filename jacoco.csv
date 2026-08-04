@@ -68,7 +68,7 @@ coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,SurefireReportParser,18,151,0,18,4,36,0,15,0,6
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResult,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,CommitBuild,0,31,0,0,0,3,0,3,0,3
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,MavenBuildRunner,64,440,10,34,13,104,9,35,1,21
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,MavenBuildRunner,64,464,10,36,12,107,9,38,1,23
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,TransientBuildFailureDetector,2,28,1,1,1,4,1,2,0,2
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,BuildCache.CachedBuild,0,21,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,CommitBuildService.BuildKey,0,9,0,0,0,1,0,1,0,1
@@ -81,7 +81,7 @@ coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,BuildOutcome,0,24,0,0,0,4,0,4,0,4
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,BuildCache,22,195,1,15,4,42,1,16,0,9
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,Outcome,0,21,0,0,0,4,0,1,0,1
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResolver,9,187,0,8,2,37,0,13,0,9
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,GroundTruthResolver,21,326,3,21,5,67,3,23,0,14
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand.PairAnalysis,0,18,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,ProgressLogger,4,209,1,13,1,48,2,22,1,16
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunConfig,42,170,1,15,8,28,4,12,3,5
