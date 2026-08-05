@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.core.git.FileKind;
+import io.github.baokhang83.blastradius.core.selection.SelectionReason;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.validator.build.GroundTruthResult;
@@ -36,6 +37,25 @@ class PairSelectionAnalyzerTest {
         assertTrue(result.decisions().getFirst().selected());
         assertEquals(1, result.failureComparison().coverage().newlyConfirmedFailingTests());
         assertEquals(1, result.failureComparison().coverage().selectedNewlyConfirmedFailures());
+        assertTrue(result.failureComparison().wouldMissCases().isEmpty());
+    }
+
+    @Test
+    void selectsAChangedDirectInvocationTargetByDefault() {
+        TestIdentity test = new TestIdentity("com.example.SelectorTest", "usesCachedQuery");
+        List<ChangedFile> changedFiles = List.of(new ChangedFile(
+                "src/main/java/com/example/QueryParser.java", FileKind.JAVA_SOURCE, "com.example.QueryParser"));
+        DependencyRecordSet baseline = new DependencyRecordSet(
+                Map.of(test, Map.of("com.example.Selector", "checksum")),
+                Map.of(test, Map.of("com.example.Selector", Set.of("com.example.QueryParser"))), Set.of());
+        CommitPair edge = CommitPair.analyzed("base", "head", changedFiles);
+
+        PairSelectionResult result = analyzer.analyze(
+                edge, baseline,
+                List.of(new GroundTruthResult(test, Outcome.PASSED)),
+                List.of(new GroundTruthResult(test, Outcome.CONFIRMED_FAILED)), null);
+
+        assertEquals(SelectionReason.DIRECT_INVOCATION_REFERENCE, result.decisions().getFirst().reason());
         assertTrue(result.failureComparison().wouldMissCases().isEmpty());
     }
 }

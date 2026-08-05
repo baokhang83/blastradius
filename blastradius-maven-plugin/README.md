@@ -109,6 +109,7 @@ separate page for each goal, including `help-mojo.html` and `select-mojo.html`.
 | `s3Endpoint` | `-Ds3Endpoint` | — | no | Optional S3-compatible endpoint, for example MinIO. Path-style access is enabled when supplied. |
 | — | `-Dblastradius.mode=track` | — | no | Force `TRACK` regardless of what commit you're on — for explicitly pre-warming the index outside an ordinary trunk build. |
 | — | `-Dblastradius.explain=true` | `false` | no | Print the full per-test decision listing to the console, not just the aggregate summary. |
+| — | `-Dblastradius.directInvocationFallback=false` | `true` | no | Disable the enabled-by-default one-hop fallback for a project class a test executed that directly invokes a changed class. It can conservatively select an extra test and reports both classes with `blastradius.explain`. |
 
 `indexPath` is one shared index namespace for the whole reactor (see
 [Multi-module reactors](#multi-module-reactors)) — configure it once at the root; every

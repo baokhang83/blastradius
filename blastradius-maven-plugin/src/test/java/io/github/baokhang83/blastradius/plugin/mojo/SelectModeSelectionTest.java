@@ -11,7 +11,9 @@ import io.github.baokhang83.blastradius.core.selection.SelectionReason;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDependencyEntry;
+import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDirectInvocationEntry;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -66,5 +68,25 @@ class SelectModeSelectionTest {
         assertEquals(1, decisions.size());
         assertFalse(decisions.get(0).selected());
         assertEquals(SelectionReason.NO_MATCH, decisions.get(0).reason());
+    }
+
+    @Test
+    void selectsAnExecutedSourceClassWithAChangedDirectInvocationTarget() {
+        TestIdentity selectorTest = new TestIdentity("com.example.SelectorTest", "parsesQuery");
+        DependencyIndex index = new DependencyIndex("abc123", "2026-07-09T10:00:00Z",
+                List.of(new TestDependencyEntry(selectorTest, Set.of("com.example.Selector"))),
+                List.of(new TestDirectInvocationEntry(
+                        selectorTest, Map.of("com.example.Selector", Set.of("com.example.QueryParser")))),
+                Set.of());
+        List<ChangedFile> changedFiles = List.of(new ChangedFile(
+                "src/main/java/com/example/QueryParser.java", FileKind.JAVA_SOURCE, "com.example.QueryParser"));
+
+        SelectionDecision defaultDecision = SelectMojo.computeDecisions(Set.of(selectorTest), index, changedFiles).getFirst();
+        SelectionDecision disabledDecision = SelectMojo.computeDecisions(Set.of(selectorTest), index, changedFiles, false).getFirst();
+
+        assertEquals(SelectionReason.DIRECT_INVOCATION_REFERENCE, defaultDecision.reason());
+        assertEquals(SelectionReason.NO_MATCH, disabledDecision.reason());
+        assertEquals("com.example.Selector", defaultDecision.directInvocationSourceClass());
+        assertEquals("com.example.QueryParser", defaultDecision.matchedChangedClass());
     }
 }

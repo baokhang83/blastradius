@@ -33,11 +33,20 @@ public final class DependencyRecordWriter {
 
     public void write(Path outputFile, Map<TestIdentity, Map<String, String>> recordedDependencies,
             Set<String> ambientDependencies) {
+        write(outputFile, recordedDependencies, Map.of(), ambientDependencies);
+    }
+
+    public void write(Path outputFile, Map<TestIdentity, Map<String, String>> recordedDependencies,
+            Map<TestIdentity, Map<String, Set<String>>> directInvocations, Set<String> ambientDependencies) {
         List<DependencyRecord> records = recordedDependencies.entrySet().stream()
                 .map(entry -> new DependencyRecord(entry.getKey(), entry.getValue()))
                 .toList();
+        List<DirectInvocationRecord> directInvocationRecords = directInvocations.entrySet().stream()
+                .map(entry -> new DirectInvocationRecord(entry.getKey(), entry.getValue()))
+                .toList();
         try {
-            mapper.writeValue(outputFile.toFile(), new DependencyRecordFile(records, ambientDependencies));
+            mapper.writeValue(outputFile.toFile(), new DependencyRecordFile(
+                    records, directInvocationRecords, ambientDependencies));
         } catch (IOException e) {
             throw new UncheckedIOException("failed to write dependency record to " + outputFile, e);
         }

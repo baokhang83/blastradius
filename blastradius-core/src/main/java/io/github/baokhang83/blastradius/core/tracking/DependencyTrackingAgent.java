@@ -104,6 +104,8 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
 
     private final Supplier<TestIdentity> currentTestSupplier;
     private final Map<TestIdentity, Map<String, String>> checksumsByTest = new ConcurrentHashMap<>();
+    private final Map<TestIdentity, Map<String, Set<String>>> directInvocationOwnersByTest = new ConcurrentHashMap<>();
+    private final Map<String, Set<String>> directInvocationOwnersByClass = new ConcurrentHashMap<>();
     private final Set<String> ambientDependencies = ConcurrentHashMap.newKeySet();
     private final Set<String> pendingAmbientRetransformations = ConcurrentHashMap.newKeySet();
     private final Set<String> transformedAmbientClasses = ConcurrentHashMap.newKeySet();
@@ -150,7 +152,8 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         if (agentArgs != null && !agentArgs.isBlank()) {
             Path outputFile = Path.of(agentArgs + "." + ProcessHandle.current().pid());
             Runtime.getRuntime().addShutdownHook(new Thread(() -> runShutdownHook(
-                    outputFile, agent::recordedDependencies, agent::ambientDependencies,
+                    outputFile, agent::recordedDependencies, agent::directInvocationOwnersByTest,
+                    agent::ambientDependencies,
                     new DependencyRecordWriter())));
         }
     }
@@ -167,10 +170,16 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
      */
     static void runShutdownHook(Path outputFile, Supplier<Map<TestIdentity, Map<String, String>>> recordedDependencies,
             Supplier<Set<String>> ambientDependencies, DependencyRecordWriter writer) {
+        runShutdownHook(outputFile, recordedDependencies, Map::of, ambientDependencies, writer);
+    }
+
+    static void runShutdownHook(Path outputFile, Supplier<Map<TestIdentity, Map<String, String>>> recordedDependencies,
+            Supplier<Map<TestIdentity, Map<String, Set<String>>>> directInvocations,
+            Supplier<Set<String>> ambientDependencies, DependencyRecordWriter writer) {
         try {
             Map<TestIdentity, Map<String, String>> recorded = recordedDependencies.get();
             if (!recorded.isEmpty()) {
-                writer.write(outputFile, recorded, ambientDependencies.get());
+                writer.write(outputFile, recorded, directInvocations.get(), ambientDependencies.get());
             }
         } catch (Throwable t) {
             try {
@@ -197,6 +206,8 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
                 byte[] instrumented = ambientClassInstrumenter.instrument(dottedClassName, classfileBuffer, loader);
                 if (instrumented != null) {
                     ambientChecksums.put(dottedClassName, sha256Hex(classfileBuffer));
+                    directInvocationOwnersByClass.put(
+                            dottedClassName, ambientClassInstrumenter.directInvocationOwners(classfileBuffer));
                     transformedAmbientClasses.add(dottedClassName);
                 }
                 return instrumented;
@@ -225,6 +236,8 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
                     instrumented = ambientClassInstrumenter.instrument(dottedClassName, classfileBuffer, loader);
                     if (instrumented != null) {
                         ambientChecksums.put(dottedClassName, checksum);
+                        directInvocationOwnersByClass.put(
+                                dottedClassName, ambientClassInstrumenter.directInvocationOwners(classfileBuffer));
                     }
                 } catch (RuntimeException ignored) {
                     // Stays uninstrumented, same as any class the instrumenter can't rewrite.
@@ -301,6 +314,13 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
             checksumsByTest
                     .computeIfAbsent(currentTest, ignored -> new ConcurrentHashMap<>())
                     .putIfAbsent(className, checksum);
+            Set<String> directOwners = directInvocationOwnersByClass.get(className);
+            if (directOwners != null && !directOwners.isEmpty()) {
+                directInvocationOwnersByTest
+                        .computeIfAbsent(currentTest, ignored -> new ConcurrentHashMap<>())
+                        .computeIfAbsent(className, ignored -> ConcurrentHashMap.newKeySet())
+                        .addAll(directOwners);
+            }
         }
     }
 
@@ -473,6 +493,15 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
                         Map.Entry::getKey, e -> Map.copyOf(e.getValue())));
     }
 
+    /** Immutable snapshot of {@code test -> executed source class -> direct invocation owners}. */
+    public Map<TestIdentity, Map<String, Set<String>>> directInvocationOwnersByTest() {
+        return directInvocationOwnersByTest.entrySet().stream()
+                .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                        Map.Entry::getKey,
+                        test -> test.getValue().entrySet().stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
+                                Map.Entry::getKey, source -> Set.copyOf(source.getValue())))));
+    }
+
     /** Class names loaded before the first test's tracking window opened in this fork. */
     public Set<String> ambientDependencies() {
         return Set.copyOf(ambientDependencies);
@@ -528,13 +557,25 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
 
     void unionContainerDependenciesForTests(TestIdentity container, Set<TestIdentity> memberTests) {
         Map<String, String> containerDependencies = checksumsByTest.remove(container);
-        if (containerDependencies == null || containerDependencies.isEmpty()) {
+        Map<String, Set<String>> containerDirectInvocations = directInvocationOwnersByTest.remove(container);
+        boolean hasDependencies = containerDependencies != null && !containerDependencies.isEmpty();
+        boolean hasDirectInvocations = containerDirectInvocations != null && !containerDirectInvocations.isEmpty();
+        if (!hasDependencies && !hasDirectInvocations) {
             return;
         }
         for (TestIdentity test : memberTests) {
-            Map<String, String> testDependencies =
-                    checksumsByTest.computeIfAbsent(test, ignored -> new ConcurrentHashMap<>());
-            containerDependencies.forEach(testDependencies::putIfAbsent);
+            if (hasDependencies) {
+                Map<String, String> testDependencies =
+                        checksumsByTest.computeIfAbsent(test, ignored -> new ConcurrentHashMap<>());
+                containerDependencies.forEach(testDependencies::putIfAbsent);
+            }
+            if (hasDirectInvocations) {
+                Map<String, Set<String>> testDirectInvocations =
+                        directInvocationOwnersByTest.computeIfAbsent(test, ignored -> new ConcurrentHashMap<>());
+                containerDirectInvocations.forEach((source, owners) -> testDirectInvocations
+                        .computeIfAbsent(source, ignored -> ConcurrentHashMap.newKeySet())
+                        .addAll(owners));
+            }
         }
     }
 

@@ -8,9 +8,11 @@ import io.github.baokhang83.blastradius.core.index.FileIndexStore;
 import io.github.baokhang83.blastradius.core.index.IndexStore;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDependencyEntry;
+import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDirectInvocationEntry;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -59,6 +61,24 @@ class DependencyIndexIoTest {
 
         assertEquals(Set.of("com.example.Foo"), byTest.get(fooTest));
         assertEquals(Set.of("com.example.Bar"), byTest.get(barTest));
+    }
+
+    @Test
+    void directInvocationsRoundTripAndRemainKeyedByTestIdentity(@TempDir Path tempDir) {
+        IndexStore<DependencyIndex> store = new FileIndexStore<>(tempDir, DependencyIndex.class);
+        TestIdentity selectorTest = new TestIdentity("com.example.SelectorTest", "parsesQuery");
+        DependencyIndex original = new DependencyIndex(
+                "a1b2c3d", "2026-07-09T10:03:00Z", List.of(),
+                List.of(new TestDirectInvocationEntry(
+                        selectorTest, Map.of("com.example.Selector", Set.of("com.example.QueryParser")))), Set.of());
+
+        store.put("direct.json", original);
+        DependencyIndex roundTripped = store.get("direct.json").orElseThrow();
+
+        assertEquals(original, roundTripped);
+        assertEquals(Set.of("com.example.QueryParser"), roundTripped.directInvocationsByTest()
+                .get(selectorTest)
+                .get("com.example.Selector"));
     }
 
     @Test

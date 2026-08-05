@@ -135,6 +135,16 @@ See [`blastradius-maven-plugin/README.md`](blastradius-maven-plugin/README.md) f
 configuration reference, what each build mode (`TRACK`/`SELECT`/`FALLBACK`) prints, and how
 to set it up in CI.
 
+### Cached string-dispatch fallback
+
+Format-3 indexes also retain direct method-owner references for project classes that a test
+actually executed. This can recover a dependency hidden when a cached string API skips its parser,
+but it is intentionally class-level conservative and may select an extra test. It is **on by
+default**: a fresh format-3 index uses this safety net automatically. Disable it for a comparison
+with Maven `-Dblastradius.directInvocationFallback=false`, or Gradle
+`directInvocationFallback = false` in the `blastradius` block. Explain output names both the
+executed source class and changed target for every such selection.
+
 ### Sharing indexes across CI runners
 
 By default, indexes stay under the workspace's `.blastradius/` directory. That directory is a
@@ -252,7 +262,8 @@ Full text and rationale: [`.specify/memory/constitution.md`](.specify/memory/con
 
 ## Known limitations
 
-- A class reached only through a **string-dispatched API** may go unattributed:
+- A class reached only through a **string-dispatched API** can still be unattributed when it is not
+  a direct invocation target of an executed project class:
   if the call is `select("div > p")` and the parse behind it sits on a cached path, the calling test
   never records a load of the parser it truly depends on. Measured, not hypothetical — this is what
   left 750 `QueryParser`-dependent tests unselected in the jsoup replay above. It bites hardest

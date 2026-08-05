@@ -98,6 +98,27 @@ final class AmbientClassInstrumenter {
         return changed.get() ? writer.toByteArray() : null;
     }
 
+    /** Direct method-invocation owner types declared by this class, collected without executing it. */
+    Set<String> directInvocationOwners(byte[] bytecode) {
+        Set<String> owners = new HashSet<>();
+        new ClassReader(bytecode).accept(new ClassVisitor(Opcodes.ASM9) {
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String descriptor, String signature,
+                    String[] exceptions) {
+                MethodVisitor delegate = super.visitMethod(access, name, descriptor, signature, exceptions);
+                return new MethodVisitor(Opcodes.ASM9, delegate) {
+                    @Override
+                    public void visitMethodInsn(int opcode, String owner, String name, String descriptor,
+                            boolean isInterface) {
+                        owners.add(owner.replace('/', '.'));
+                        super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
+                    }
+                };
+            }
+        }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+        return Set.copyOf(owners);
+    }
+
     /**
      * Computes target-project stack-map-frame hierarchy relationships from class-file resources
      * rather than {@link Class#forName(String, boolean, ClassLoader)}. A transformer runs while

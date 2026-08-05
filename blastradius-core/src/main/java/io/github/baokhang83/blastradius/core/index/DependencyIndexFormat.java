@@ -4,7 +4,7 @@ package io.github.baokhang83.blastradius.core.index;
 public final class DependencyIndexFormat {
 
     /** The version emitted for every newly tracked dependency index. */
-    public static final int CURRENT_VERSION = 2;
+    public static final int CURRENT_VERSION = 3;
 
     private static final int LEGACY_UNVERSIONED_VERSION = 0;
 

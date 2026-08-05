@@ -10,6 +10,7 @@ import io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDependencyEntry;
+import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDirectInvocationEntry;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -204,7 +205,11 @@ final class EndToEndTestSupport {
         List<TestDependencyEntry> entries = recorded.tests().entrySet().stream()
                 .map(e -> new TestDependencyEntry(e.getKey(), e.getValue().keySet()))
                 .toList();
-        return new DependencyIndex(anchorCommit, Instant.now().toString(), entries, recorded.ambientDependencies());
+        List<TestDirectInvocationEntry> directInvocations = recorded.directInvocations().entrySet().stream()
+                .map(e -> new TestDirectInvocationEntry(e.getKey(), e.getValue()))
+                .toList();
+        return new DependencyIndex(
+                anchorCommit, Instant.now().toString(), entries, directInvocations, recorded.ambientDependencies());
     }
 
     static void writeIndex(Path projectDir, DependencyIndex index) {

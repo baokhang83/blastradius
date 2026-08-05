@@ -11,6 +11,9 @@ public abstract class BlastradiusExtension {
     /** Root-relative index-file template; each resolved commit receives its own key. */
     public abstract Property<String> getIndexPath();
 
+    /** Controls the enabled-by-default one-hop direct-invocation fallback in format-3 indexes. */
+    public abstract Property<Boolean> getDirectInvocationFallback();
+
     /** Selects the local file store or the shared S3-compatible store. */
     public abstract Property<String> getIndexStore();
 

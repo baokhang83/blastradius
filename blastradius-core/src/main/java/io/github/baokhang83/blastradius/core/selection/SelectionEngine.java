@@ -24,6 +24,7 @@ public final class SelectionEngine {
     private final AmbientDependencySelector ambientDependencySelector = new AmbientDependencySelector();
     private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();
     private final DependencyMatchSelector dependencyMatchSelector = new DependencyMatchSelector();
+    private final DirectInvocationReferenceSelector directInvocationReferenceSelector = new DirectInvocationReferenceSelector();
 
     /**
      * @param allTests           every test in the suite
@@ -39,7 +40,19 @@ public final class SelectionEngine {
             Set<TestIdentity> newOrModifiedTests,
             List<ChangedFile> changedFiles,
             Set<String> ambientDependencies) {
-        return selectAll(allTests, testDependencies, newOrModifiedTests, changedFiles, ambientDependencies, null);
+        return selectAll(allTests, testDependencies, Map.of(), newOrModifiedTests, changedFiles, ambientDependencies, null);
+    }
+
+    /** As {@link #selectAll(Set, Map, Set, List, Set)}, with optional one-hop direct references. */
+    public List<SelectionDecision> selectAll(
+            Set<TestIdentity> allTests,
+            Map<TestIdentity, Set<String>> testDependencies,
+            Map<TestIdentity, Map<String, Set<String>>> directInvocationOwnersByTest,
+            Set<TestIdentity> newOrModifiedTests,
+            List<ChangedFile> changedFiles,
+            Set<String> ambientDependencies) {
+        return selectAll(allTests, testDependencies, directInvocationOwnersByTest, newOrModifiedTests,
+                changedFiles, ambientDependencies, null);
     }
 
     /**
@@ -51,6 +64,19 @@ public final class SelectionEngine {
     public List<SelectionDecision> selectAll(
             Set<TestIdentity> allTests,
             Map<TestIdentity, Set<String>> testDependencies,
+            Set<TestIdentity> newOrModifiedTests,
+            List<ChangedFile> changedFiles,
+            Set<String> ambientDependencies,
+        ReactorScope reactorScope) {
+        return selectAll(allTests, testDependencies, Map.of(), newOrModifiedTests, changedFiles,
+                ambientDependencies, reactorScope);
+    }
+
+    /** As the reactor-aware overload, with optional one-hop direct references. */
+    public List<SelectionDecision> selectAll(
+            Set<TestIdentity> allTests,
+            Map<TestIdentity, Set<String>> testDependencies,
+            Map<TestIdentity, Map<String, Set<String>>> directInvocationOwnersByTest,
             Set<TestIdentity> newOrModifiedTests,
             List<ChangedFile> changedFiles,
             Set<String> ambientDependencies,
@@ -89,7 +115,13 @@ public final class SelectionEngine {
                 continue;
             }
             Set<String> dependencies = testDependencies.getOrDefault(test.baselineKey(), Set.of());
-            decisions.add(dependencyMatchSelector.select(test, dependencies, changedClassNames));
+            SelectionDecision directMatch = dependencyMatchSelector.select(test, dependencies, changedClassNames);
+            if (directMatch.selected()) {
+                decisions.add(directMatch);
+                continue;
+            }
+            decisions.add(directInvocationReferenceSelector.select(
+                    test, directInvocationOwnersByTest.getOrDefault(test.baselineKey(), Map.of()), changedClassNames));
         }
         return decisions;
     }

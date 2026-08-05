@@ -28,7 +28,10 @@ public final class DependencyRecordReader {
             DependencyRecordFile file = mapper.readValue(inputFile.toFile(), DependencyRecordFile.class);
             Map<TestIdentity, Map<String, String>> tests = file.tests().stream()
                     .collect(Collectors.toUnmodifiableMap(DependencyRecord::test, DependencyRecord::dependencies));
-            return new DependencyRecordSet(tests, file.ambientDependencies());
+            Map<TestIdentity, Map<String, Set<String>>> directInvocations = file.directInvocations().stream()
+                    .collect(Collectors.toUnmodifiableMap(
+                            DirectInvocationRecord::test, DirectInvocationRecord::sourceToTargetClasses));
+            return new DependencyRecordSet(tests, directInvocations, file.ambientDependencies());
         } catch (IOException e) {
             throw new UncheckedIOException("failed to read dependency record from " + inputFile, e);
         }
@@ -55,6 +58,7 @@ public final class DependencyRecordReader {
         Path parent = baseOutputFile.toAbsolutePath().getParent();
         String prefix = baseOutputFile.getFileName().toString() + ".";
         Map<TestIdentity, Map<String, String>> mergedTests = new HashMap<>();
+        Map<TestIdentity, Map<String, Set<String>>> mergedDirectInvocations = new HashMap<>();
         Set<String> mergedAmbient = new HashSet<>();
         List<String> crashReasons = new ArrayList<>();
         boolean foundAny = false;
@@ -71,6 +75,8 @@ public final class DependencyRecordReader {
                     combined.putAll(newClasses);
                     return combined;
                 }));
+                sibling.directInvocations().forEach((test, sources) -> mergedDirectInvocations.merge(
+                        test, sources, DependencyRecordReader::mergeDirectInvocations));
                 mergedAmbient.addAll(sibling.ambientDependencies());
             }
         } catch (IOException e) {
@@ -92,7 +98,27 @@ public final class DependencyRecordReader {
         for (TestIdentity test : mergedTests.keySet()) {
             mergedAmbient.remove(test.className());
         }
-        return new DependencyRecordSet(Map.copyOf(mergedTests), Set.copyOf(mergedAmbient));
+        return new DependencyRecordSet(
+                Map.copyOf(mergedTests), immutableDirectInvocations(mergedDirectInvocations), Set.copyOf(mergedAmbient));
+    }
+
+    private static Map<String, Set<String>> mergeDirectInvocations(
+            Map<String, Set<String>> first, Map<String, Set<String>> second) {
+        Map<String, Set<String>> merged = new HashMap<>(first);
+        second.forEach((source, targets) -> merged.merge(source, targets, (left, right) -> {
+            Set<String> union = new HashSet<>(left);
+            union.addAll(right);
+            return union;
+        }));
+        return merged;
+    }
+
+    private static Map<TestIdentity, Map<String, Set<String>>> immutableDirectInvocations(
+            Map<TestIdentity, Map<String, Set<String>>> directInvocations) {
+        return directInvocations.entrySet().stream().collect(Collectors.toUnmodifiableMap(
+                Map.Entry::getKey,
+                test -> test.getValue().entrySet().stream().collect(Collectors.toUnmodifiableMap(
+                        Map.Entry::getKey, source -> Set.copyOf(source.getValue())))));
     }
 
     private static String readCrashReason(Path markerFile) {

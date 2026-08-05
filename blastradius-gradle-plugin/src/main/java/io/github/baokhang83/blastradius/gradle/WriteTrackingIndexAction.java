@@ -36,11 +36,15 @@ final class WriteTrackingIndexAction implements Action<Task> {
             List<DependencyIndex.TestDependencyEntry> entries = recorded.tests().entrySet().stream()
                     .map(entry -> new DependencyIndex.TestDependencyEntry(entry.getKey(), entry.getValue().keySet()))
                     .toList();
+            List<DependencyIndex.TestDirectInvocationEntry> directInvocations = recorded.directInvocations().entrySet().stream()
+                    .map(entry -> new DependencyIndex.TestDirectInvocationEntry(entry.getKey(), entry.getValue()))
+                    .toList();
             Path repositoryRoot = repositoryDirectory.toPath().toAbsolutePath().normalize();
             String indexKey = CommitIndexKey.forCommit(indexPathKey, anchorCommit);
             IndexStore<DependencyIndex> store = configuredStore.create(repositoryDirectory);
             try {
-                store.put(indexKey, new DependencyIndex(anchorCommit, Instant.now().toString(), entries));
+                store.put(indexKey, new DependencyIndex(
+                        anchorCommit, Instant.now().toString(), entries, directInvocations, recorded.ambientDependencies()));
             } finally {
                 ConfiguredIndexStore.close(store);
             }

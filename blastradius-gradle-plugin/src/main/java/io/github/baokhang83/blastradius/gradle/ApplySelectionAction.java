@@ -29,13 +29,16 @@ final class ApplySelectionAction implements Action<Task> {
     private final String comparisonBaseCommit;
     private final String headCommit;
     private final ConfiguredIndexStore configuredStore;
+    private final boolean directInvocationFallback;
 
-    ApplySelectionAction(File repositoryDirectory, String indexPathKey, String comparisonBaseCommit, String headCommit, ConfiguredIndexStore configuredStore) {
+    ApplySelectionAction(File repositoryDirectory, String indexPathKey, String comparisonBaseCommit, String headCommit,
+            ConfiguredIndexStore configuredStore, boolean directInvocationFallback) {
         this.repositoryDirectory = repositoryDirectory;
         this.indexPathKey = indexPathKey;
         this.comparisonBaseCommit = comparisonBaseCommit;
         this.headCommit = headCommit;
         this.configuredStore = configuredStore;
+        this.directInvocationFallback = directInvocationFallback;
     }
 
     @Override
@@ -65,7 +68,8 @@ final class ApplySelectionAction implements Action<Task> {
                     test.getClasspath().getFiles(), test.getTestClassesDirs().getFiles());
             List<ChangedFile> changedFiles = new ChangedFileClassifier().classify(
                     repositoryDirectory.toPath(), comparisonBaseCommit, headCommit);
-            List<SelectionDecision> decisions = computeDecisions(allTests, applicability.index(), changedFiles);
+            List<SelectionDecision> decisions = computeDecisions(
+                    allTests, applicability.index(), changedFiles, directInvocationFallback);
             applyFilter(test, decisions);
             test.getLogger().lifecycle("[blastradius] SELECT — {} / {} tests selected", decisions.stream()
                     .filter(SelectionDecision::selected)
@@ -77,6 +81,11 @@ final class ApplySelectionAction implements Action<Task> {
 
     private static List<SelectionDecision> computeDecisions(Set<TestIdentity> allTests, DependencyIndex index,
             List<ChangedFile> changedFiles) {
+        return computeDecisions(allTests, index, changedFiles, true);
+    }
+
+    private static List<SelectionDecision> computeDecisions(Set<TestIdentity> allTests, DependencyIndex index,
+            List<ChangedFile> changedFiles, boolean directInvocationFallback) {
         Map<TestIdentity, Set<String>> dependenciesByTest = index.testDependenciesByTest().entrySet().stream()
                 .collect(Collectors.toMap(
                         entry -> entry.getKey().baselineKey(),
@@ -86,6 +95,11 @@ final class ApplySelectionAction implements Action<Task> {
                             merged.addAll(second);
                             return merged;
                         }));
+        Map<TestIdentity, Map<String, Set<String>>> directInvocationsByTest = index.directInvocationsByTest()
+                .entrySet().stream().collect(Collectors.toMap(
+                        entry -> entry.getKey().baselineKey(),
+                        Map.Entry::getValue,
+                        ApplySelectionAction::mergeDirectInvocations));
         Set<String> changedClassNames = changedFiles.stream()
                 .flatMap(file -> file.candidateClassNames().stream())
                 .collect(Collectors.toUnmodifiableSet());
@@ -94,7 +108,19 @@ final class ApplySelectionAction implements Action<Task> {
                         test, !dependenciesByTest.containsKey(test.baselineKey()), changedClassNames))
                 .collect(Collectors.toSet());
         return new SelectionEngine().selectAll(
-                allTests, dependenciesByTest, newOrModifiedTests, changedFiles, Set.of());
+                allTests, dependenciesByTest, directInvocationFallback ? directInvocationsByTest : Map.of(), newOrModifiedTests,
+                changedFiles, index.ambientDependencies());
+    }
+
+    private static Map<String, Set<String>> mergeDirectInvocations(
+            Map<String, Set<String>> first, Map<String, Set<String>> second) {
+        Map<String, Set<String>> merged = new java.util.HashMap<>(first);
+        second.forEach((source, targets) -> merged.merge(source, targets, (left, right) -> {
+            Set<String> union = new java.util.HashSet<>(left);
+            union.addAll(right);
+            return Set.copyOf(union);
+        }));
+        return Map.copyOf(merged);
     }
 
     private static void applyFilter(Test test, List<SelectionDecision> decisions) {
