@@ -53,19 +53,15 @@ confirmation), so it is a test the selection *must not* skip. Counts are per mut
 counts five times. On shenyu and httpcomponents-client the ratio is exact — across 872 and 916 injected faults,
 selection never once skipped a test that would have caught one.
 
-<sup>5</sup> 3,068 of the 47,866 killing executions (6.4%) were skipped, and the shape of that number matters
-more than its size. Those 3,068 executions are **750 distinct tests**, because the same tests are re-counted once per
-mutant they would have caught: **20 of 942 mutants** produced every skip, and **four mutants in `org.jsoup.select.QueryParser`
-skip the identical 745 tests** — 2,980 of the 3,068. So this is not a diffuse 6% leak across the suite. It is one
-blind spot, hit four times. The blind spot is in what the agent could observe, not in what selection then decided. Checking every skipped test
-against the agent's recorded dependencies for that build, the split is total: of the 662 killing tests that *were*
-selected, 632 had recorded loading `QueryParser`; of the 745 skipped, **not one had**. Selection ran exactly the tests
-its recorded evidence justified. The cause is jsoup's central API. `select("div > p")` passes the query as a *string*, and the CSS parse behind it sits
-on a cached path that never attributes a `QueryParser` load to the calling test — so a test that genuinely depends on
-the parser records no dependency on it. This is the same category as the `@BeforeAll` gap in
-[Known limitations](#known-limitations): a class-load-tracking gap for APIs reached through string indirection, not a
-flaw in the dependency-match rule. It is also precisely what the recommended daily full-suite run backstops. The
-remaining 88 executions are the documented `@BeforeAll` case.
+<sup>5</sup> jsoup skipped 3,068 of 47,866 killing executions (6.4%). That is **750 distinct tests**, not 3,068 — the same
+tests are counted once per mutant they would have caught. All of it comes from **20 of 942 mutants**, and **four mutants
+in `org.jsoup.select.QueryParser` skip the same 745 tests**, accounting for 2,980 of the 3,068. The gap is in what the agent recorded, not in what selection did with it. Of the 662 killing tests that were selected,
+632 had recorded a `QueryParser` load; of the 745 skipped, none had. jsoup's API takes the query as a string —
+`select("div > p")` — and the CSS parse behind it is cached, so no `QueryParser` load is ever attributed to the calling
+test. Selection ran what the recorded dependencies justified; the dependency was invisible. That is the same
+class-load-tracking gap as `@BeforeAll` (see [Known limitations](#known-limitations)), which also accounts for the
+remaining 88 executions, and the same thing a daily full-suite run backstops.
+
 
 ## How it works
 
