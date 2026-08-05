@@ -32,12 +32,14 @@ or an injected mutant but that selection chose not to run.
 
 <sup>1</sup>`org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was excluded as flaky.    
 <sup>2</sup>`org.apache.hc.client5.testing.sync.TestTlsHandshakeTimeout#testTimeout` was excluded as flaky under the 5-way parallel build load.    
-<sup>3</sup> A handful of injected mutants turn jsoup's tree traversal into an infinite loop, so all 10 excluded pairs hit the
-10-minute build timeout. The harness gave up waiting; selection never reached a verdict on them. The run also saw 35
-flaky failures (34 of them `org.jsoup.parser.HtmlParserTest#handlesManyChildren`), counted as flaky rather than as
-would-misses because they passed on confirmation rerun.    
-<sup>4</sup> This zero covers real history only: the window produced one newly-confirmed failing test, and selection ran it.
-Selection did skip tests that would have caught *injected* faults; the mutation table below reports those.
+<sup>3</sup> Excluded pairs are ones the harness could not measure, so they count neither for nor against selection. All 10
+here hit the 10-minute build timeout: a handful of injected mutants turn jsoup's tree traversal into an infinite loop, and
+the harness stops waiting rather than hang the run. The run also saw 35 flaky failures (34 of them
+`org.jsoup.parser.HtmlParserTest#handlesManyChildren`); a test that fails once and passes on confirmation rerun is not
+evidence of a missed regression, so those count as flaky rather than as would-misses.    
+<sup>4</sup> This column measures real history: across 200 commits the window produced one newly-confirmed failing test, and
+selection ran it. Injected faults are measured separately in the mutation table below, where jsoup did have skips —
+footnote 5 breaks down why.
 
 Bounded mutation validation ran on the same window: for each pair it injects synthetic faults into
 head and checks whether the tests selected catch them.
@@ -53,15 +55,21 @@ confirmation), so it is a test the selection *must not* skip. Counts are per mut
 counts five times. Across shenyu's 872 injected faults and httpcomponents-client's 916, selection never skipped a test
 that would have caught one.
 
-<sup>5</sup> Selection skipped 3,068 of jsoup's 47,866 killing executions (6.4%). Those executions cover **750 distinct
-tests**, since each test is counted once per mutant it would have caught. Of the 652 mutants that any test caught,
-**20 had a killing test skipped**, and **four mutants in `org.jsoup.select.QueryParser`** account for 2,980 of the 3,068
-by each skipping the same 745 tests. The cause is missing tracking data, not a bad selection decision. Of the 662 killing tests selection did choose, 632 had
-recorded loading `QueryParser`; of the 745 it skipped, none had. jsoup exposes its query API as a string —
-`select("div > p")` — and caches the parse behind it, so the agent never attributes a `QueryParser` load to the test
-that triggered it. Selection ran every test its recorded dependencies justified, and those records never showed the
-dependency. `@BeforeAll` hides class loads the same way (see [Known limitations](#known-limitations)) and accounts for
-the remaining 88 executions. A daily full-suite run is the backstop for both.
+<sup>5</sup> **The selection rules behaved correctly here; the tracking data they were given was incomplete.** That
+distinction is the whole footnote, so here is the evidence for it. Selection skipped 3,068 of jsoup's 47,866 killing executions (6.4%) — 750 distinct tests, since each test is counted
+once per mutant it would have caught. The skips are concentrated, not spread: of the 652 mutants that any test caught,
+20 had a killing test skipped, and four mutants in `org.jsoup.select.QueryParser` cause 2,980 of the 3,068 by each
+skipping the same 745 tests. Selection runs a test when the agent recorded that test loading a changed class. So the check is whether the skipped
+tests had recorded loading `QueryParser`. For those four mutants, the answer splits cleanly: of the 665 killing tests
+selection ran, 635 had recorded a `QueryParser` load (the remaining 30 had no records at all); of the 745 it skipped,
+**not one had**. Every skip follows the rule — no recorded dependency, no reason to run — and every test with the
+recorded dependency was run. Given its inputs, selection made no wrong call. The inputs were wrong because jsoup takes its query as a string, `select("div > p")`, and caches the parse behind it, so
+the agent never attributes the `QueryParser` load to the test that caused it. The dependency is real but invisible to
+class-load tracking. 
+
+`@BeforeAll` hides loads the same way (see [Known limitations](#known-limitations)) and explains
+the remaining 88 executions. This is a limit of what tracking can observe, and the daily full-suite run is what covers
+it — which is why we publish it rather than the two clean runs alone.
 
 ## How it works
 
