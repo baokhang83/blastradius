@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>SurefireReportParser.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-validator</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.validator.build</a> &gt; <span class="el_source">SurefireReportParser.java</span></div><h1>SurefireReportParser.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.validator.build;
 
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
-import java.io.File;
 import java.io.IOException;
+import java.io.StringReader;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -15,13 +20,25 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
 
 /**
  * Parses Maven Surefire/Failsafe {@code TEST-*.xml} report files into per-test pass/fail
  * results (research.md #3) — the authoritative, standard output of the build that was
  * just run, rather than a second, potentially-disagreeing mechanism.
  */
-<span class="fc" id="L24">public final class SurefireReportParser {</span>
+<span class="fc" id="L30">public final class SurefireReportParser {</span>
+
+    /**
+     * Characters XML 1.0 forbids outright (C0 controls other than tab/LF/CR) plus the
+     * {@code U+FFFE}/{@code U+FFFD}-adjacent noncharacters — observed verbatim in a Surefire
+     * failure message copied from raw bytes of the process under test (e.g. a corrupted response
+     * body surfacing in an assertion message). A strict parser rejects the whole file over one
+     * such byte, turning one unrepresentable character into a lost pair; stripping them here
+     * keeps the rest of the file's evidence instead of discarding it.
+     */
+<span class="fc" id="L40">    private static final Pattern INVALID_XML_CHARS =</span>
+<span class="fc" id="L41">            Pattern.compile(&quot;[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\uFFFE\\uFFFF]&quot;);</span>
 
     /**
      * @param reportsDir a Surefire or Failsafe reports directory (e.g.
@@ -31,58 +48,71 @@ import org.w3c.dom.NodeList;
      *         test cases carry no ground-truth signal and are omitted entirely.
      */
     public Map&lt;TestIdentity, Boolean&gt; parse(Path reportsDir) {
-<span class="fc bfc" id="L34" title="All 2 branches covered.">        if (Files.notExists(reportsDir)) {</span>
-<span class="fc" id="L35">            return Map.of();</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (Files.notExists(reportsDir)) {</span>
+<span class="fc" id="L52">            return Map.of();</span>
         }
-<span class="fc" id="L37">        Map&lt;TestIdentity, Boolean&gt; results = new HashMap&lt;&gt;();</span>
-<span class="fc" id="L38">        try (Stream&lt;Path&gt; files = Files.list(reportsDir)) {</span>
-<span class="fc" id="L39">            List&lt;Path&gt; reportFiles = files</span>
-<span class="fc" id="L40">                    .filter(p -&gt; p.getFileName().toString().startsWith(&quot;TEST-&quot;))</span>
-<span class="fc" id="L41">                    .filter(p -&gt; p.getFileName().toString().endsWith(&quot;.xml&quot;))</span>
-<span class="fc" id="L42">                    .toList();</span>
-<span class="fc bfc" id="L43" title="All 2 branches covered.">            for (Path reportFile : reportFiles) {</span>
-<span class="fc" id="L44">                parseOneFile(reportFile, results);</span>
-<span class="fc" id="L45">            }</span>
-<span class="nc" id="L46">        } catch (IOException e) {</span>
-<span class="nc" id="L47">            throw new java.io.UncheckedIOException(&quot;failed to list reports in &quot; + reportsDir, e);</span>
-<span class="fc" id="L48">        }</span>
-<span class="fc" id="L49">        return results;</span>
+<span class="fc" id="L54">        Map&lt;TestIdentity, Boolean&gt; results = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L55">        try (Stream&lt;Path&gt; files = Files.list(reportsDir)) {</span>
+<span class="fc" id="L56">            List&lt;Path&gt; reportFiles = files</span>
+<span class="fc" id="L57">                    .filter(p -&gt; p.getFileName().toString().startsWith(&quot;TEST-&quot;))</span>
+<span class="fc" id="L58">                    .filter(p -&gt; p.getFileName().toString().endsWith(&quot;.xml&quot;))</span>
+<span class="fc" id="L59">                    .toList();</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">            for (Path reportFile : reportFiles) {</span>
+<span class="fc" id="L61">                parseOneFile(reportFile, results);</span>
+<span class="fc" id="L62">            }</span>
+<span class="nc" id="L63">        } catch (IOException e) {</span>
+<span class="nc" id="L64">            throw new java.io.UncheckedIOException(&quot;failed to list reports in &quot; + reportsDir, e);</span>
+<span class="fc" id="L65">        }</span>
+<span class="fc" id="L66">        return results;</span>
     }
 
     private static void parseOneFile(Path reportFile, Map&lt;TestIdentity, Boolean&gt; results) {
         try {
-<span class="fc" id="L54">            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();</span>
-<span class="fc" id="L55">            factory.setFeature(&quot;http://apache.org/xml/features/disallow-doctype-decl&quot;, true);</span>
-<span class="fc" id="L56">            DocumentBuilder builder = factory.newDocumentBuilder();</span>
-<span class="fc" id="L57">            Document doc = builder.parse(reportFile.toFile());</span>
+<span class="fc" id="L71">            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();</span>
+<span class="fc" id="L72">            factory.setFeature(&quot;http://apache.org/xml/features/disallow-doctype-decl&quot;, true);</span>
+<span class="fc" id="L73">            DocumentBuilder builder = factory.newDocumentBuilder();</span>
+<span class="fc" id="L74">            Document doc = builder.parse(new InputSource(new StringReader(sanitizedXml(reportFile))));</span>
 
-<span class="fc" id="L59">            NodeList testcases = doc.getElementsByTagName(&quot;testcase&quot;);</span>
-<span class="fc bfc" id="L60" title="All 2 branches covered.">            for (int i = 0; i &lt; testcases.getLength(); i++) {</span>
-<span class="fc" id="L61">                Element testcase = (Element) testcases.item(i);</span>
-<span class="fc" id="L62">                String className = testcase.getAttribute(&quot;classname&quot;);</span>
-<span class="fc" id="L63">                String methodName = testcase.getAttribute(&quot;name&quot;);</span>
-<span class="fc" id="L64">                TestIdentity identity = new TestIdentity(className, methodName);</span>
+<span class="fc" id="L76">            NodeList testcases = doc.getElementsByTagName(&quot;testcase&quot;);</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">            for (int i = 0; i &lt; testcases.getLength(); i++) {</span>
+<span class="fc" id="L78">                Element testcase = (Element) testcases.item(i);</span>
+<span class="fc" id="L79">                String className = testcase.getAttribute(&quot;classname&quot;);</span>
+<span class="fc" id="L80">                String methodName = testcase.getAttribute(&quot;name&quot;);</span>
+<span class="fc" id="L81">                TestIdentity identity = new TestIdentity(className, methodName);</span>
 
-<span class="fc bfc" id="L66" title="All 2 branches covered.">                if (hasChildElement(testcase, &quot;skipped&quot;)) {</span>
-<span class="fc" id="L67">                    continue;</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">                if (hasChildElement(testcase, &quot;skipped&quot;)) {</span>
+<span class="fc" id="L84">                    continue;</span>
                 }
-<span class="fc bfc" id="L69" title="All 4 branches covered.">                boolean passed = !hasChildElement(testcase, &quot;failure&quot;) &amp;&amp; !hasChildElement(testcase, &quot;error&quot;);</span>
-<span class="fc" id="L70">                results.put(identity, passed);</span>
+<span class="fc bfc" id="L86" title="All 4 branches covered.">                boolean passed = !hasChildElement(testcase, &quot;failure&quot;) &amp;&amp; !hasChildElement(testcase, &quot;error&quot;);</span>
+<span class="fc" id="L87">                results.put(identity, passed);</span>
             }
-<span class="nc" id="L72">        } catch (Exception e) {</span>
-<span class="nc" id="L73">            throw new IllegalStateException(&quot;failed to parse report file &quot; + reportFile, e);</span>
-<span class="fc" id="L74">        }</span>
-<span class="fc" id="L75">    }</span>
+<span class="nc" id="L89">        } catch (Exception e) {</span>
+<span class="nc" id="L90">            throw new IllegalStateException(&quot;failed to parse report file &quot; + reportFile, e);</span>
+<span class="fc" id="L91">        }</span>
+<span class="fc" id="L92">    }</span>
+
+    /**
+     * Reads {@code reportFile} as UTF-8 (Surefire's default report encoding), tolerating
+     * malformed/unmappable byte sequences by substitution rather than throwing, then strips
+     * {@link #INVALID_XML_CHARS} before handing the content to the parser.
+     */
+    private static String sanitizedXml(Path reportFile) throws IOException {
+<span class="fc" id="L100">        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder()</span>
+<span class="fc" id="L101">                .onMalformedInput(CodingErrorAction.REPLACE)</span>
+<span class="fc" id="L102">                .onUnmappableCharacter(CodingErrorAction.REPLACE);</span>
+<span class="fc" id="L103">        String content = decoder.decode(ByteBuffer.wrap(Files.readAllBytes(reportFile))).toString();</span>
+<span class="fc" id="L104">        return INVALID_XML_CHARS.matcher(content).replaceAll(&quot;&quot;);</span>
+    }
 
     private static boolean hasChildElement(Element parent, String tagName) {
-<span class="fc" id="L78">        NodeList children = parent.getChildNodes();</span>
-<span class="fc bfc" id="L79" title="All 2 branches covered.">        for (int i = 0; i &lt; children.getLength(); i++) {</span>
-<span class="fc" id="L80">            Node child = children.item(i);</span>
-<span class="fc bfc" id="L81" title="All 4 branches covered.">            if (child.getNodeType() == Node.ELEMENT_NODE &amp;&amp; child.getNodeName().equals(tagName)) {</span>
-<span class="fc" id="L82">                return true;</span>
+<span class="fc" id="L108">        NodeList children = parent.getChildNodes();</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        for (int i = 0; i &lt; children.getLength(); i++) {</span>
+<span class="fc" id="L110">            Node child = children.item(i);</span>
+<span class="fc bfc" id="L111" title="All 4 branches covered.">            if (child.getNodeType() == Node.ELEMENT_NODE &amp;&amp; child.getNodeName().equals(tagName)) {</span>
+<span class="fc" id="L112">                return true;</span>
             }
         }
-<span class="fc" id="L85">        return false;</span>
+<span class="fc" id="L115">        return false;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
