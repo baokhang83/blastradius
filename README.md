@@ -53,8 +53,7 @@ confirmation), so it is a test the selection *must not* skip. Counts are per mut
 counts five times. On shenyu and httpcomponents-client the ratio is exact — across 872 and 916 injected faults,
 selection never once skipped a test that would have caught one.
 
-<sup>5</sup> jsoup skipped 3,068 of 47,866 killing executions (6.4%). That is **750 distinct tests**, not 3,068 — the same
-tests are counted once per mutant they would have caught. All of it comes from **20 of 942 mutants**, and **four mutants
+<sup>5</sup> jsoup skipped 3,068 of 47,866 killing executions (6.4%). That is **750 distinct tests**, not 3,068. All of it comes from **20 of 942 mutants**, and **four mutants
 in `org.jsoup.select.QueryParser` skip the same 745 tests**, accounting for 2,980 of the 3,068. The gap is in what the agent recorded, not in what selection did with it. Of the 662 killing tests that were selected,
 632 had recorded a `QueryParser` load; of the 745 skipped, none had. jsoup's API takes the query as a string —
 `select("div > p")` — and the CSS parse behind it is cached, so no `QueryParser` load is ever attributed to the calling
