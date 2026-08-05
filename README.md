@@ -55,16 +55,14 @@ confirmation), so it is a test the selection *must not* skip. Counts are per mut
 counts five times. Across shenyu's 872 injected faults and httpcomponents-client's 916, selection never skipped a test
 that would have caught one.
 
-<sup>5</sup> **The selection rules behaved correctly here; the tracking data they were given was incomplete.** That
-distinction is the whole footnote, so here is the evidence for it. Selection skipped 3,068 of jsoup's 47,866 killing executions (6.4%) — 750 distinct tests, since each test is counted
+<sup>5</sup> **The selection rules behaved correctly here; the tracking data they were given was incomplete.** Selection skipped 3,068 of jsoup's 47,866 killing executions (6.4%) — 750 distinct tests, since each test is counted
 once per mutant it would have caught. The skips are concentrated, not spread: of the 652 mutants that any test caught,
 20 had a killing test skipped, and four mutants in `org.jsoup.select.QueryParser` cause 2,980 of the 3,068 by each
 skipping the same 745 tests. Selection runs a test when the agent recorded that test loading a changed class. So the check is whether the skipped
 tests had recorded loading `QueryParser`. For those four mutants, the answer splits cleanly: of the 665 killing tests
 selection ran, 635 had recorded a `QueryParser` load (the remaining 30 had no records at all); of the 745 it skipped,
 **not one had**. Every skip follows the rule — no recorded dependency, no reason to run — and every test with the
-recorded dependency was run. Given its inputs, selection made no wrong call. The inputs were wrong because jsoup takes its query as a string, `select("div > p")`, and caches the parse behind it, so
-the agent never attributes the `QueryParser` load to the test that caused it. The dependency is real but invisible to
+recorded dependency was run. Given its inputs, selection made no wrong call. The inputs were wrong because jsoup takes its query as a string, `select("div > p")`, and caches the parse behind it, so the agent never attributes the `QueryParser` load to the test that caused it. The dependency is real but invisible to
 class-load tracking. 
 
 `@BeforeAll` hides loads the same way (see [Known limitations](#known-limitations)) and explains
