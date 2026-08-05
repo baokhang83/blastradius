@@ -31,7 +31,10 @@ or an injected mutant but that selection chose not to run.
 |<img width=400 />|  |  |  |  | **58.5%** |
 
 <sup>1</sup>`org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was excluded as flaky.    
-<sup>2</sup>`org.apache.hc.client5.testing.sync.TestTlsHandshakeTimeout#testTimeout` was excluded as flaky under the 5-way parallel build load.    
+<sup>2</sup> Of the 12 excluded pairs, 11 hit the build timeout on httpclient5's slow `-am -amd` multi-module
+rebuild and 1 hit a Surefire report containing an XML-illegal character (since fixed). Excluded pairs count
+neither for nor against selection. Separately, `org.apache.hc.client5.testing.sync.TestTlsHandshakeTimeout#testTimeout`
+was excluded as flaky under parallel build load, which is what brings would-miss to 0.    
 <sup>3</sup> Excluded pairs are ones the harness could not measure, so they count neither for nor against selection. All 10
 here hit the 10-minute build timeout: a handful of injected mutants turn jsoup's tree traversal into an infinite loop, and
 the harness stops waiting rather than hang the run. The run also saw 35 flaky failures (34 of them
