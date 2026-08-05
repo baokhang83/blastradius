@@ -32,12 +32,12 @@ or an injected mutant but that selection chose not to run.
 
 <sup>1</sup>`org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was excluded as flaky.    
 <sup>2</sup>`org.apache.hc.client5.testing.sync.TestTlsHandshakeTimeout#testTimeout` was excluded as flaky under the 5-way parallel build load.    
-<sup>3</sup> The 10 excluded pairs each hit the 10-minute build timeout, because a handful of injected mutants turn jsoup's tree traversal into an infinite loop —
-the timeout is the harness refusing to wait, not a selection result. The harness did detect 35 flaky failures
-in-flight (34 of them `org.jsoup.parser.HtmlParserTest#handlesManyChildren`), which are classified as flaky rather
-than counted as would-misses precisely because they passed on confirmation rerun.    
-<sup>4</sup> Zero on real history: the window's one newly-confirmed failing test was selected. Selection did skip tests
-that would have caught *injected* faults — see the mutation table below, where that evidence belongs.
+<sup>3</sup> A handful of injected mutants turn jsoup's tree traversal into an infinite loop, so all 10 excluded pairs hit the
+10-minute build timeout. The harness gave up waiting; selection never reached a verdict on them. The run also saw 35
+flaky failures (34 of them `org.jsoup.parser.HtmlParserTest#handlesManyChildren`), counted as flaky rather than as
+would-misses because they passed on confirmation rerun.    
+<sup>4</sup> This zero covers real history only: the window produced one newly-confirmed failing test, and selection ran it.
+Selection did skip tests that would have caught *injected* faults; the mutation table below reports those.
 
 Bounded mutation validation ran on the same window: for each pair it injects synthetic faults into
 head and checks whether the tests selected catch them.
@@ -50,17 +50,17 @@ head and checks whether the tests selected catch them.
 
 A "killing test" is one that actually caught an injected fault (passed on head, failed on the mutant, stayed failed on
 confirmation), so it is a test the selection *must not* skip. Counts are per mutant, so a test that kills five mutants
-counts five times. On shenyu and httpcomponents-client the ratio is exact — across 872 and 916 injected faults,
-selection never once skipped a test that would have caught one.
+counts five times. Across shenyu's 872 injected faults and httpcomponents-client's 916, selection never skipped a test
+that would have caught one.
 
-<sup>5</sup> jsoup skipped 3,068 of 47,866 killing executions (6.4%). That is **750 distinct tests**, not 3,068. All of it comes from **20 of 942 mutants**, and **four mutants
-in `org.jsoup.select.QueryParser` skip the same 745 tests**, accounting for 2,980 of the 3,068. The gap is in what the agent recorded, not in what selection did with it. Of the 662 killing tests that were selected,
-632 had recorded a `QueryParser` load; of the 745 skipped, none had. jsoup's API takes the query as a string —
-`select("div > p")` — and the CSS parse behind it is cached, so no `QueryParser` load is ever attributed to the calling
-test. Selection ran what the recorded dependencies justified; the dependency was invisible. That is the same
-class-load-tracking gap as `@BeforeAll` (see [Known limitations](#known-limitations)), which also accounts for the
-remaining 88 executions, and the same thing a daily full-suite run backstops.
-
+<sup>5</sup> Selection skipped 3,068 of jsoup's 47,866 killing executions (6.4%). Those executions cover **750 distinct
+tests**, since each test is counted once per mutant it would have caught. **Twenty of the 942 mutants** produced every
+skip, and **four mutants in `org.jsoup.select.QueryParser`** account for 2,980 of them by skipping the same 745 tests. The cause is missing tracking data, not a bad selection decision. Of the 662 killing tests selection did choose, 632 had
+recorded loading `QueryParser`; of the 745 it skipped, none had. jsoup exposes its query API as a string —
+`select("div > p")` — and caches the parse behind it, so the agent never attributes a `QueryParser` load to the test
+that triggered it. Selection ran every test its recorded dependencies justified, and those records never showed the
+dependency. `@BeforeAll` hides class loads the same way (see [Known limitations](#known-limitations)) and accounts for
+the remaining 88 executions. A daily full-suite run is the backstop for both.
 
 ## How it works
 
