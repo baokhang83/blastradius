@@ -27,7 +27,7 @@ or an injected mutant but that selection chose not to run.
 | --- | --- | :---: | ---: | ---: | ---: |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | [`69cd1d5`](https://github.com/apache/shenyu/commit/69cd1d5721647a60007584983d96fc94452a4f6b) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | 200 (0) | **0**<sup>1</sup> | 153,142 / 527,508 | **71.0%** |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/httpcomponents-client">httpcomponents-client</a></h4> | [`ef34bfa`](https://github.com/apache/httpcomponents-client/commit/ef34bfa8fd6f2f6181ba2e41051050ed877e56df) → [`4dae8da`](https://github.com/apache/httpcomponents-client/commit/4dae8da4a365f639e42fea84822285f345be7755) | 200 (12) | **0**<sup>2</sup> | 180,198 / 443,593 | **59.4%** |
-| <h4><a href="https://github.com/jhy/jsoup">jsoup</a></h4> | [`b62e362`](https://github.com/jhy/jsoup/commit/b62e362d3945e86725c817101332b66277aff9e4) → [`9d2241f`](https://github.com/jhy/jsoup/commit/9d2241ff467d03accbf902a650adc60513bf5c11) | 200 (10<sup>3</sup>) | **0** | 193,635 / 351,882 | **45.0%** |
+| <h4><a href="https://github.com/jhy/jsoup">jsoup</a></h4> | [`b62e362`](https://github.com/jhy/jsoup/commit/b62e362d3945e86725c817101332b66277aff9e4) → [`9d2241f`](https://github.com/jhy/jsoup/commit/9d2241ff467d03accbf902a650adc60513bf5c11) | 200 (10) | **0**<sup>3</sup> | 193,635 / 351,882 | **45.0%** |
 |<img width=400 />|  |  |  |  | **58.5%** |
 
 <sup>1</sup>`org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was excluded as flaky.    
