@@ -1,4 +1,5 @@
 def root = new File(basedir.toString())
+def stagedRepository = new File(root.parentFile.parentFile, "it-repo").absolutePath
 def run = { List<String> command ->
     def process = new ProcessBuilder(command).directory(root).redirectErrorStream(true).start()
     def output = process.inputStream.getText("UTF-8")
@@ -15,7 +16,8 @@ run(["git", "add", "."])
 run(["git", "commit", "-m", "baseline"])
 run(["git", "tag", "baseline"])
 def baselineCommit = run(["git", "rev-parse", "HEAD"]).trim()
-run(["mvn", "-B", "--no-transfer-progress", "-Dblastradius.mode=track", "clean", "test"])
+run(["mvn", "-B", "--no-transfer-progress", "-Dmaven.repo.local=${stagedRepository}".toString(),
+        "-Dblastradius.mode=track", "clean", "test"])
 
 new File(root, "src/main/java/example/Foo.java").setText("""package example;
 
