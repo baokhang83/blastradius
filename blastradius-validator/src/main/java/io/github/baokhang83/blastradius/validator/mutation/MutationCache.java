@@ -53,10 +53,14 @@ import java.util.Optional;
  * would poison every later resume. Mirrors {@code BuildCache}'s "only successful builds" stance.
  *
  * <p><b>Cache validity is the operator's responsibility</b>, exactly as for {@code BuildCache}: the
- * key fingerprints neither the target repository nor this tool's version. Point the run at a
- * different repository or upgrade the tracking agent and you must clear the cache directory first.
+ * key fingerprints neither the target repository nor this tool's version. A cache-schema revision
+ * is included for selection changes that affect the recorded selected/skipped verdict; otherwise,
+ * point the run at a different repository or upgrade the tracking agent and clear the cache first.
  */
 public final class MutationCache {
+
+    /** Bump whenever a change to selection can alter an experiment's selected/skipped verdict. */
+    private static final String SELECTION_CACHE_VERSION = "selection-v2-direct-invocations";
 
     private final Path directory;
     private final SkippedTests skippedTests;
@@ -132,7 +136,7 @@ public final class MutationCache {
      */
     private Path fileFor(CommitPair pair, MutationCandidate candidate) {
         String identity = String.join("\0",
-                pair.baseCommit(), pair.headCommit(), candidate.sourcePath(),
+                SELECTION_CACHE_VERSION, pair.baseCommit(), pair.headCommit(), candidate.sourcePath(),
                 Integer.toString(candidate.offset()), candidate.operator().name(),
                 candidate.original(), candidate.replacement(),
                 String.join(",", skippedTests.classes()));
