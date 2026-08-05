@@ -155,10 +155,10 @@ public final class HistoricalMutationValidator {
             }
 <span class="fc" id="L156">            killing.add(outcome.test());</span>
 <span class="fc" id="L157">            SelectionDecision decision = decisions.get(outcome.test());</span>
-<span class="pc bpc" id="L158" title="1 of 4 branches missed.">            if (decision != null &amp;&amp; decision.selected()) {</span>
+<span class="pc bpc" id="L158" title="2 of 4 branches missed.">            if (decision != null &amp;&amp; decision.selected()) {</span>
 <span class="fc" id="L159">                selected.add(outcome.test());</span>
             } else {
-<span class="fc" id="L161">                skipped.add(outcome.test());</span>
+<span class="nc" id="L161">                skipped.add(outcome.test());</span>
             }
 <span class="fc" id="L163">        }</span>
 <span class="pc" id="L164">        List&lt;TestIdentity&gt; flaky = selection.flakyFailures().stream().map(failure -&gt; failure.test()).toList();</span>

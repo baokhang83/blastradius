@@ -1,6 +1,7 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestBoundaryListener.ContainerFrame,0,14,0,0,0,5,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.MetadataClassWriter,58,218,15,25,15,50,12,12,0,4
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestBoundaryListener,7,70,0,6,0,23,1,10,1,7
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestBoundaryListener,8,172,2,12,1,53,3,16,1,11
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordSet,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.new ClassVisitor() {...},2,37,1,1,1,5,1,2,0,2
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordFile,0,9,0,0,0,1,0,1,0,1
@@ -8,7 +9,7 @@ coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestExe
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordReader,36,167,0,10,9,34,1,11,1,6
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter,1,36,1,1,0,6,1,2,0,2
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.ClassInfo,0,12,0,0,0,5,0,1,0,1
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyTrackingAgent,255,556,72,68,62,143,59,51,5,35
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyTrackingAgent,259,603,74,74,63,155,61,56,5,38
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecord,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.1.new MethodVisitor() {...},14,69,3,3,3,18,3,7,1,6
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordWriter,18,65,0,0,4,15,0,5,0,5
@@ -60,7 +61,7 @@ coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutati
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutation,MutationCandidateGenerator.ScanState,0,39,0,0,0,7,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutation,MutationCandidateOrigin,0,15,0,0,0,3,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutation,MutationCache,25,169,0,4,6,32,0,9,0,7
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutation,HistoricalMutationValidator,82,406,15,21,18,80,17,15,3,11
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutation,HistoricalMutationValidator,87,401,16,20,19,79,18,14,3,11
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutation,MutationCandidateGenerator,109,392,34,62,33,83,29,32,0,13
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.mutation,MutationCandidateGenerator.new SimpleFileVisitor() {...},2,56,2,10,0,9,2,7,0,3
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.build,SkippedTests,0,119,0,10,0,24,0,11,0,6
@@ -87,7 +88,7 @@ coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,Pr
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunConfig,42,170,1,15,8,28,4,12,3,5
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand.PairOutcome,0,15,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,Main,320,0,39,0,89,0,32,0,5,0
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand,112,856,6,50,23,159,12,37,6,15
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.cli,RunCommand,115,853,9,47,23,159,15,34,6,15
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.report,TextSummaryRenderer,272,276,11,7,38,43,9,4,1,3
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.report,FailureCoverage,15,63,6,6,3,7,6,3,0,3
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.report,SavingsSummaryAggregator,0,68,0,4,0,11,0,6,0,4

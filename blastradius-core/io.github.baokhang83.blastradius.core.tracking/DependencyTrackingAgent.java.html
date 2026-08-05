@@ -510,32 +510,60 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         }
 <span class="fc" id="L511">    }</span>
 
+    /**
+     * Called once a container (a JUnit 5 test class) has finished executing, with the set of
+     * test methods that ran directly inside it. Everything recorded under {@code container}'s
+     * own identity — {@code @BeforeAll}'s named-class loads via the ordinary {@link #transform}
+     * path, plus its hidden-class window closed by {@link TestBoundaryListener} at the first
+     * child test — is folded into every one of those tests, then the container's own entry is
+     * dropped: it was only ever a transitional bucket, never a real test whose baseline
+     * selection should look up.
+     */
+    static void unionContainerDependencies(TestIdentity container, Set&lt;TestIdentity&gt; memberTests) {
+<span class="fc" id="L523">        DependencyTrackingAgent currentAgent = installedAgent;</span>
+<span class="pc bpc" id="L524" title="1 of 2 branches missed.">        if (currentAgent != null) {</span>
+<span class="nc" id="L525">            currentAgent.unionContainerDependenciesForTests(container, memberTests);</span>
+        }
+<span class="fc" id="L527">    }</span>
+
+    void unionContainerDependenciesForTests(TestIdentity container, Set&lt;TestIdentity&gt; memberTests) {
+<span class="fc" id="L530">        Map&lt;String, String&gt; containerDependencies = checksumsByTest.remove(container);</span>
+<span class="pc bpc" id="L531" title="1 of 4 branches missed.">        if (containerDependencies == null || containerDependencies.isEmpty()) {</span>
+<span class="fc" id="L532">            return;</span>
+        }
+<span class="fc bfc" id="L534" title="All 2 branches covered.">        for (TestIdentity test : memberTests) {</span>
+<span class="fc" id="L535">            Map&lt;String, String&gt; testDependencies =</span>
+<span class="fc" id="L536">                    checksumsByTest.computeIfAbsent(test, ignored -&gt; new ConcurrentHashMap&lt;&gt;());</span>
+<span class="fc" id="L537">            containerDependencies.forEach(testDependencies::putIfAbsent);</span>
+<span class="fc" id="L538">        }</span>
+<span class="fc" id="L539">    }</span>
+
     private static String sha256Hex(byte[] bytes) {
         byte[] hash;
-<span class="fc" id="L515">        synchronized (SHA_256) {</span>
-<span class="fc" id="L516">            hash = SHA_256.digest(bytes);</span>
-<span class="fc" id="L517">        }</span>
-<span class="fc" id="L518">        StringBuilder sb = new StringBuilder(hash.length * 2);</span>
-<span class="fc bfc" id="L519" title="All 2 branches covered.">        for (byte b : hash) {</span>
-<span class="fc" id="L520">            int unsigned = Byte.toUnsignedInt(b);</span>
-<span class="fc" id="L521">            sb.append(HEX_DIGITS[unsigned &gt;&gt;&gt; 4]);</span>
-<span class="fc" id="L522">            sb.append(HEX_DIGITS[unsigned &amp; 0x0f]);</span>
+<span class="fc" id="L543">        synchronized (SHA_256) {</span>
+<span class="fc" id="L544">            hash = SHA_256.digest(bytes);</span>
+<span class="fc" id="L545">        }</span>
+<span class="fc" id="L546">        StringBuilder sb = new StringBuilder(hash.length * 2);</span>
+<span class="fc bfc" id="L547" title="All 2 branches covered.">        for (byte b : hash) {</span>
+<span class="fc" id="L548">            int unsigned = Byte.toUnsignedInt(b);</span>
+<span class="fc" id="L549">            sb.append(HEX_DIGITS[unsigned &gt;&gt;&gt; 4]);</span>
+<span class="fc" id="L550">            sb.append(HEX_DIGITS[unsigned &amp; 0x0f]);</span>
         }
-<span class="fc" id="L524">        return sb.toString();</span>
+<span class="fc" id="L552">        return sb.toString();</span>
     }
 
     private static MessageDigest initializeSha256() {
         try {
-<span class="fc" id="L529">            return MessageDigest.getInstance(&quot;SHA-256&quot;);</span>
-<span class="nc" id="L530">        } catch (NoSuchAlgorithmException e) {</span>
-<span class="nc" id="L531">            throw new IllegalStateException(&quot;SHA-256 is a required JDK algorithm&quot;, e);</span>
+<span class="fc" id="L557">            return MessageDigest.getInstance(&quot;SHA-256&quot;);</span>
+<span class="nc" id="L558">        } catch (NoSuchAlgorithmException e) {</span>
+<span class="nc" id="L559">            throw new IllegalStateException(&quot;SHA-256 is a required JDK algorithm&quot;, e);</span>
         }
     }
 
     private static String sourceClassName(Class&lt;?&gt; hiddenClass) {
-<span class="fc" id="L536">        String hiddenName = hiddenClass.getName();</span>
-<span class="fc" id="L537">        int suffixSeparator = hiddenName.lastIndexOf('/');</span>
-<span class="pc bpc" id="L538" title="1 of 2 branches missed.">        return suffixSeparator &gt; 0 ? hiddenName.substring(0, suffixSeparator) : null;</span>
+<span class="fc" id="L564">        String hiddenName = hiddenClass.getName();</span>
+<span class="fc" id="L565">        int suffixSeparator = hiddenName.lastIndexOf('/');</span>
+<span class="pc bpc" id="L566" title="1 of 2 branches missed.">        return suffixSeparator &gt; 0 ? hiddenName.substring(0, suffixSeparator) : null;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
