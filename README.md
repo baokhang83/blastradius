@@ -63,11 +63,9 @@ tests had recorded loading `QueryParser`. For those four mutants, the answer spl
 selection ran, 635 had recorded a `QueryParser` load (the remaining 30 had no records at all); of the 745 it skipped,
 **not one had**. Every skip follows the rule — no recorded dependency, no reason to run — and every test with the
 recorded dependency was run. Given its inputs, selection made no wrong call. The inputs were wrong because jsoup takes its query as a string, `select("div > p")`, and caches the parse behind it, so the agent never attributes the `QueryParser` load to the test that caused it. The dependency is real but invisible to
-class-load tracking. 
-
-`@BeforeAll` hides loads the same way (see [Known limitations](#known-limitations)) and explains
+class-load tracking. `@BeforeAll` hides loads the same way (see [Known limitations](#known-limitations)) and explains
 the remaining 88 executions. This is a limit of what tracking can observe, and the daily full-suite run is what covers
-it — which is why we publish it rather than the two clean runs alone.
+it.
 
 ## How it works
 
