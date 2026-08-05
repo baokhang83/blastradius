@@ -13,7 +13,8 @@ _None yet._
 | feature | plan | status | started |
 |---------|------|--------|---------|
 | [core: attribute @BeforeAll-loaded classes to their container's tests](features/219-core-attribute-beforeall-loaded-classes-to-their-contain/design.md) | - | shipped | 2026-08-05 |
-| [attribute @AfterAll and inter-test lifecycle dependencies to test containers](features/221-attribute-afterall-and-inter-test-lifecycle-dependencies/design.md) | - | in progress | 2026-08-05 |
+| [decide whether to mitigate string-dispatched cached dependency blind spots](features/220-decide-whether-to-mitigate-string-dispatched-cached-depe/design.md) | - | in progress | 2026-08-05 |
+| [attribute @AfterAll and inter-test lifecycle dependencies to test containers](features/221-attribute-afterall-and-inter-test-lifecycle-dependencies/design.md) | - | shipped | 2026-08-05 |
 | [Abstract the index store behind an interface (#25)](features/abstract-the-index-store-behind-an-interface-25/design.md) | - | shipped | 2026-07-20 |
 | [Add explicit flaky-test exclusions to validator target builds](features/add-explicit-flaky-test-exclusions-to-validator-target-build/design.md) | - | shipped | 2026-08-02 |
 | [Add opt-in, bounded mutation-based validator soundness validation for issue 187](features/add-opt-in-bounded-mutation-based-validator-soundness-valida/design.md) | - | shipped | 2026-08-01 |
