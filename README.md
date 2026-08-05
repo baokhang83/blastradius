@@ -18,8 +18,8 @@ no heuristics, no opaque score.
 
 ## Historical replay
 
-200-pair replays against apache/shenyu and apache/httpcomponents-client, each replaying 200
-consecutive commits as the change each one introduced over the commit before it — with bounded
+200-pair replays against apache/shenyu, apache/httpcomponents-client and jhy/jsoup, each replaying
+200 consecutive commits as the change each one introduced over the commit before it — with bounded
 mutation validation enabled on the same run. A would-miss is a test that caught a real regression
 or an injected mutant but that selection chose not to run.
 
@@ -27,10 +27,16 @@ or an injected mutant but that selection chose not to run.
 | --- | --- | :---: | ---: | ---: | ---: |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | [`69cd1d5`](https://github.com/apache/shenyu/commit/69cd1d5721647a60007584983d96fc94452a4f6b) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | 200 (0) | **0\*** | 153,142 / 527,508 | **71.0%** |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/httpcomponents-client">httpcomponents-client</a></h4> | [`ef34bfa`](https://github.com/apache/httpcomponents-client/commit/ef34bfa8fd6f2f6181ba2e41051050ed877e56df) → [`4dae8da`](https://github.com/apache/httpcomponents-client/commit/4dae8da4a365f639e42fea84822285f345be7755) | 200 (12) | **0\*\*** | 180,198 / 443,593 | **59.4%** |
-|<img width=400 />|  |  |  |  | **65.2%** |
+| <h4><img width="20" height="20" align="top" src="https://github.com/jhy.png?size=40"/><a href="https://github.com/jhy/jsoup">jsoup</a></h4> | [`b62e362`](https://github.com/jhy/jsoup/commit/b62e362d3945e86725c817101332b66277aff9e4) → [`9d2241f`](https://github.com/jhy/jsoup/commit/9d2241ff467d03accbf902a650adc60513bf5c11) | 200 (10\*\*\*) | **0 real / 3,068 mutant†** | 193,635 / 351,882 | **45.0%** |
+|<img width=400 />|  |  |  |  | **58.5%** |
 
 \*`org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was excluded as flaky.    
-\*\*`org.apache.hc.client5.testing.sync.TestTlsHandshakeTimeout#testTimeout` was excluded as flaky under the 5-way parallel build load.
+\*\*`org.apache.hc.client5.testing.sync.TestTlsHandshakeTimeout#testTimeout` was excluded as flaky under the 5-way parallel build load.    
+\*\*\*No flaky exclusions on jsoup. The 10 excluded pairs each hit the 10-minute build timeout, because a
+handful of injected mutants turn jsoup's tree traversal into an infinite loop — the timeout is the harness
+refusing to wait, not a selection result.    
+†jsoup's one real confirmed failure in the window was selected; the 3,068 are mutant-killing tests, analysed
+under the mutation table below.
 
 Bounded mutation validation ran on the same window: for each pair it injects synthetic faults into
 head and checks whether the tests selected catch them.
@@ -39,11 +45,28 @@ head and checks whether the tests selected catch them.
 | --- | ---: | ---: | :---: | ---: |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 872 (778) | 339 | **943 / 943** | 686 / 257 |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/httpcomponents-client">httpcomponents-client</a></h4> | 916 (916) | 551 | **75,380 / 75,380** | 3,571 / 71,809 |
+| <h4><img width="20" height="20" align="top" src="https://github.com/jhy.png?size=40"/><a href="https://github.com/jhy/jsoup">jsoup</a></h4> | 942 (938) | 652 | **44,798 / 47,866** | 42,440 / 5,426 |
 
 A "killing test" is one that actually caught an injected fault (passed on head, failed on the mutant, stayed failed on
-confirmation), so it is a test the selection *must not* skip. Every killing test was selected in both runs — across
-872 injected faults on shenyu and 916 on httpcomponents-client, selection never skipped a test that would have caught
-one.
+confirmation), so it is a test the selection *must not* skip. On shenyu and httpcomponents-client every killing test was
+selected — across 872 and 916 injected faults, selection never skipped a test that would have caught one.
+
+**jsoup skipped 3,068 of 47,866 killing tests (6.4%), and the cause is worth stating plainly.** The skips are not spread
+across the run: they come from **20 of 942 mutants**, and **four mutants in `QueryParser` account for 2,980 of the 3,068
+(97%)**. Checking every skipped test against the agent's own recorded dependencies for that build, the separation is
+exact — of 662 selected killing tests 632 had recorded a load of `QueryParser`, while of 745 skipped ones **not one
+had**. Selection did precisely what the recorded data said; nothing in the selection rules misfired.
+
+What the recorded data missed is the load itself. jsoup's public API is the string-based
+`select("div > p")`, whose CSS parse sits behind a cached path that produces no class load attributable to the calling
+test — so a test that genuinely depends on `QueryParser` never records it. That is the same category as the
+`@BeforeAll` blind spot in [Known limitations](#known-limitations) — a class-load-tracking gap for APIs reached through
+string indirection, not a flaw in the dependency-match rule — and it is exactly the gap the recommended daily
+full-suite run exists to backstop. The remaining 88 skips are the documented `@BeforeAll` case.
+
+It is a real limit, found by pointing the harness at a project whose central API is string-dispatched. We are publishing
+it rather than the two clean runs alone, because a tool that decides what not to run has to be honest about where its
+evidence is thin.
 
 ## How it works
 
@@ -256,6 +279,12 @@ Full text and rationale: [`.specify/memory/constitution.md`](.specify/memory/con
   dependency is invisible to selection. Narrow, deterministic, and documented — not a bug
   being hidden. Lean on the recommended daily full-suite run if this matters for your
   project.
+- A class reached only through a **string-dispatched API** may not be attributed either, for the
+  same reason: if the call is `select("div > p")` and the parse behind it sits on a cached path,
+  the test never records a load of the parser it truly depends on. This is what produced the 3,068
+  skipped killing tests in the jsoup replay above — measured, not hypothetical. It bites hardest on
+  projects whose central API is a string DSL (selector engines, expression languages, query
+  parsers). The daily full-suite run is the backstop.
 - Refreshing the dependency index (a "track" build) runs the full suite once; correct, but
   not optimized for very slow suites. It only happens on base-reference builds, never on
   every PR build.
