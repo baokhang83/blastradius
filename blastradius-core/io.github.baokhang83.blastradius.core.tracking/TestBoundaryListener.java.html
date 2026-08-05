@@ -16,62 +16,62 @@ import org.junit.platform.launcher.TestIdentifier;
  * {@link InheritableThreadLocal}, so {@link DependencyTrackingAgent}'s class-load observations can
  * be attributed to the test that triggered them, including classes first loaded by a child thread.
  *
- * &lt;p&gt;The window also opens one level up: while a class's {@code @BeforeAll} runs, no test method
- * is current yet, so its loads run under a synthetic container-level identity instead (see
- * {@link TestIdentity}'s class-level identity convention). Once the class finishes, whatever that
- * identity accumulated is folded into every test method that ran inside it — see
- * {@link DependencyTrackingAgent#unionContainerDependencies}.
+ * &lt;p&gt;The window also opens one level up: a class container owns a synthetic identity (see
+ * {@link TestIdentity}'s class-level identity convention) while its lifecycle code runs outside a
+ * test method. Once the class finishes, the container's accumulated dependencies are folded into
+ * every test method that ran directly inside it — see
+ * {@link DependencyTrackingAgent#unionContainerDependencies}. This intentionally attributes
+ * between-test and cleanup work to every sibling, which is conservative: it can widen selection
+ * but cannot hide a dependency.
  *
  * &lt;p&gt;Tests must await child-thread work before they finish. The identity is copied when a child
  * thread is created, so work that outlives its test cannot be attributed reliably. Tests executing
  * in parallel remain outside this listener's supported model.
  */
-<span class="fc" id="L29">public final class TestBoundaryListener implements TestExecutionListener {</span>
+<span class="fc" id="L31">public final class TestBoundaryListener implements TestExecutionListener {</span>
 
-<span class="fc" id="L31">    private static final ThreadLocal&lt;Set&lt;Class&lt;?&gt;&gt;&gt; CLASSES_AT_TEST_START = new ThreadLocal&lt;&gt;();</span>
-<span class="fc" id="L32">    private static final ThreadLocal&lt;Deque&lt;ContainerFrame&gt;&gt; CONTAINER_STACK =</span>
-<span class="fc" id="L33">            ThreadLocal.withInitial(ArrayDeque::new);</span>
+<span class="fc" id="L33">    private static final ThreadLocal&lt;Set&lt;Class&lt;?&gt;&gt;&gt; CLASSES_AT_TEST_START = new ThreadLocal&lt;&gt;();</span>
+<span class="fc" id="L34">    private static final ThreadLocal&lt;Deque&lt;ContainerFrame&gt;&gt; CONTAINER_STACK =</span>
+<span class="fc" id="L35">            ThreadLocal.withInitial(ArrayDeque::new);</span>
 
     /** The test currently executing on this thread, or {@code null} if none. */
     public static TestIdentity currentTest() {
-<span class="fc" id="L37">        return TestExecutionContext.currentTest();</span>
+<span class="fc" id="L39">        return TestExecutionContext.currentTest();</span>
     }
 
     @Override
     public void executionStarted(TestIdentifier testIdentifier) {
-<span class="fc bfc" id="L42" title="All 2 branches covered.">        if (testIdentifier.isTest()) {</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">        if (testIdentifier.isTest()) {</span>
             // First call in this fork snapshots everything already loaded — JVM/Surefire
             // bootstrap plus JUnit Platform's discovery pass, which runs before any test's
             // window opens and can force-load classes the tracker can never re-observe.
             // No-op on every call after the first.
-<span class="fc" id="L47">            DependencyTrackingAgent.recordAmbientSnapshot();</span>
-<span class="fc" id="L48">            TestIdentity test = toTestIdentity(testIdentifier);</span>
+<span class="fc" id="L49">            DependencyTrackingAgent.recordAmbientSnapshot();</span>
+<span class="fc" id="L50">            TestIdentity test = toTestIdentity(testIdentifier);</span>
             // Register before publishing this identity to the agent. Computing the record's
             // generated hash code may load JVM support classes; while no test is current those
             // loads are intentionally ignored instead of recursively recording themselves.
-<span class="fc" id="L52">            DependencyTrackingAgent.recordTestStarted(test);</span>
-<span class="fc" id="L53">            Deque&lt;ContainerFrame&gt; stack = CONTAINER_STACK.get();</span>
-<span class="pc bpc" id="L54" title="1 of 2 branches missed.">            if (!stack.isEmpty()) {</span>
-<span class="fc" id="L55">                ContainerFrame frame = stack.peek();</span>
-<span class="fc bfc" id="L56" title="All 2 branches covered.">                if (!frame.beforeAllWindowClosed) {</span>
-                    // @BeforeAll's window is exactly [container started, first test started) — close
-                    // it here so hidden classes any test body loads later are never misattributed
-                    // back to the container and unioned into every sibling test.
-<span class="fc" id="L60">                    DependencyTrackingAgent.recordHiddenClassesLoadedSince(</span>
-                            frame.identity, frame.classesAtStart);
-<span class="fc" id="L62">                    frame.beforeAllWindowClosed = true;</span>
-                }
-<span class="fc" id="L64">                frame.memberTests.add(test);</span>
+<span class="fc" id="L54">            DependencyTrackingAgent.recordTestStarted(test);</span>
+<span class="fc" id="L55">            Deque&lt;ContainerFrame&gt; stack = CONTAINER_STACK.get();</span>
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">            if (!stack.isEmpty()) {</span>
+<span class="fc" id="L57">                ContainerFrame frame = stack.peek();</span>
+<span class="fc" id="L58">                closeContainerWindow(frame);</span>
+<span class="fc" id="L59">                frame.memberTests.add(test);</span>
             }
-<span class="fc" id="L66">            TestExecutionContext.start(test);</span>
-<span class="fc" id="L67">            CLASSES_AT_TEST_START.set(DependencyTrackingAgent.loadedClasses());</span>
-<span class="fc" id="L68">        } else {</span>
-<span class="fc" id="L69">            toContainerIdentity(testIdentifier).ifPresent(container -&gt; {</span>
-<span class="fc" id="L70">                DependencyTrackingAgent.recordAmbientSnapshot();</span>
-<span class="fc" id="L71">                TestExecutionContext.start(container);</span>
-<span class="fc" id="L72">                CONTAINER_STACK</span>
-<span class="fc" id="L73">                        .get()</span>
-<span class="fc" id="L74">                        .push(new ContainerFrame(container, DependencyTrackingAgent.loadedClasses()));</span>
+<span class="fc" id="L61">            TestExecutionContext.start(test);</span>
+<span class="fc" id="L62">            CLASSES_AT_TEST_START.set(DependencyTrackingAgent.loadedClasses());</span>
+<span class="fc" id="L63">        } else {</span>
+<span class="fc" id="L64">            toContainerIdentity(testIdentifier).ifPresent(container -&gt; {</span>
+<span class="fc" id="L65">                DependencyTrackingAgent.recordAmbientSnapshot();</span>
+<span class="fc" id="L66">                Deque&lt;ContainerFrame&gt; stack = CONTAINER_STACK.get();</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">                if (!stack.isEmpty()) {</span>
+                    // A nested class suspends its parent's lifecycle window. Flush hidden classes
+                    // first, then start the inner container so nested test bodies never leak into
+                    // the parent bucket.
+<span class="fc" id="L71">                    closeContainerWindow(stack.peek());</span>
+                }
+<span class="fc" id="L73">                TestExecutionContext.start(container);</span>
+<span class="fc" id="L74">                stack.push(new ContainerFrame(container, DependencyTrackingAgent.loadedClasses()));</span>
 <span class="fc" id="L75">            });</span>
         }
 <span class="fc" id="L77">    }</span>
@@ -80,37 +80,51 @@ import org.junit.platform.launcher.TestIdentifier;
     public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult testExecutionResult) {
 <span class="fc bfc" id="L81" title="All 2 branches covered.">        if (testIdentifier.isTest()) {</span>
 <span class="fc" id="L82">            TestIdentity currentTest = TestExecutionContext.currentTest();</span>
-<span class="fc bfc" id="L83" title="All 2 branches covered.">            if (currentTest != null) {</span>
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">            if (currentTest != null) {</span>
 <span class="fc" id="L84">                DependencyTrackingAgent.recordHiddenClassesLoadedSince(</span>
 <span class="fc" id="L85">                        currentTest, CLASSES_AT_TEST_START.get());</span>
             }
 <span class="fc" id="L87">            TestExecutionContext.finish();</span>
 <span class="fc" id="L88">            CLASSES_AT_TEST_START.remove();</span>
-<span class="fc" id="L89">        } else {</span>
-<span class="fc" id="L90">            toContainerIdentity(testIdentifier).ifPresent(container -&gt; {</span>
-<span class="fc" id="L91">                Deque&lt;ContainerFrame&gt; stack = CONTAINER_STACK.get();</span>
-<span class="pc bpc" id="L92" title="1 of 2 branches missed.">                if (stack.isEmpty()) {</span>
-<span class="nc" id="L93">                    return;</span>
+<span class="fc" id="L89">            rearmCurrentContainerWindow();</span>
+<span class="fc" id="L90">        } else {</span>
+<span class="fc" id="L91">            toContainerIdentity(testIdentifier).ifPresent(container -&gt; {</span>
+<span class="fc" id="L92">                Deque&lt;ContainerFrame&gt; stack = CONTAINER_STACK.get();</span>
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">                if (stack.isEmpty()) {</span>
+<span class="nc" id="L94">                    return;</span>
                 }
-<span class="fc" id="L95">                ContainerFrame frame = stack.pop();</span>
-<span class="fc bfc" id="L96" title="All 2 branches covered.">                if (!frame.beforeAllWindowClosed) {</span>
-                    // No test ever started under this container (e.g. every test disabled, or a
-                    // container with only further @Nested containers) — still close the window so
-                    // any class @BeforeAll loaded is captured rather than silently dropped.
-<span class="fc" id="L100">                    DependencyTrackingAgent.recordHiddenClassesLoadedSince(</span>
-                            frame.identity, frame.classesAtStart);
-                }
-<span class="fc" id="L103">                DependencyTrackingAgent.unionContainerDependencies(frame.identity, frame.memberTests);</span>
-<span class="fc" id="L104">            });</span>
+<span class="fc" id="L96">                ContainerFrame frame = stack.pop();</span>
+<span class="fc" id="L97">                closeContainerWindow(frame);</span>
+<span class="fc" id="L98">                DependencyTrackingAgent.unionContainerDependencies(frame.identity, frame.memberTests);</span>
+<span class="fc" id="L99">                rearmCurrentContainerWindow();</span>
+<span class="fc" id="L100">            });</span>
         }
-<span class="fc" id="L106">    }</span>
+<span class="fc" id="L102">    }</span>
+
+    /** Records hidden classes from one container-owned lifecycle interval and resets its baseline. */
+    private static void closeContainerWindow(ContainerFrame frame) {
+<span class="fc" id="L106">        DependencyTrackingAgent.recordHiddenClassesLoadedSince(frame.identity, frame.classesAtWindowStart);</span>
+<span class="fc" id="L107">        frame.classesAtWindowStart = DependencyTrackingAgent.loadedClasses();</span>
+<span class="fc" id="L108">    }</span>
+
+    /** Restores the innermost container after a child test or nested container has finished. */
+    private static void rearmCurrentContainerWindow() {
+<span class="fc" id="L112">        Deque&lt;ContainerFrame&gt; stack = CONTAINER_STACK.get();</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        if (stack.isEmpty()) {</span>
+<span class="fc" id="L114">            TestExecutionContext.finish();</span>
+<span class="fc" id="L115">            return;</span>
+        }
+<span class="fc" id="L117">        ContainerFrame frame = stack.peek();</span>
+<span class="fc" id="L118">        TestExecutionContext.start(frame.identity);</span>
+<span class="fc" id="L119">        frame.classesAtWindowStart = DependencyTrackingAgent.loadedClasses();</span>
+<span class="fc" id="L120">    }</span>
 
     private static TestIdentity toTestIdentity(TestIdentifier testIdentifier) {
-<span class="fc" id="L109">        return testIdentifier.getSource()</span>
-<span class="fc" id="L110">                .filter(MethodSource.class::isInstance)</span>
-<span class="fc" id="L111">                .map(MethodSource.class::cast)</span>
-<span class="fc" id="L112">                .map(source -&gt; new TestIdentity(source.getClassName(), source.getMethodName()))</span>
-<span class="pc" id="L113">                .orElseGet(() -&gt; new TestIdentity(testIdentifier.getLegacyReportingName(), null));</span>
+<span class="fc" id="L123">        return testIdentifier.getSource()</span>
+<span class="fc" id="L124">                .filter(MethodSource.class::isInstance)</span>
+<span class="fc" id="L125">                .map(MethodSource.class::cast)</span>
+<span class="fc" id="L126">                .map(source -&gt; new TestIdentity(source.getClassName(), source.getMethodName()))</span>
+<span class="pc" id="L127">                .orElseGet(() -&gt; new TestIdentity(testIdentifier.getLegacyReportingName(), null));</span>
     }
 
     /**
@@ -120,28 +134,27 @@ import org.junit.platform.launcher.TestIdentifier;
      * alone: {@code @BeforeAll} only exists on real classes.
      */
     private static Optional&lt;TestIdentity&gt; toContainerIdentity(TestIdentifier testIdentifier) {
-<span class="fc" id="L123">        return testIdentifier.getSource()</span>
-<span class="fc" id="L124">                .filter(ClassSource.class::isInstance)</span>
-<span class="fc" id="L125">                .map(ClassSource.class::cast)</span>
-<span class="fc" id="L126">                .map(source -&gt; new TestIdentity(source.getClassName(), null));</span>
+<span class="fc" id="L137">        return testIdentifier.getSource()</span>
+<span class="fc" id="L138">                .filter(ClassSource.class::isInstance)</span>
+<span class="fc" id="L139">                .map(ClassSource.class::cast)</span>
+<span class="fc" id="L140">                .map(source -&gt; new TestIdentity(source.getClassName(), null));</span>
     }
 
     /**
-     * One class's {@code @BeforeAll} attribution window, tracked per thread so {@code @Nested}
-     * classes — which fire their own container start/finish nested inside the outer one — stack
-     * correctly: a test always joins the innermost open container's member set, never an
-     * ancestor's.
+     * One class's lifecycle attribution state, tracked per thread so {@code @Nested} classes
+     * stack correctly. Each hidden-class baseline covers one container-owned interval: before the
+     * first test, between tests, or after the last test. A test always joins the innermost open
+     * container's member set, never an ancestor's.
      */
     private static final class ContainerFrame {
         private final TestIdentity identity;
-        private final Set&lt;Class&lt;?&gt;&gt; classesAtStart;
-<span class="fc" id="L138">        private final Set&lt;TestIdentity&gt; memberTests = new LinkedHashSet&lt;&gt;();</span>
-        private boolean beforeAllWindowClosed;
+        private Set&lt;Class&lt;?&gt;&gt; classesAtWindowStart;
+<span class="fc" id="L152">        private final Set&lt;TestIdentity&gt; memberTests = new LinkedHashSet&lt;&gt;();</span>
 
-<span class="fc" id="L141">        ContainerFrame(TestIdentity identity, Set&lt;Class&lt;?&gt;&gt; classesAtStart) {</span>
-<span class="fc" id="L142">            this.identity = identity;</span>
-<span class="fc" id="L143">            this.classesAtStart = classesAtStart;</span>
-<span class="fc" id="L144">        }</span>
+<span class="fc" id="L154">        ContainerFrame(TestIdentity identity, Set&lt;Class&lt;?&gt;&gt; classesAtStart) {</span>
+<span class="fc" id="L155">            this.identity = identity;</span>
+<span class="fc" id="L156">            this.classesAtWindowStart = classesAtStart;</span>
+<span class="fc" id="L157">        }</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
