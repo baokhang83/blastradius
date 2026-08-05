@@ -3,6 +3,7 @@ package io.github.baokhang83.blastradius.validator.build;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecord;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
+import io.github.baokhang83.blastradius.core.tracking.DirectInvocationRecord;
 import io.github.baokhang83.blastradius.validator.build.CommitBuildService.BuildKey;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -44,6 +45,13 @@ import java.util.stream.Collectors;
  * the tracking agent, clear the cache directory first.
  */
 public final class BuildCache {
+
+    /**
+     * Bump whenever the cached {@link DependencyRecordSet} representation changes. Keeping this
+     * in the filename makes entries from an older representation an automatic cache miss instead
+     * of letting selection run with incomplete dependency evidence.
+     */
+    private static final int FORMAT_VERSION = 2;
 
     private final Path directory;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -106,7 +114,8 @@ public final class BuildCache {
     }
 
     private Path fileFor(BuildKey key) {
-        return directory.resolve(key.sha() + (key.agentAttached() ? "-agent" : "-noagent") + ".json");
+        return directory.resolve(key.sha() + (key.agentAttached() ? "-agent" : "-noagent")
+                + "-v" + FORMAT_VERSION + ".json");
     }
 
     private static CachedBuild toDto(CommitBuild build) {
@@ -117,9 +126,15 @@ public final class BuildCache {
                         .map(e -> new DependencyRecord(e.getKey(), e.getValue()))
                         .toList()
                 : null;
+        List<DirectInvocationRecord> directInvocations = hasDependencies
+                ? set.directInvocations().entrySet().stream()
+                        .map(e -> new DirectInvocationRecord(e.getKey(), e.getValue()))
+                        .toList()
+                : null;
         Set<String> ambient = hasDependencies ? set.ambientDependencies() : null;
         return new CachedBuild(
-                build.failed(), build.failureReason(), hasDependencies, dependencies, ambient, build.groundTruth());
+                build.failed(), build.failureReason(), hasDependencies, dependencies, directInvocations, ambient,
+                build.groundTruth());
     }
 
     private static CommitBuild fromDto(CachedBuild dto) {
@@ -128,6 +143,12 @@ public final class BuildCache {
                         dto.dependencies().stream()
                                 .collect(Collectors.toUnmodifiableMap(
                                         DependencyRecord::test, DependencyRecord::dependencies)),
+                        dto.directInvocations() == null
+                                ? Map.of()
+                                : dto.directInvocations().stream()
+                                        .collect(Collectors.toUnmodifiableMap(
+                                                DirectInvocationRecord::test,
+                                                DirectInvocationRecord::sourceToTargetClasses)),
                         dto.ambientDependencies())
                 : null;
         List<GroundTruthResult> groundTruth = dto.groundTruth() == null ? List.of() : dto.groundTruth();
@@ -136,8 +157,9 @@ public final class BuildCache {
 
     /**
      * On-disk shape of a cached build. The per-test dependency map is flattened to a
-     * {@code List<DependencyRecord>} — as {@link io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader}
-     * does — because its {@link io.github.baokhang83.blastradius.core.tracking.TestIdentity} key can't be a JSON
+     * {@code List<DependencyRecord>} / {@code List<DirectInvocationRecord>} — as
+     * {@link io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader} does — because
+     * its {@link io.github.baokhang83.blastradius.core.tracking.TestIdentity} key can't be a JSON
      * object key without a custom Jackson key serializer. {@code hasDependencies} distinguishes an
      * agent-free ground-truth build (null {@link DependencyRecordSet}) from an agent build that
      * merely recorded no tests (empty set).
@@ -147,6 +169,7 @@ public final class BuildCache {
             String failureReason,
             boolean hasDependencies,
             List<DependencyRecord> dependencies,
+            List<DirectInvocationRecord> directInvocations,
             Set<String> ambientDependencies,
             List<GroundTruthResult> groundTruth) {}
 }
