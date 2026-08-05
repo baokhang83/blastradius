@@ -54,8 +54,9 @@ counts five times. Across shenyu's 872 injected faults and httpcomponents-client
 that would have caught one.
 
 <sup>5</sup> Selection skipped 3,068 of jsoup's 47,866 killing executions (6.4%). Those executions cover **750 distinct
-tests**, since each test is counted once per mutant it would have caught. **Twenty of the 942 mutants** produced every
-skip, and **four mutants in `org.jsoup.select.QueryParser`** account for 2,980 of them by skipping the same 745 tests. The cause is missing tracking data, not a bad selection decision. Of the 662 killing tests selection did choose, 632 had
+tests**, since each test is counted once per mutant it would have caught. Of the 652 mutants that any test caught,
+**20 had a killing test skipped**, and **four mutants in `org.jsoup.select.QueryParser`** account for 2,980 of the 3,068
+by each skipping the same 745 tests. The cause is missing tracking data, not a bad selection decision. Of the 662 killing tests selection did choose, 632 had
 recorded loading `QueryParser`; of the 745 it skipped, none had. jsoup exposes its query API as a string —
 `select("div > p")` — and caches the parse behind it, so the agent never attributes a `QueryParser` load to the test
 that triggered it. Selection ran every test its recorded dependencies justified, and those records never showed the
