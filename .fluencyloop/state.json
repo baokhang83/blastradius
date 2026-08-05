@@ -1,10 +1,10 @@
 {
-  "feature": "parallelize-phase-2-bounded-mutation-validation-across-the-i",
-  "branch": "feature/parallelize-phase-2-bounded-mutation-validation-across-the-i",
+  "feature": "219-core-attribute-beforeall-loaded-classes-to-their-contain",
+  "branch": "feature/219-core-attribute-beforeall-loaded-classes-to-their-contain",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/parallelize-phase-2-bounded-mutation-validation-across-the-i/sessions/001-fan-phase-2-mutation-validation-across-the-idle-checkout.md",
-  "base_ref": "feature/target-mutation-candidates-at-each-pair-s-changed-source-fil",
-  "feature_dir": "",
+  "last_session": "docs/fluencyloop/features/219-core-attribute-beforeall-loaded-classes-to-their-contain/sessions/001-core-mechanism-synthetic-container-identity-stacked-fram.md",
+  "base_ref": "main",
+  "feature_dir": "docs/fluencyloop/features/219-core-attribute-beforeall-loaded-classes-to-their-contain",
   "plan": "",
-  "updated": "2026-08-03"
+  "updated": "2026-08-05"
 }

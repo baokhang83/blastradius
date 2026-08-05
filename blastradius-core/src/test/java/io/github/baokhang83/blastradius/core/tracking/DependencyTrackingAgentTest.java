@@ -184,6 +184,51 @@ class DependencyTrackingAgentTest {
     }
 
     @Test
+    void unionContainerDependenciesFoldsBeforeAllLoadsIntoEveryMemberTest() {
+        TestIdentity container = new TestIdentity(FOO_TEST.className(), null);
+        TestIdentity barTest = new TestIdentity(FOO_TEST.className(), "checksSubtract");
+
+        currentTest.set(container);
+        agent.transform(null, "com/example/Helper", null, null, "helper".getBytes(StandardCharsets.UTF_8));
+
+        agent.unionContainerDependenciesForTests(container, Set.of(FOO_TEST, barTest));
+
+        Map<TestIdentity, Map<String, String>> all = agent.recordedDependencies();
+        assertTrue(all.get(FOO_TEST).containsKey("com.example.Helper"));
+        assertTrue(all.get(barTest).containsKey("com.example.Helper"));
+        assertFalse(all.containsKey(container),
+                "the container was only ever a transitional bucket, never a real test to look a baseline up for");
+    }
+
+    @Test
+    void unionContainerDependenciesNeverOverwritesATestsOwnRecordedChecksum() throws NoSuchAlgorithmException {
+        // Defensive, mirroring recordNewHiddenClasses's putIfAbsent: if a class is somehow
+        // recorded directly under a test AND under its container (same class name), the test's
+        // own observation must win rather than being silently replaced by the container's.
+        TestIdentity container = new TestIdentity(FOO_TEST.className(), null);
+
+        currentTest.set(FOO_TEST);
+        agent.transform(null, "com/example/Helper", null, null, "test-version".getBytes(StandardCharsets.UTF_8));
+        currentTest.set(container);
+        agent.transform(null, "com/example/Helper", null, null, "beforeall-version".getBytes(StandardCharsets.UTF_8));
+
+        agent.unionContainerDependenciesForTests(container, Set.of(FOO_TEST));
+
+        assertEquals(sha256Hex("test-version".getBytes(StandardCharsets.UTF_8)),
+                agent.recordedDependencies().get(FOO_TEST).get("com.example.Helper"));
+    }
+
+    @Test
+    void unionContainerDependenciesIsANoOpWhenTheContainerNeverRecordedAnything() {
+        TestIdentity container = new TestIdentity(FOO_TEST.className(), null);
+
+        agent.unionContainerDependenciesForTests(container, Set.of(FOO_TEST));
+
+        assertTrue(agent.recordedDependencies().isEmpty(),
+                "a class-less @BeforeAll must not manufacture an empty baseline for its tests");
+    }
+
+    @Test
     void ambientDependenciesIsEmptyWithNoInstrumentationAttached() throws Exception {
         // loadedClasses() reads the static Instrumentation seam shared by the whole JVM fork.
         // It's genuinely null in a plain unit-test run, but TrackRunner re-forks this very

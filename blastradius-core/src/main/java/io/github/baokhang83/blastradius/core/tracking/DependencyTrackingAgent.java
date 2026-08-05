@@ -510,6 +510,34 @@ public final class DependencyTrackingAgent implements ClassFileTransformer {
         }
     }
 
+    /**
+     * Called once a container (a JUnit 5 test class) has finished executing, with the set of
+     * test methods that ran directly inside it. Everything recorded under {@code container}'s
+     * own identity — {@code @BeforeAll}'s named-class loads via the ordinary {@link #transform}
+     * path, plus its hidden-class window closed by {@link TestBoundaryListener} at the first
+     * child test — is folded into every one of those tests, then the container's own entry is
+     * dropped: it was only ever a transitional bucket, never a real test whose baseline
+     * selection should look up.
+     */
+    static void unionContainerDependencies(TestIdentity container, Set<TestIdentity> memberTests) {
+        DependencyTrackingAgent currentAgent = installedAgent;
+        if (currentAgent != null) {
+            currentAgent.unionContainerDependenciesForTests(container, memberTests);
+        }
+    }
+
+    void unionContainerDependenciesForTests(TestIdentity container, Set<TestIdentity> memberTests) {
+        Map<String, String> containerDependencies = checksumsByTest.remove(container);
+        if (containerDependencies == null || containerDependencies.isEmpty()) {
+            return;
+        }
+        for (TestIdentity test : memberTests) {
+            Map<String, String> testDependencies =
+                    checksumsByTest.computeIfAbsent(test, ignored -> new ConcurrentHashMap<>());
+            containerDependencies.forEach(testDependencies::putIfAbsent);
+        }
+    }
+
     private static String sha256Hex(byte[] bytes) {
         byte[] hash;
         synchronized (SHA_256) {
