@@ -37,9 +37,6 @@ here hit the 10-minute build timeout: a handful of injected mutants turn jsoup's
 the harness stops waiting rather than hang the run. The run also saw 35 flaky failures (34 of them
 `org.jsoup.parser.HtmlParserTest#handlesManyChildren`); a test that fails once and passes on confirmation rerun is not
 evidence of a missed regression, so those count as flaky rather than as would-misses.    
-<sup>4</sup> Across 200 commits the window produced one newly-confirmed failing test, and
-selection ran it. Injected faults are measured separately in the mutation table below, where jsoup did have skips —
-footnote 5 breaks down why.
 
 Bounded mutation validation ran on the same window: for each pair it injects synthetic faults into
 head and checks whether the tests selected catch them.
@@ -48,14 +45,14 @@ head and checks whether the tests selected catch them.
 | --- | ---: | ---: | :---: | ---: |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 872 (778) | 339 | **943 / 943** | 686 / 257 |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/httpcomponents-client">httpcomponents-client</a></h4> | 916 (916) | 551 | **75,380 / 75,380** | 3,571 / 71,809 |
-| <h4><a href="https://github.com/jhy/jsoup">jsoup</a></h4> | 942 (938) | 652 | **44,798 / 47,866**<sup>5</sup> | 42,440 / 5,426 |
+| <h4><a href="https://github.com/jhy/jsoup">jsoup</a></h4> | 942 (938) | 652 | **44,798 / 47,866**<sup>4</sup> | 42,440 / 5,426 |
 
 A "killing test" is one that actually caught an injected fault (passed on head, failed on the mutant, stayed failed on
 confirmation), so it is a test the selection *must not* skip. Counts are per mutant, so a test that kills five mutants
 counts five times. Across shenyu's 872 injected faults and httpcomponents-client's 916, selection never skipped a test
 that would have caught one.
 
-<sup>5</sup> **The selection rules behaved correctly here; the tracking data they were given was incomplete.** Selection skipped 3,068 of jsoup's 47,866 killing executions (6.4%) — 750 distinct tests, since each test is counted
+<sup>4</sup> **The selection rules behaved correctly here; the tracking data they were given was incomplete.** Selection skipped 3,068 of jsoup's 47,866 killing executions (6.4%) — 750 distinct tests, since each test is counted
 once per mutant it would have caught. The skips are concentrated, not spread: of the 652 mutants that any test caught,
 20 had a killing test skipped, and four mutants in `org.jsoup.select.QueryParser` cause 2,980 of the 3,068 by each
 skipping the same 745 tests. Selection runs a test when the agent recorded that test loading a changed class. So the check is whether the skipped
