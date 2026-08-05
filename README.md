@@ -37,7 +37,7 @@ here hit the 10-minute build timeout: a handful of injected mutants turn jsoup's
 the harness stops waiting rather than hang the run. The run also saw 35 flaky failures (34 of them
 `org.jsoup.parser.HtmlParserTest#handlesManyChildren`); a test that fails once and passes on confirmation rerun is not
 evidence of a missed regression, so those count as flaky rather than as would-misses.    
-<sup>4</sup> This column measures real history: across 200 commits the window produced one newly-confirmed failing test, and
+<sup>4</sup> Across 200 commits the window produced one newly-confirmed failing test, and
 selection ran it. Injected faults are measured separately in the mutation table below, where jsoup did have skips —
 footnote 5 breaks down why.
 
