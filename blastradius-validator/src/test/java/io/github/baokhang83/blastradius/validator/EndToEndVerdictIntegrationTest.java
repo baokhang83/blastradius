@@ -26,8 +26,16 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class EndToEndVerdictIntegrationTest {
 
+    /**
+     * Once {@code TestBoundaryListener} attributes {@code @BeforeAll}-loaded classes to their
+     * container's tests (#219), {@code GapTest} correctly tracks {@code Shared} even though it's
+     * only ever invoked from {@code @BeforeAll} — so a mutant of {@code Shared} correctly selects
+     * {@code GapTest} as a killing test instead of skipping it. This test used to be named
+     * {@code mutationValidationFailsWhenTheHistoricalPairWouldSkipAKillingTest} and asserted the
+     * opposite (a skip/FAIL), documenting the gap before it closed.
+     */
     @Test
-    void mutationValidationFailsWhenTheHistoricalPairWouldSkipAKillingTest(
+    void mutationValidationSelectsABeforeAllTrackedKillingTest(
             @TempDir Path projectDir, @TempDir Path outDir) throws Exception {
         Path agentJar = findOwnAgentJar();
         Path reportFile = outDir.resolve("report.json");
@@ -62,12 +70,13 @@ class EndToEndVerdictIntegrationTest {
         int exitCode = new RunCommand().run(config, agentJar);
 
         JsonNode report = new ObjectMapper().readTree(reportFile.toFile());
-        assertEquals(1, exitCode);
-        assertEquals("FAIL", report.get("verdict").asText());
-        assertEquals("FAIL", report.get("mutationValidation").get("verdict").asText());
-        assertEquals(1, report.get("mutationValidation").get("coverage").get("skippedKillingTests").asInt());
+        assertEquals(0, exitCode);
+        assertEquals("PASS", report.get("verdict").asText());
+        assertEquals("PASS", report.get("mutationValidation").get("verdict").asText());
+        assertEquals(1, report.get("mutationValidation").get("coverage").get("selectedKillingTests").asInt());
+        assertEquals(0, report.get("mutationValidation").get("coverage").get("skippedKillingTests").asInt());
         assertEquals("com.example.GapTest", report.get("mutationValidation").get("experiments").get(0)
-                .get("skippedKillingTests").get(0).get("className").asText());
+                .get("selectedKillingTests").get(0).get("className").asText());
     }
 
     @Test
@@ -142,20 +151,19 @@ class EndToEndVerdictIntegrationTest {
     }
 
     /**
-     * A deterministic, honest way to trigger a real would-miss through the actual
-     * pipeline: {@code Shared} is invoked <em>only</em> from {@code @BeforeAll} (a
-     * container-level callback, not a test) and its result cached into a static field —
-     * the {@code @Test} itself never calls {@code Shared} again, so the class never
-     * executes while {@code TestBoundaryListener} reports a current test. The agent's
-     * runtime-use callback (injected into every project class at its first load,
-     * regardless of whether a test is running) only attributes an execution when a test
-     * is actually current, so a dependency exercised solely during class-level setup
-     * stays invisible to tracking. This is a real, narrow, documented limitation of
-     * container-level setup, not a contrived test artifact — it would stop being
-     * "untracked" the moment the test body itself calls {@code Shared} again.
+     * {@code Shared} is invoked <em>only</em> from {@code @BeforeAll} (a container-level
+     * callback, not a test) and its result cached into a static field — the {@code @Test}
+     * itself never calls {@code Shared} again. Before #219, {@code TestBoundaryListener} only
+     * attributed a load when a test method was actually current, so this dependency stayed
+     * invisible and this test documented the resulting would-miss. Since #219, {@code
+     * @BeforeAll} runs under its container's synthetic identity and that identity's
+     * dependencies get unioned into every member test, so {@code GapTest} now correctly
+     * tracks {@code Shared} and gets selected when it changes. This test used to be named
+     * {@code untrackedBeforeAllDependencyProducesAFailVerdict} and asserted the opposite
+     * (a FAIL/would-miss), documenting the gap before it closed.
      */
     @Test
-    void untrackedBeforeAllDependencyProducesAFailVerdict(@TempDir Path projectDir, @TempDir Path outDir)
+    void trackedBeforeAllDependencyProducesAPassVerdict(@TempDir Path projectDir, @TempDir Path outDir)
             throws Exception {
         Path agentJar = findOwnAgentJar();
         Path reportFile = outDir.resolve("report.json");
@@ -164,10 +172,10 @@ class EndToEndVerdictIntegrationTest {
         fixture.addSystemDependency(null, agentJar);
         fixture.writeClass("com.example.Shared",
                 "package com.example; public class Shared { public static int value() { return 1; } }");
-        // Runs first (alphabetical runOrder, see FixtureProjectBuilder's pom), so the
-        // agent's once-per-fork ambient snapshot is already taken by the time GapTest's
-        // own @BeforeAll loads Shared — otherwise that first-in-fork timing would itself
-        // put Shared in the ambient set and mask the very gap this test documents.
+        // Runs first (alphabetical runOrder, see FixtureProjectBuilder's pom). Since #219 the
+        // agent's once-per-fork ambient snapshot is taken at the first *container* start, before
+        // any @BeforeAll runs, so this ordering is no longer load-bearing for correctness — kept
+        // anyway so the fork's very first class-load isn't GapTest's own @BeforeAll.
         fixture.writeTest("com.example.AaaWarmupTest", """
                 package com.example;
                 import org.junit.jupiter.api.Test;
@@ -195,8 +203,9 @@ class EndToEndVerdictIntegrationTest {
                 """);
         fixture.commit("initial");
 
-        // Shared.java changes and breaks GapTest, but GapTest's tracked baseline never
-        // included Shared (it was only ever loaded during the untracked @BeforeAll).
+        // Shared.java changes and breaks GapTest. GapTest's tracked baseline now includes
+        // Shared, via #219's container-level attribution of its @BeforeAll load, so this
+        // real failure gets correctly selected instead of missed.
         fixture.writeClass("com.example.Shared",
                 "package com.example; public class Shared { public static int value() { return 2; } }");
         fixture.commit("break Shared");
@@ -204,16 +213,15 @@ class EndToEndVerdictIntegrationTest {
         RunConfig config = new RunConfig(projectDir, 1, reportFile);
         int exitCode = new RunCommand().run(config, agentJar);
 
-        assertEquals(1, exitCode, "expected FAIL verdict (exit code 1)");
+        assertEquals(0, exitCode, "expected PASS verdict (exit code 0)");
         JsonNode report = new ObjectMapper().readTree(reportFile.toFile());
-        assertEquals("FAIL", report.get("verdict").asText());
+        assertEquals("PASS", report.get("verdict").asText());
         assertEquals("ALL_PARENTS", report.get("historyMode").asText());
         assertEquals(1, report.get("failureCoverage").get("pairsWithNewlyConfirmedFailures").asInt());
         assertEquals(1, report.get("failureCoverage").get("newlyConfirmedFailingTests").asInt());
-        assertEquals(0, report.get("failureCoverage").get("selectedNewlyConfirmedFailures").asInt());
-        assertEquals(1, report.get("failureCoverage").get("skippedNewlyConfirmedFailures").asInt());
-        assertEquals(1, report.get("wouldMissCases").size());
-        assertEquals("com.example.GapTest", report.get("wouldMissCases").get(0).get("test").get("className").asText());
+        assertEquals(1, report.get("failureCoverage").get("selectedNewlyConfirmedFailures").asInt());
+        assertEquals(0, report.get("failureCoverage").get("skippedNewlyConfirmedFailures").asInt());
+        assertEquals(0, report.get("wouldMissCases").size());
     }
 
     /**
