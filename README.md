@@ -18,17 +18,19 @@ no heuristics, no opaque score.
 
 ## Historical replay
 
-A 200-pair replay against apache/shenyu — the 200 most recent commits ending at `3a411e0`, each
-replayed as the change it introduced over the commit before it — with bounded mutation validation
-enabled on the same run.
+200-pair replays against apache/shenyu and apache/httpcomponents-client, each replaying 200
+consecutive commits as the change each one introduced over the commit before it — with bounded
+mutation validation enabled on the same run.
 
 | Project | Commit range | Commit pairs (excluded) | Would-miss* | Test executions selected | Skipped |
 | --- | --- | :---: | ---: | ---: | ---: |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | [`69cd1d5`](https://github.com/apache/shenyu/commit/69cd1d5721647a60007584983d96fc94452a4f6b) → [`3a411e0`](https://github.com/apache/shenyu/commit/3a411e017acfc47636e2bbfeb2958108d1f15a05) | 200 (0) | **0\*\*** | 153,142 / 527,508 | **71.0%** |
+| <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/httpcomponents-client">httpcomponents-client</a></h4> | [`ef34bfa`](https://github.com/apache/httpcomponents-client/commit/ef34bfa8fd6f2f6181ba2e41051050ed877e56df) → [`4dae8da`](https://github.com/apache/httpcomponents-client/commit/4dae8da4a365f639e42fea84822285f345be7755) | 200 (12) | **0\*\*\*** | 180,198 / 443,593 | **59.4%** |
 |<img width=400 />|  |  |  |  | **71.0%** |
 
 \* based on below bounded mutation validation.    
-\*\*`org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was excluded as flaky.
+\*\*`org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was excluded as flaky.    
+\*\*\*`org.apache.hc.client5.testing.sync.TestTlsHandshakeTimeout#testTimeout` was excluded as flaky under the 5-way parallel build load.
 
 Bounded mutation validation ran on the same window: for each pair it injects synthetic faults into
 head and checks whether the tests selected catch them.
@@ -36,10 +38,12 @@ head and checks whether the tests selected catch them.
 | Project | Mutants (compilable) | Mutants caught | Killing tests selected | Diff-targeted / fallback |
 | --- | ---: | ---: | :---: | ---: |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 872 (778) | 339 | **943 / 943** | 686 / 257 |
+| <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/httpcomponents-client">httpcomponents-client</a></h4> | 916 (916) | 551 | **75,380 / 75,380** | 3,571 / 71,809 |
 
 A "killing test" is one that actually caught an injected fault (passed on head, failed on the mutant, stayed failed on
-confirmation), so it is a test the selection *must not* skip. Every one of the 943 was selected —
-across 872 injected faults, selection never skipped a test that would have caught one.
+confirmation), so it is a test the selection *must not* skip. Every killing test was selected in both runs — across
+872 injected faults on shenyu and 916 on httpcomponents-client, selection never skipped a test that would have caught
+one.
 
 ## How it works
 
