@@ -252,7 +252,7 @@ Full text and rationale: [`.specify/memory/constitution.md`](.specify/memory/con
 
 ## Known limitations
 
-- A class reached only through a **string-dispatched API** may go unattributed for the same reason:
+- A class reached only through a **string-dispatched API** may go unattributed:
   if the call is `select("div > p")` and the parse behind it sits on a cached path, the calling test
   never records a load of the parser it truly depends on. Measured, not hypothetical — this is what
   left 750 `QueryParser`-dependent tests unselected in the jsoup replay above. It bites hardest
