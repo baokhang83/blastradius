@@ -69,13 +69,14 @@ class FastGroundTruthIntegrationTest {
     }
 
     /**
-     * Same would-miss fixture {@link EndToEndVerdictIntegrationTest} uses, run through
+     * Same fixture {@link EndToEndVerdictIntegrationTest} uses, run through
      * {@code --fast-ground-truth} instead: the ground-truth build is now agent-attached,
      * so this confirms attaching the agent to that build doesn't change pass/fail
-     * detection for a test whose dependency was never tracked in the first place.
+     * detection for a dependency loaded only from {@code @BeforeAll} and now correctly
+     * tracked via #219's container-level attribution.
      */
     @Test
-    void untrackedBeforeAllDependencyStillProducesAFailVerdict(
+    void trackedBeforeAllDependencyStillProducesAPassVerdict(
             @TempDir Path projectDir, @TempDir Path outDir) throws Exception {
         Path agentJar = findOwnAgentJar();
         Path reportFile = outDir.resolve("report.json");
@@ -118,11 +119,10 @@ class FastGroundTruthIntegrationTest {
         RunConfig config = new RunConfig(projectDir, 1, reportFile, null, true);
         int exitCode = new RunCommand().run(config, agentJar);
 
-        assertEquals(1, exitCode, "expected FAIL verdict (exit code 1)");
+        assertEquals(0, exitCode, "expected PASS verdict (exit code 0)");
         JsonNode report = new ObjectMapper().readTree(reportFile.toFile());
-        assertEquals("FAIL", report.get("verdict").asText());
-        assertEquals(1, report.get("wouldMissCases").size());
-        assertEquals("com.example.GapTest", report.get("wouldMissCases").get(0).get("test").get("className").asText());
+        assertEquals("PASS", report.get("verdict").asText());
+        assertTrue(report.get("wouldMissCases").isEmpty());
     }
 
     private static Path findOwnAgentJar() throws IOException {

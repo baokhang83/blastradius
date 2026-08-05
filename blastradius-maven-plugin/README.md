@@ -376,11 +376,14 @@ loop, not the other way around.
 
 ## Known limitations
 
-- A class loaded only inside a JUnit 5 `@BeforeAll` is never attributed to any specific
-  test — dependency tracking only attributes loads to tests that are actually executing. If
-  such a class later changes and breaks a test that depended on it only via `@BeforeAll`
-  setup, that dependency is invisible to selection. Narrow and deterministic, not a bug
-  being hidden — lean on the daily full-suite run if this matters for your project.
+- A class loaded only inside a JUnit 5 `@AfterAll` (or between tests, via `@BeforeEach`/
+  `@AfterEach`) is never attributed to any specific test — dependency tracking only attributes
+  loads to tests that are actually executing, and there is no boundary marking "cleanup is
+  about to run" to hook. `@BeforeAll` is attributed (its loads run under the class's own
+  container identity and are unioned into every test the class owns); `@AfterAll` and the gaps
+  between tests are not. Narrow and deterministic, not a bug being hidden — lean on the daily
+  full-suite run if this matters for your project. Tracked as a follow-up:
+  [#221](https://github.com/baokhang83/blastradius/issues/221).
 - Refreshing the index (`TRACK`) runs the full suite once via a subprocess; correct, but not
   optimized for very slow suites. It only happens on `baseRef` builds, never on PR builds.
 
