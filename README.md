@@ -21,8 +21,7 @@ no heuristics, no opaque score.
 200-pair replays against apache/shenyu and apache/httpcomponents-client, each replaying 200
 consecutive commits as the change each one introduced over the commit before it — with bounded
 mutation validation enabled on the same run. A would-miss is a test that caught a real regression
-or an injected mutant but that selection chose not to run — the count the tool has to keep at
-zero to be sound.
+or an injected mutant but that selection chose not to run.
 
 | Project | Commit range | Commit pairs (excluded) | Would-miss | Test executions selected | Skipped |
 | --- | --- | :---: | ---: | ---: | ---: |
