@@ -1,11 +1,14 @@
 package io.github.baokhang83.blastradius.core.tracking;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -45,7 +48,10 @@ class TestBoundaryListenerTest {
         assertEquals(ProbeTest.class.getName(), observedWhileRunning.get(0).className());
         assertEquals("probe", observedWhileRunning.get(0).methodName());
 
-        assertNull(TestBoundaryListener.currentTest(), "must be cleared once execution finishes");
+        assertEquals(
+                new TestIdentity(TestBoundaryListenerTest.class.getName(), null),
+                TestBoundaryListener.currentTest(),
+                "a nested launcher must restore its enclosing class container when it finishes");
     }
 
     /** A trivial nested class used purely as a probe for the listener under test. */
@@ -87,7 +93,55 @@ class TestBoundaryListenerTest {
         assertEquals("one", observedDuringTests.get(0).methodName());
         assertEquals("two", observedDuringTests.get(1).methodName());
 
-        assertNull(TestBoundaryListener.currentTest(), "must be cleared once the container finishes");
+        assertEquals(
+                new TestIdentity(TestBoundaryListenerTest.class.getName(), null),
+                TestBoundaryListener.currentTest(),
+                "a nested launcher must restore its enclosing class container when it finishes");
+    }
+
+    @Test
+    void afterAllRunsUnderTheSyntheticContainerIdentity() {
+        TestBoundaryListener listener = new TestBoundaryListener();
+        CleanupContainerProbeTest.observedInAfterAll = null;
+
+        LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
+                .selectors(DiscoverySelectors.selectClass(CleanupContainerProbeTest.class))
+                .build();
+        Launcher launcher = LauncherFactory.create();
+        launcher.registerTestExecutionListeners(listener);
+        launcher.execute(request);
+
+        assertEquals(
+                new TestIdentity(CleanupContainerProbeTest.class.getName(), null),
+                CleanupContainerProbeTest.observedInAfterAll,
+                "@AfterAll must run under the class-level container identity instead of null");
+        assertEquals(
+                new TestIdentity(TestBoundaryListenerTest.class.getName(), null),
+                TestBoundaryListener.currentTest(),
+                "a nested launcher must restore its enclosing class container when it finishes");
+    }
+
+    @Test
+    void beforeEachAndAfterEachKeepTheirOwningTestIdentity() {
+        TestBoundaryListener listener = new TestBoundaryListener();
+        LifecycleProbeTest.observedDuringLifecycle.clear();
+
+        LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
+                .selectors(DiscoverySelectors.selectClass(LifecycleProbeTest.class))
+                .build();
+        Launcher launcher = LauncherFactory.create();
+        launcher.registerTestExecutionListeners(listener);
+        launcher.execute(request);
+
+        assertEquals(4, LifecycleProbeTest.observedDuringLifecycle.size());
+        assertTrue(LifecycleProbeTest.observedDuringLifecycle.stream().allMatch(identity ->
+                identity != null
+                        && identity.className().equals(LifecycleProbeTest.class.getName())
+                        && identity.methodName() != null));
+        assertTrue(LifecycleProbeTest.observedDuringLifecycle.stream()
+                .map(TestIdentity::methodName)
+                .toList()
+                .containsAll(List.of("one", "two")));
     }
 
     /** A trivial nested class used purely as a probe: one @BeforeAll, two tests. */
@@ -97,6 +151,51 @@ class TestBoundaryListenerTest {
         @BeforeAll
         static void beforeAll() {
             observedInBeforeAll = TestBoundaryListener.currentTest();
+        }
+
+        @Test
+        void one() {
+            // no-op
+        }
+
+        @Test
+        void two() {
+            // no-op
+        }
+    }
+
+    /** A probe for class-level cleanup, which runs after the last test has finished. */
+    static class CleanupContainerProbeTest {
+        static TestIdentity observedInAfterAll;
+
+        @Test
+        void one() {
+            // no-op
+        }
+
+        @Test
+        void two() {
+            // no-op
+        }
+
+        @AfterAll
+        static void afterAll() {
+            observedInAfterAll = TestBoundaryListener.currentTest();
+        }
+    }
+
+    /** Proves per-test callbacks remain precise while the container covers only idle windows. */
+    static class LifecycleProbeTest {
+        static final List<TestIdentity> observedDuringLifecycle = new ArrayList<>();
+
+        @BeforeEach
+        void beforeEach() {
+            observedDuringLifecycle.add(TestBoundaryListener.currentTest());
+        }
+
+        @AfterEach
+        void afterEach() {
+            observedDuringLifecycle.add(TestBoundaryListener.currentTest());
         }
 
         @Test

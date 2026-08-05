@@ -1,10 +1,10 @@
 {
-  "feature": "219-core-attribute-beforeall-loaded-classes-to-their-contain",
-  "branch": "feature/219-core-attribute-beforeall-loaded-classes-to-their-contain",
+  "feature": "221-attribute-afterall-and-inter-test-lifecycle-dependencies",
+  "branch": "feature/221-attribute-afterall-and-inter-test-lifecycle-dependencies",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/219-core-attribute-beforeall-loaded-classes-to-their-contain/sessions/001-core-mechanism-synthetic-container-identity-stacked-fram.md",
+  "last_session": "docs/fluencyloop/features/221-attribute-afterall-and-inter-test-lifecycle-dependencies/sessions/001-rearm-container-identity-for-cleanup-and-inter-test-life.md",
   "base_ref": "main",
-  "feature_dir": "docs/fluencyloop/features/219-core-attribute-beforeall-loaded-classes-to-their-contain",
+  "feature_dir": "docs/fluencyloop/features/221-attribute-afterall-and-inter-test-lifecycle-dependencies",
   "plan": "",
   "updated": "2026-08-05"
 }

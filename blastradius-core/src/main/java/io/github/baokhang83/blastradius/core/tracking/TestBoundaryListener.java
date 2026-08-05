@@ -16,11 +16,13 @@ import org.junit.platform.launcher.TestIdentifier;
  * {@link InheritableThreadLocal}, so {@link DependencyTrackingAgent}'s class-load observations can
  * be attributed to the test that triggered them, including classes first loaded by a child thread.
  *
- * <p>The window also opens one level up: while a class's {@code @BeforeAll} runs, no test method
- * is current yet, so its loads run under a synthetic container-level identity instead (see
- * {@link TestIdentity}'s class-level identity convention). Once the class finishes, whatever that
- * identity accumulated is folded into every test method that ran inside it — see
- * {@link DependencyTrackingAgent#unionContainerDependencies}.
+ * <p>The window also opens one level up: a class container owns a synthetic identity (see
+ * {@link TestIdentity}'s class-level identity convention) while its lifecycle code runs outside a
+ * test method. Once the class finishes, the container's accumulated dependencies are folded into
+ * every test method that ran directly inside it — see
+ * {@link DependencyTrackingAgent#unionContainerDependencies}. This intentionally attributes
+ * between-test and cleanup work to every sibling, which is conservative: it can widen selection
+ * but cannot hide a dependency.
  *
  * <p>Tests must await child-thread work before they finish. The identity is copied when a child
  * thread is created, so work that outlives its test cannot be attributed reliably. Tests executing
@@ -53,14 +55,7 @@ public final class TestBoundaryListener implements TestExecutionListener {
             Deque<ContainerFrame> stack = CONTAINER_STACK.get();
             if (!stack.isEmpty()) {
                 ContainerFrame frame = stack.peek();
-                if (!frame.beforeAllWindowClosed) {
-                    // @BeforeAll's window is exactly [container started, first test started) — close
-                    // it here so hidden classes any test body loads later are never misattributed
-                    // back to the container and unioned into every sibling test.
-                    DependencyTrackingAgent.recordHiddenClassesLoadedSince(
-                            frame.identity, frame.classesAtStart);
-                    frame.beforeAllWindowClosed = true;
-                }
+                closeContainerWindow(frame);
                 frame.memberTests.add(test);
             }
             TestExecutionContext.start(test);
@@ -68,10 +63,15 @@ public final class TestBoundaryListener implements TestExecutionListener {
         } else {
             toContainerIdentity(testIdentifier).ifPresent(container -> {
                 DependencyTrackingAgent.recordAmbientSnapshot();
+                Deque<ContainerFrame> stack = CONTAINER_STACK.get();
+                if (!stack.isEmpty()) {
+                    // A nested class suspends its parent's lifecycle window. Flush hidden classes
+                    // first, then start the inner container so nested test bodies never leak into
+                    // the parent bucket.
+                    closeContainerWindow(stack.peek());
+                }
                 TestExecutionContext.start(container);
-                CONTAINER_STACK
-                        .get()
-                        .push(new ContainerFrame(container, DependencyTrackingAgent.loadedClasses()));
+                stack.push(new ContainerFrame(container, DependencyTrackingAgent.loadedClasses()));
             });
         }
     }
@@ -86,6 +86,7 @@ public final class TestBoundaryListener implements TestExecutionListener {
             }
             TestExecutionContext.finish();
             CLASSES_AT_TEST_START.remove();
+            rearmCurrentContainerWindow();
         } else {
             toContainerIdentity(testIdentifier).ifPresent(container -> {
                 Deque<ContainerFrame> stack = CONTAINER_STACK.get();
@@ -93,16 +94,29 @@ public final class TestBoundaryListener implements TestExecutionListener {
                     return;
                 }
                 ContainerFrame frame = stack.pop();
-                if (!frame.beforeAllWindowClosed) {
-                    // No test ever started under this container (e.g. every test disabled, or a
-                    // container with only further @Nested containers) — still close the window so
-                    // any class @BeforeAll loaded is captured rather than silently dropped.
-                    DependencyTrackingAgent.recordHiddenClassesLoadedSince(
-                            frame.identity, frame.classesAtStart);
-                }
+                closeContainerWindow(frame);
                 DependencyTrackingAgent.unionContainerDependencies(frame.identity, frame.memberTests);
+                rearmCurrentContainerWindow();
             });
         }
+    }
+
+    /** Records hidden classes from one container-owned lifecycle interval and resets its baseline. */
+    private static void closeContainerWindow(ContainerFrame frame) {
+        DependencyTrackingAgent.recordHiddenClassesLoadedSince(frame.identity, frame.classesAtWindowStart);
+        frame.classesAtWindowStart = DependencyTrackingAgent.loadedClasses();
+    }
+
+    /** Restores the innermost container after a child test or nested container has finished. */
+    private static void rearmCurrentContainerWindow() {
+        Deque<ContainerFrame> stack = CONTAINER_STACK.get();
+        if (stack.isEmpty()) {
+            TestExecutionContext.finish();
+            return;
+        }
+        ContainerFrame frame = stack.peek();
+        TestExecutionContext.start(frame.identity);
+        frame.classesAtWindowStart = DependencyTrackingAgent.loadedClasses();
     }
 
     private static TestIdentity toTestIdentity(TestIdentifier testIdentifier) {
@@ -127,20 +141,19 @@ public final class TestBoundaryListener implements TestExecutionListener {
     }
 
     /**
-     * One class's {@code @BeforeAll} attribution window, tracked per thread so {@code @Nested}
-     * classes — which fire their own container start/finish nested inside the outer one — stack
-     * correctly: a test always joins the innermost open container's member set, never an
-     * ancestor's.
+     * One class's lifecycle attribution state, tracked per thread so {@code @Nested} classes
+     * stack correctly. Each hidden-class baseline covers one container-owned interval: before the
+     * first test, between tests, or after the last test. A test always joins the innermost open
+     * container's member set, never an ancestor's.
      */
     private static final class ContainerFrame {
         private final TestIdentity identity;
-        private final Set<Class<?>> classesAtStart;
+        private Set<Class<?>> classesAtWindowStart;
         private final Set<TestIdentity> memberTests = new LinkedHashSet<>();
-        private boolean beforeAllWindowClosed;
 
         ContainerFrame(TestIdentity identity, Set<Class<?>> classesAtStart) {
             this.identity = identity;
-            this.classesAtStart = classesAtStart;
+            this.classesAtWindowStart = classesAtStart;
         }
     }
 }

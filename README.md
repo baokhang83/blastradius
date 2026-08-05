@@ -252,14 +252,6 @@ Full text and rationale: [`.specify/memory/constitution.md`](.specify/memory/con
 
 ## Known limitations
 
-- A class loaded only inside a JUnit 5 `@AfterAll` (or between tests, via `@BeforeEach`/
-  `@AfterEach`) is never attributed to any specific test — tracking only attributes loads to
-  tests that are actually executing, and there is no boundary marking "cleanup is about to
-  run" to hook. `@BeforeAll` is attributed (its loads run under the class's own container
-  identity and are unioned into every test the class owns); `@AfterAll` and the gaps between
-  tests are not. Narrow, deterministic, and documented — not a bug being hidden. Lean on the
-  recommended daily full-suite run if this matters for your project. Tracked as a follow-up:
-  [#221](https://github.com/baokhang83/blastradius/issues/221).
 - A class reached only through a **string-dispatched API** may go unattributed for the same reason:
   if the call is `select("div > p")` and the parse behind it sits on a cached path, the calling test
   never records a load of the parser it truly depends on. Measured, not hypothetical — this is what
