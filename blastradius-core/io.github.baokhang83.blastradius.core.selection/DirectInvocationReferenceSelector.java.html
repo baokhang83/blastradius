@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>DirectInvocationReferenceSelector.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-core</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.core.selection</a> &gt; <span class="el_source">DirectInvocationReferenceSelector.java</span></div><h1>DirectInvocationReferenceSelector.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.core.selection;
+
+import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
+import java.util.Map;
+import java.util.Set;
+
+/** Selects a test when one of its dynamically-executed classes directly references a changed class. */
+<span class="fc" id="L8">final class DirectInvocationReferenceSelector {</span>
+
+    SelectionDecision select(TestIdentity test, Map&lt;String, Set&lt;String&gt;&gt; directInvocationOwners,
+            Set&lt;String&gt; changedClassNames) {
+<span class="fc bfc" id="L12" title="All 2 branches covered.">        for (Map.Entry&lt;String, Set&lt;String&gt;&gt; source : directInvocationOwners.entrySet()) {</span>
+<span class="pc bpc" id="L13" title="1 of 2 branches missed.">            for (String changedClassName : changedClassNames) {</span>
+<span class="pc bpc" id="L14" title="1 of 2 branches missed.">                if (source.getValue().contains(changedClassName)</span>
+<span class="nc bnc" id="L15" title="All 2 branches missed.">                        || source.getValue().stream().anyMatch(owner -&gt; owner.startsWith(changedClassName + &quot;$&quot;))) {</span>
+<span class="fc" id="L16">                    return SelectionDecision.directInvocationReference(test, source.getKey(), changedClassName);</span>
+                }
+<span class="nc" id="L18">            }</span>
+<span class="nc" id="L19">        }</span>
+<span class="fc" id="L20">        return SelectionDecision.noMatch(test);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

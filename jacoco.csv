@@ -1,19 +1,30 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestBoundaryListener.ContainerFrame,0,14,0,0,0,5,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.MetadataClassWriter,58,218,15,25,15,50,12,12,0,4
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.2.new MethodVisitor() {...},0,25,0,0,0,4,0,2,0,2
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DirectInvocationRecord,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestBoundaryListener,8,197,3,11,1,64,4,17,1,13
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordSet,0,9,0,0,0,1,0,1,0,1
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordSet,0,18,0,0,0,3,0,2,0,2
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.new ClassVisitor() {...},0,25,0,0,0,3,0,2,0,2
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.new ClassVisitor() {...},2,37,1,1,1,5,1,2,0,2
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordFile,0,9,0,0,0,1,0,1,0,1
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordFile,4,22,2,2,0,4,2,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestExecutionContext,0,16,0,0,0,6,0,4,0,4
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordReader,36,167,0,10,9,34,1,11,1,6
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter,1,36,1,1,0,6,1,2,0,2
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordReader,26,259,0,10,6,51,0,19,0,14
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter,1,55,1,1,0,9,1,3,0,3
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.ClassInfo,0,12,0,0,0,5,0,1,0,1
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyTrackingAgent,259,603,74,74,63,155,61,56,5,38
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyTrackingAgent,304,710,82,82,71,176,71,63,8,44
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecord,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.1.new MethodVisitor() {...},14,69,3,3,3,18,3,7,1,6
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordWriter,18,65,0,0,4,15,0,5,0,5
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordWriter,18,90,0,0,4,20,0,7,0,7
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestIdentity,0,41,0,4,0,7,0,4,0,2
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,DirectInvocationReferenceSelector,15,40,4,4,3,6,4,3,1,2
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,FallbackSelector,0,19,0,2,0,3,0,5,0,4
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,DependencyMatchSelector,0,36,0,6,0,8,0,6,0,3
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,AmbientDependencySelector,0,14,0,2,0,3,0,4,0,3
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,NewOrModifiedTestSelector,0,17,0,4,0,3,0,5,0,3
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,SelectionReason,0,45,0,0,0,8,0,1,0,1
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,SelectionEngine,0,205,0,24,0,37,0,18,0,6
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,SelectionDecision,13,116,1,9,3,17,2,12,1,8
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,ModuleId,0,17,0,0,0,4,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,ReactorModuleGraphBuilder.new SimpleFileVisitor() {...},2,45,2,10,0,8,2,7,0,3
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,ReactorModuleGraph,7,121,5,15,2,26,5,12,0,7
@@ -22,13 +33,6 @@ coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,TestModu
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,TestModuleIndex.new SimpleFileVisitor() {...},2,71,4,8,0,12,4,6,0,4
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,ReactorScope,1,111,2,6,0,22,2,9,0,7
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,ReactorModuleGraphBuilder.PomInfo,0,15,0,0,0,1,0,1,0,1
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,FallbackSelector,0,19,0,2,0,3,0,5,0,4
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,DependencyMatchSelector,0,36,0,6,0,8,0,6,0,3
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,AmbientDependencySelector,0,14,0,2,0,3,0,4,0,3
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,NewOrModifiedTestSelector,0,17,0,4,0,3,0,5,0,3
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,SelectionReason,0,39,0,0,0,7,0,1,0,1
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,SelectionEngine,0,159,0,22,0,29,0,15,0,4
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,SelectionDecision,5,88,1,5,1,14,1,9,0,7
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.git,FileKind,0,21,0,0,0,4,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.git,ChangedFile,0,49,0,6,0,11,0,5,0,2
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.git,GitComparison,0,30,0,0,0,6,0,2,0,2
@@ -95,7 +99,7 @@ coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.report
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.report,AnalysisReport,2,97,1,1,0,14,1,5,0,5
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.report,SavingsSummary,0,24,0,0,0,1,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.report,ReportWriter,0,27,0,0,0,7,0,2,0,2
-coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.selection,PairSelectionAnalyzer,22,123,2,2,3,27,4,7,2,7
+coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.selection,PairSelectionAnalyzer,22,190,2,2,3,39,4,14,2,14
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.selection,PairSelectionResult,0,30,0,0,0,7,0,1,0,1
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.verdict,WouldMissComparator,0,120,0,16,0,29,0,12,0,4
 coverage/blastradius-validator,io.github.baokhang83.blastradius.validator.verdict,FlakyFailure,0,9,0,0,0,1,0,1,0,1
@@ -115,9 +119,10 @@ coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.report
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.report,TestTiming,5,17,1,1,1,4,1,1,0,1
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.report,TimingCoverage,5,22,3,3,1,4,3,2,0,2
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.report,BuildReport.Mode,0,21,0,0,0,4,0,1,0,1
-coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.report,ExplainListingRenderer,3,51,1,5,0,12,1,7,0,5
+coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.report,ExplainListingRenderer,3,61,1,7,0,15,1,8,0,5
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.blastradius_maven_plugin,HelpMojo,773,0,112,0,156,0,72,0,16,0
-coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.index,DependencyIndex,0,56,0,2,0,11,0,6,0,5
+coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.index,DependencyIndex.TestDirectInvocationEntry,0,9,0,0,0,1,0,1,0,1
+coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.index,DependencyIndex,0,93,0,4,0,17,0,10,0,8
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.index,IndexApplicabilityResolver,43,257,15,19,11,57,12,18,0,13
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.index,IndexApplicability,6,57,0,0,1,9,1,9,1,9
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.index,DependencyIndex.TestDependencyEntry,0,9,0,0,0,1,0,1,0,1
@@ -128,5 +133,5 @@ coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.mojo,S
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.mojo,TestDiscoverer,15,129,0,6,2,28,1,10,1,7
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.mojo,TestDiscoverer.ProjectFirstClassLoader,3,35,2,4,1,12,2,3,0,2
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.mojo,ReactorTrackingGate,0,28,0,2,0,6,0,2,0,1
-coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.mojo,SelectMojo,602,94,39,9,132,21,36,11,15,7
-coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.track,TrackRunner,60,205,5,7,15,42,4,7,0,5
+coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.mojo,SelectMojo,635,121,39,11,139,26,39,14,18,9
+coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.track,TrackRunner,60,224,5,7,15,46,4,8,0,6

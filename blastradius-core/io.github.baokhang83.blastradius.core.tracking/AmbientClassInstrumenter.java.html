@@ -98,6 +98,27 @@ import org.objectweb.asm.Type;
 <span class="pc bpc" id="L98" title="1 of 2 branches missed.">        return changed.get() ? writer.toByteArray() : null;</span>
     }
 
+    /** Direct method-invocation owner types declared by this class, collected without executing it. */
+    Set&lt;String&gt; directInvocationOwners(byte[] bytecode) {
+<span class="fc" id="L103">        Set&lt;String&gt; owners = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L104">        new ClassReader(bytecode).accept(new ClassVisitor(Opcodes.ASM9) {</span>
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String descriptor, String signature,
+                    String[] exceptions) {
+<span class="fc" id="L108">                MethodVisitor delegate = super.visitMethod(access, name, descriptor, signature, exceptions);</span>
+<span class="fc" id="L109">                return new MethodVisitor(Opcodes.ASM9, delegate) {</span>
+                    @Override
+                    public void visitMethodInsn(int opcode, String owner, String name, String descriptor,
+                            boolean isInterface) {
+<span class="fc" id="L113">                        owners.add(owner.replace('/', '.'));</span>
+<span class="fc" id="L114">                        super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);</span>
+<span class="fc" id="L115">                    }</span>
+                };
+            }
+        }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+<span class="fc" id="L119">        return Set.copyOf(owners);</span>
+    }
+
     /**
      * Computes target-project stack-map-frame hierarchy relationships from class-file resources
      * rather than {@link Class#forName(String, boolean, ClassLoader)}. A transformer runs while
@@ -107,103 +128,103 @@ import org.objectweb.asm.Type;
     private static final class MetadataClassWriter extends ClassWriter {
 
         private final ClassLoader loader;
-<span class="fc" id="L110">        private final Map&lt;String, ClassInfo&gt; classes = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L131">        private final Map&lt;String, ClassInfo&gt; classes = new HashMap&lt;&gt;();</span>
 
         MetadataClassWriter(ClassReader reader, ClassLoader loader) {
-<span class="fc" id="L113">            super(reader, ClassWriter.COMPUTE_FRAMES);</span>
-<span class="fc" id="L114">            this.loader = loader;</span>
-<span class="fc" id="L115">        }</span>
+<span class="fc" id="L134">            super(reader, ClassWriter.COMPUTE_FRAMES);</span>
+<span class="fc" id="L135">            this.loader = loader;</span>
+<span class="fc" id="L136">        }</span>
 
         @Override
         protected String getCommonSuperClass(String first, String second) {
-<span class="pc bpc" id="L119" title="2 of 4 branches missed.">            if (first.startsWith(&quot;[&quot;) || second.startsWith(&quot;[&quot;)) {</span>
-<span class="nc" id="L120">                return &quot;java/lang/Object&quot;;</span>
+<span class="pc bpc" id="L140" title="2 of 4 branches missed.">            if (first.startsWith(&quot;[&quot;) || second.startsWith(&quot;[&quot;)) {</span>
+<span class="nc" id="L141">                return &quot;java/lang/Object&quot;;</span>
             }
             try {
-<span class="pc bpc" id="L123" title="2 of 4 branches missed.">                if (first.equals(second) || isAssignableFrom(first, second)) {</span>
-<span class="nc" id="L124">                    return first;</span>
+<span class="pc bpc" id="L144" title="2 of 4 branches missed.">                if (first.equals(second) || isAssignableFrom(first, second)) {</span>
+<span class="nc" id="L145">                    return first;</span>
                 }
-<span class="pc bpc" id="L126" title="1 of 2 branches missed.">                if (isAssignableFrom(second, first)) {</span>
-<span class="fc" id="L127">                    return second;</span>
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">                if (isAssignableFrom(second, first)) {</span>
+<span class="fc" id="L148">                    return second;</span>
                 }
-<span class="nc bnc" id="L129" title="All 4 branches missed.">                if (classInfo(first).isInterface || classInfo(second).isInterface) {</span>
-<span class="nc" id="L130">                    return &quot;java/lang/Object&quot;;</span>
+<span class="nc bnc" id="L150" title="All 4 branches missed.">                if (classInfo(first).isInterface || classInfo(second).isInterface) {</span>
+<span class="nc" id="L151">                    return &quot;java/lang/Object&quot;;</span>
                 }
-<span class="nc" id="L132">                String candidate = first;</span>
+<span class="nc" id="L153">                String candidate = first;</span>
                 do {
-<span class="nc" id="L134">                    candidate = classInfo(candidate).superName;</span>
-<span class="nc bnc" id="L135" title="All 2 branches missed.">                } while (!isAssignableFrom(candidate, second));</span>
-<span class="nc" id="L136">                return candidate;</span>
-<span class="nc" id="L137">            } catch (IOException e) {</span>
+<span class="nc" id="L155">                    candidate = classInfo(candidate).superName;</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">                } while (!isAssignableFrom(candidate, second));</span>
+<span class="nc" id="L157">                return candidate;</span>
+<span class="nc" id="L158">            } catch (IOException e) {</span>
                 // DependencyTrackingAgent treats an instrumentation failure as an ambient class,
                 // preserving the conservative selection fallback. Returning an invented frame
                 // type here could instead make the target class fail JVM verification.
-<span class="nc" id="L141">                throw new IllegalStateException(&quot;could not resolve frame hierarchy from class resources&quot;, e);</span>
+<span class="nc" id="L162">                throw new IllegalStateException(&quot;could not resolve frame hierarchy from class resources&quot;, e);</span>
             }
         }
 
         private boolean isAssignableFrom(String expectedSupertype, String candidate) throws IOException {
-<span class="fc" id="L146">            ArrayDeque&lt;String&gt; pending = new ArrayDeque&lt;&gt;();</span>
-<span class="fc" id="L147">            Set&lt;String&gt; seen = new HashSet&lt;&gt;();</span>
-<span class="fc" id="L148">            pending.add(candidate);</span>
-<span class="fc bfc" id="L149" title="All 2 branches covered.">            while (!pending.isEmpty()) {</span>
-<span class="fc" id="L150">                String current = pending.removeFirst();</span>
-<span class="fc bfc" id="L151" title="All 2 branches covered.">                if (!seen.add(current)) {</span>
-<span class="fc" id="L152">                    continue;</span>
+<span class="fc" id="L167">            ArrayDeque&lt;String&gt; pending = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L168">            Set&lt;String&gt; seen = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L169">            pending.add(candidate);</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">            while (!pending.isEmpty()) {</span>
+<span class="fc" id="L171">                String current = pending.removeFirst();</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">                if (!seen.add(current)) {</span>
+<span class="fc" id="L173">                    continue;</span>
                 }
-<span class="fc bfc" id="L154" title="All 2 branches covered.">                if (expectedSupertype.equals(current)) {</span>
-<span class="fc" id="L155">                    return true;</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">                if (expectedSupertype.equals(current)) {</span>
+<span class="fc" id="L176">                    return true;</span>
                 }
-<span class="fc" id="L157">                ClassInfo info = classInfo(current);</span>
-<span class="fc bfc" id="L158" title="All 2 branches covered.">                if (info.superName != null) {</span>
-<span class="fc" id="L159">                    pending.addLast(info.superName);</span>
+<span class="fc" id="L178">                ClassInfo info = classInfo(current);</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">                if (info.superName != null) {</span>
+<span class="fc" id="L180">                    pending.addLast(info.superName);</span>
                 }
-<span class="fc bfc" id="L161" title="All 2 branches covered.">                for (String implementedInterface : info.interfaces) {</span>
-<span class="fc" id="L162">                    pending.addLast(implementedInterface);</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">                for (String implementedInterface : info.interfaces) {</span>
+<span class="fc" id="L183">                    pending.addLast(implementedInterface);</span>
                 }
-<span class="fc" id="L164">            }</span>
-<span class="fc" id="L165">            return false;</span>
+<span class="fc" id="L185">            }</span>
+<span class="fc" id="L186">            return false;</span>
         }
 
         private ClassInfo classInfo(String internalName) throws IOException {
-<span class="fc" id="L169">            ClassInfo known = classes.get(internalName);</span>
-<span class="pc bpc" id="L170" title="1 of 2 branches missed.">            if (known != null) {</span>
-<span class="nc" id="L171">                return known;</span>
+<span class="fc" id="L190">            ClassInfo known = classes.get(internalName);</span>
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">            if (known != null) {</span>
+<span class="nc" id="L192">                return known;</span>
             }
-<span class="fc bfc" id="L173" title="All 2 branches covered.">            if (internalName.startsWith(&quot;java/&quot;)) {</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">            if (internalName.startsWith(&quot;java/&quot;)) {</span>
                 try {
-<span class="fc" id="L175">                    Class&lt;?&gt; type = Class.forName(internalName.replace('/', '.'), false, loader);</span>
-<span class="fc" id="L176">                    Class&lt;?&gt; superclass = type.getSuperclass();</span>
-<span class="fc" id="L177">                    Class&lt;?&gt;[] implementedInterfaces = type.getInterfaces();</span>
-<span class="fc" id="L178">                    String[] interfaceNames = new String[implementedInterfaces.length];</span>
-<span class="fc bfc" id="L179" title="All 2 branches covered.">                    for (int index = 0; index &lt; implementedInterfaces.length; index++) {</span>
-<span class="fc" id="L180">                        interfaceNames[index] = implementedInterfaces[index].getName().replace('.', '/');</span>
+<span class="fc" id="L196">                    Class&lt;?&gt; type = Class.forName(internalName.replace('/', '.'), false, loader);</span>
+<span class="fc" id="L197">                    Class&lt;?&gt; superclass = type.getSuperclass();</span>
+<span class="fc" id="L198">                    Class&lt;?&gt;[] implementedInterfaces = type.getInterfaces();</span>
+<span class="fc" id="L199">                    String[] interfaceNames = new String[implementedInterfaces.length];</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">                    for (int index = 0; index &lt; implementedInterfaces.length; index++) {</span>
+<span class="fc" id="L201">                        interfaceNames[index] = implementedInterfaces[index].getName().replace('.', '/');</span>
                     }
-<span class="fc" id="L182">                    ClassInfo info = new ClassInfo(</span>
-<span class="fc" id="L183">                            type.isInterface(),</span>
-<span class="fc bfc" id="L184" title="All 2 branches covered.">                            superclass == null ? null : superclass.getName().replace('.', '/'),</span>
+<span class="fc" id="L203">                    ClassInfo info = new ClassInfo(</span>
+<span class="fc" id="L204">                            type.isInterface(),</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">                            superclass == null ? null : superclass.getName().replace('.', '/'),</span>
                             interfaceNames);
-<span class="fc" id="L186">                    classes.put(internalName, info);</span>
-<span class="fc" id="L187">                    return info;</span>
-<span class="nc" id="L188">                } catch (ClassNotFoundException e) {</span>
-<span class="nc" id="L189">                    throw new IOException(&quot;JDK class not found: &quot; + internalName, e);</span>
+<span class="fc" id="L207">                    classes.put(internalName, info);</span>
+<span class="fc" id="L208">                    return info;</span>
+<span class="nc" id="L209">                } catch (ClassNotFoundException e) {</span>
+<span class="nc" id="L210">                    throw new IOException(&quot;JDK class not found: &quot; + internalName, e);</span>
                 }
             }
-<span class="fc" id="L192">            String resourceName = internalName + &quot;.class&quot;;</span>
-<span class="pc bpc" id="L193" title="1 of 2 branches missed.">            InputStream stream = loader == null</span>
-<span class="nc" id="L194">                    ? ClassLoader.getSystemResourceAsStream(resourceName)</span>
-<span class="fc" id="L195">                    : loader.getResourceAsStream(resourceName);</span>
-<span class="pc bpc" id="L196" title="1 of 2 branches missed.">            if (stream == null) {</span>
-<span class="nc" id="L197">                throw new IOException(&quot;class resource not found: &quot; + resourceName);</span>
+<span class="fc" id="L213">            String resourceName = internalName + &quot;.class&quot;;</span>
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">            InputStream stream = loader == null</span>
+<span class="nc" id="L215">                    ? ClassLoader.getSystemResourceAsStream(resourceName)</span>
+<span class="fc" id="L216">                    : loader.getResourceAsStream(resourceName);</span>
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">            if (stream == null) {</span>
+<span class="nc" id="L218">                throw new IOException(&quot;class resource not found: &quot; + resourceName);</span>
             }
-<span class="fc" id="L199">            try (stream) {</span>
-<span class="fc" id="L200">                ClassReader reader = new ClassReader(stream);</span>
-<span class="fc" id="L201">                ClassInfo info = new ClassInfo(</span>
-<span class="pc bpc" id="L202" title="1 of 2 branches missed.">                        (reader.getAccess() &amp; Opcodes.ACC_INTERFACE) != 0,</span>
-<span class="fc" id="L203">                        reader.getSuperName(),</span>
-<span class="fc" id="L204">                        reader.getInterfaces());</span>
-<span class="fc" id="L205">                classes.put(internalName, info);</span>
-<span class="fc" id="L206">                return info;</span>
+<span class="fc" id="L220">            try (stream) {</span>
+<span class="fc" id="L221">                ClassReader reader = new ClassReader(stream);</span>
+<span class="fc" id="L222">                ClassInfo info = new ClassInfo(</span>
+<span class="pc bpc" id="L223" title="1 of 2 branches missed.">                        (reader.getAccess() &amp; Opcodes.ACC_INTERFACE) != 0,</span>
+<span class="fc" id="L224">                        reader.getSuperName(),</span>
+<span class="fc" id="L225">                        reader.getInterfaces());</span>
+<span class="fc" id="L226">                classes.put(internalName, info);</span>
+<span class="fc" id="L227">                return info;</span>
             }
         }
     }
@@ -213,11 +234,11 @@ import org.objectweb.asm.Type;
         private final String superName;
         private final String[] interfaces;
 
-<span class="fc" id="L216">        private ClassInfo(boolean isInterface, String superName, String[] interfaces) {</span>
-<span class="fc" id="L217">            this.isInterface = isInterface;</span>
-<span class="fc" id="L218">            this.superName = superName;</span>
-<span class="fc" id="L219">            this.interfaces = interfaces;</span>
-<span class="fc" id="L220">        }</span>
+<span class="fc" id="L237">        private ClassInfo(boolean isInterface, String superName, String[] interfaces) {</span>
+<span class="fc" id="L238">            this.isInterface = isInterface;</span>
+<span class="fc" id="L239">            this.superName = superName;</span>
+<span class="fc" id="L240">            this.interfaces = interfaces;</span>
+<span class="fc" id="L241">        }</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -9,5 +9,14 @@ import java.util.Set;
  * the first test's tracking window opened in any fork — also unioned, since each fork's
  * discovery pass can force-load a different subset.
  */
-<span class="fc" id="L12">public record DependencyRecordSet(Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; tests, Set&lt;String&gt; ambientDependencies) {}</span>
+<span class="fc" id="L12">public record DependencyRecordSet(</span>
+        Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; tests,
+        Map&lt;TestIdentity, Map&lt;String, Set&lt;String&gt;&gt;&gt; directInvocations,
+        Set&lt;String&gt; ambientDependencies) {
+
+    /** Preserves callers built against the format-2 in-memory representation. */
+    public DependencyRecordSet(Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; tests, Set&lt;String&gt; ambientDependencies) {
+<span class="fc" id="L19">        this(tests, Map.of(), ambientDependencies);</span>
+<span class="fc" id="L20">    }</span>
+}
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

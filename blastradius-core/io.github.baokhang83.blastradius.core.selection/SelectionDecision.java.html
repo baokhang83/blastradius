@@ -11,45 +11,62 @@ import java.util.Objects;
  * @param selected             whether it was selected
  * @param reason               the reason (see {@link SelectionReason})
  * @param matchedChangedClass  the specific changed class responsible, only present when
- *                             {@code reason == DEPENDENCY_MATCH}
+ *                             {@code reason == DEPENDENCY_MATCH || reason == DIRECT_INVOCATION_REFERENCE}
+ * @param directInvocationSourceClass the executed class that declared the direct invocation,
+ *                                    only present for {@code DIRECT_INVOCATION_REFERENCE}
  */
 public record SelectionDecision(
-        TestIdentity test, boolean selected, SelectionReason reason, String matchedChangedClass) {
+        TestIdentity test, boolean selected, SelectionReason reason, String matchedChangedClass,
+        String directInvocationSourceClass) {
 
-<span class="fc" id="L19">    public SelectionDecision {</span>
-<span class="fc" id="L20">        Objects.requireNonNull(test, &quot;test&quot;);</span>
-<span class="fc" id="L21">        Objects.requireNonNull(reason, &quot;reason&quot;);</span>
-<span class="fc bfc" id="L22" title="All 2 branches covered.">        if (reason == SelectionReason.DEPENDENCY_MATCH) {</span>
-<span class="fc" id="L23">            Objects.requireNonNull(matchedChangedClass, &quot;matchedChangedClass required for DEPENDENCY_MATCH&quot;);</span>
+    /** Preserves callers that do not carry a direct-invocation source. */
+    public SelectionDecision(TestIdentity test, boolean selected, SelectionReason reason, String matchedChangedClass) {
+<span class="nc" id="L24">        this(test, selected, reason, matchedChangedClass, null);</span>
+<span class="nc" id="L25">    }</span>
+
+<span class="fc" id="L27">    public SelectionDecision {</span>
+<span class="fc" id="L28">        Objects.requireNonNull(test, &quot;test&quot;);</span>
+<span class="fc" id="L29">        Objects.requireNonNull(reason, &quot;reason&quot;);</span>
+<span class="fc bfc" id="L30" title="All 4 branches covered.">        if (reason == SelectionReason.DEPENDENCY_MATCH || reason == SelectionReason.DIRECT_INVOCATION_REFERENCE) {</span>
+<span class="fc" id="L31">            Objects.requireNonNull(matchedChangedClass, &quot;matchedChangedClass required for DEPENDENCY_MATCH&quot;);</span>
         }
-<span class="fc bfc" id="L25" title="All 2 branches covered.">        boolean expectedSelected = reason != SelectionReason.NO_MATCH;</span>
-<span class="pc bpc" id="L26" title="1 of 2 branches missed.">        if (selected != expectedSelected) {</span>
-<span class="nc" id="L27">            throw new IllegalArgumentException(&quot;selected must be true iff reason is not NO_MATCH&quot;);</span>
+<span class="fc bfc" id="L33" title="All 2 branches covered.">        if (reason == SelectionReason.DIRECT_INVOCATION_REFERENCE) {</span>
+<span class="fc" id="L34">            Objects.requireNonNull(directInvocationSourceClass,</span>
+                    &quot;directInvocationSourceClass required for DIRECT_INVOCATION_REFERENCE&quot;);
         }
-<span class="fc" id="L29">    }</span>
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        boolean expectedSelected = reason != SelectionReason.NO_MATCH;</span>
+<span class="pc bpc" id="L38" title="1 of 2 branches missed.">        if (selected != expectedSelected) {</span>
+<span class="nc" id="L39">            throw new IllegalArgumentException(&quot;selected must be true iff reason is not NO_MATCH&quot;);</span>
+        }
+<span class="fc" id="L41">    }</span>
 
     public static SelectionDecision dependencyMatch(TestIdentity test, String matchedChangedClass) {
-<span class="fc" id="L32">        return new SelectionDecision(test, true, SelectionReason.DEPENDENCY_MATCH, matchedChangedClass);</span>
+<span class="fc" id="L44">        return new SelectionDecision(test, true, SelectionReason.DEPENDENCY_MATCH, matchedChangedClass, null);</span>
+    }
+
+    public static SelectionDecision directInvocationReference(
+            TestIdentity test, String sourceClass, String matchedChangedClass) {
+<span class="fc" id="L49">        return new SelectionDecision(test, true, SelectionReason.DIRECT_INVOCATION_REFERENCE, matchedChangedClass, sourceClass);</span>
     }
 
     public static SelectionDecision fallback(TestIdentity test) {
-<span class="fc" id="L36">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_NON_SOURCE_CHANGE, null);</span>
+<span class="fc" id="L53">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_NON_SOURCE_CHANGE, null, null);</span>
     }
 
     public static SelectionDecision fallbackAmbientDependency(TestIdentity test) {
-<span class="fc" id="L40">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_AMBIENT_DEPENDENCY, null);</span>
+<span class="fc" id="L57">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_AMBIENT_DEPENDENCY, null, null);</span>
     }
 
     public static SelectionDecision fallbackNonSourceDependentModule(TestIdentity test) {
-<span class="fc" id="L44">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_NON_SOURCE_DEPENDENT_MODULE, null);</span>
+<span class="fc" id="L61">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_NON_SOURCE_DEPENDENT_MODULE, null, null);</span>
     }
 
     public static SelectionDecision newOrModifiedTest(TestIdentity test) {
-<span class="fc" id="L48">        return new SelectionDecision(test, true, SelectionReason.NEW_OR_MODIFIED_TEST, null);</span>
+<span class="fc" id="L65">        return new SelectionDecision(test, true, SelectionReason.NEW_OR_MODIFIED_TEST, null, null);</span>
     }
 
     public static SelectionDecision noMatch(TestIdentity test) {
-<span class="fc" id="L52">        return new SelectionDecision(test, false, SelectionReason.NO_MATCH, null);</span>
+<span class="fc" id="L69">        return new SelectionDecision(test, false, SelectionReason.NO_MATCH, null, null);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

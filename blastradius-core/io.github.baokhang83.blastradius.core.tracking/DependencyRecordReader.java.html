@@ -28,9 +28,12 @@ import java.util.stream.Collectors;
 <span class="fc" id="L28">            DependencyRecordFile file = mapper.readValue(inputFile.toFile(), DependencyRecordFile.class);</span>
 <span class="fc" id="L29">            Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; tests = file.tests().stream()</span>
 <span class="fc" id="L30">                    .collect(Collectors.toUnmodifiableMap(DependencyRecord::test, DependencyRecord::dependencies));</span>
-<span class="fc" id="L31">            return new DependencyRecordSet(tests, file.ambientDependencies());</span>
-<span class="nc" id="L32">        } catch (IOException e) {</span>
-<span class="nc" id="L33">            throw new UncheckedIOException(&quot;failed to read dependency record from &quot; + inputFile, e);</span>
+<span class="fc" id="L31">            Map&lt;TestIdentity, Map&lt;String, Set&lt;String&gt;&gt;&gt; directInvocations = file.directInvocations().stream()</span>
+<span class="fc" id="L32">                    .collect(Collectors.toUnmodifiableMap(</span>
+                            DirectInvocationRecord::test, DirectInvocationRecord::sourceToTargetClasses));
+<span class="fc" id="L34">            return new DependencyRecordSet(tests, directInvocations, file.ambientDependencies());</span>
+<span class="nc" id="L35">        } catch (IOException e) {</span>
+<span class="nc" id="L36">            throw new UncheckedIOException(&quot;failed to read dependency record from &quot; + inputFile, e);</span>
         }
     }
 
@@ -52,54 +55,77 @@ import java.util.stream.Collectors;
      * trigger the ambient fallback for the entire reactor, every time.
      */
     public DependencyRecordSet readAll(Path baseOutputFile) {
-<span class="fc" id="L55">        Path parent = baseOutputFile.toAbsolutePath().getParent();</span>
-<span class="fc" id="L56">        String prefix = baseOutputFile.getFileName().toString() + &quot;.&quot;;</span>
-<span class="fc" id="L57">        Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; mergedTests = new HashMap&lt;&gt;();</span>
-<span class="fc" id="L58">        Set&lt;String&gt; mergedAmbient = new HashSet&lt;&gt;();</span>
-<span class="fc" id="L59">        List&lt;String&gt; crashReasons = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L60">        boolean foundAny = false;</span>
-<span class="fc" id="L61">        try (DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(parent, prefix + &quot;*&quot;)) {</span>
-<span class="fc bfc" id="L62" title="All 2 branches covered.">            for (Path siblingFile : stream) {</span>
-<span class="fc bfc" id="L63" title="All 2 branches covered.">                if (siblingFile.getFileName().toString().endsWith(DependencyRecordWriter.CRASH_MARKER_SUFFIX)) {</span>
-<span class="fc" id="L64">                    crashReasons.add(readCrashReason(siblingFile));</span>
-<span class="fc" id="L65">                    continue;</span>
+<span class="fc" id="L58">        Path parent = baseOutputFile.toAbsolutePath().getParent();</span>
+<span class="fc" id="L59">        String prefix = baseOutputFile.getFileName().toString() + &quot;.&quot;;</span>
+<span class="fc" id="L60">        Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; mergedTests = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L61">        Map&lt;TestIdentity, Map&lt;String, Set&lt;String&gt;&gt;&gt; mergedDirectInvocations = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L62">        Set&lt;String&gt; mergedAmbient = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L63">        List&lt;String&gt; crashReasons = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L64">        boolean foundAny = false;</span>
+<span class="fc" id="L65">        try (DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(parent, prefix + &quot;*&quot;)) {</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">            for (Path siblingFile : stream) {</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">                if (siblingFile.getFileName().toString().endsWith(DependencyRecordWriter.CRASH_MARKER_SUFFIX)) {</span>
+<span class="fc" id="L68">                    crashReasons.add(readCrashReason(siblingFile));</span>
+<span class="fc" id="L69">                    continue;</span>
                 }
-<span class="fc" id="L67">                foundAny = true;</span>
-<span class="fc" id="L68">                DependencyRecordSet sibling = readFile(siblingFile);</span>
-<span class="fc" id="L69">                sibling.tests().forEach((test, classes) -&gt; mergedTests.merge(test, classes, (oldClasses, newClasses) -&gt; {</span>
-<span class="nc" id="L70">                    Map&lt;String, String&gt; combined = new HashMap&lt;&gt;(oldClasses);</span>
-<span class="nc" id="L71">                    combined.putAll(newClasses);</span>
-<span class="nc" id="L72">                    return combined;</span>
+<span class="fc" id="L71">                foundAny = true;</span>
+<span class="fc" id="L72">                DependencyRecordSet sibling = readFile(siblingFile);</span>
+<span class="fc" id="L73">                sibling.tests().forEach((test, classes) -&gt; mergedTests.merge(test, classes, (oldClasses, newClasses) -&gt; {</span>
+<span class="fc" id="L74">                    Map&lt;String, String&gt; combined = new HashMap&lt;&gt;(oldClasses);</span>
+<span class="fc" id="L75">                    combined.putAll(newClasses);</span>
+<span class="fc" id="L76">                    return combined;</span>
                 }));
-<span class="fc" id="L74">                mergedAmbient.addAll(sibling.ambientDependencies());</span>
-<span class="fc" id="L75">            }</span>
-<span class="nc" id="L76">        } catch (IOException e) {</span>
-<span class="nc" id="L77">            throw new UncheckedIOException(&quot;failed to list dependency record files matching &quot; + prefix + &quot;* in &quot;</span>
+<span class="fc" id="L78">                sibling.directInvocations().forEach((test, sources) -&gt; mergedDirectInvocations.merge(</span>
+                        test, sources, DependencyRecordReader::mergeDirectInvocations));
+<span class="fc" id="L80">                mergedAmbient.addAll(sibling.ambientDependencies());</span>
+<span class="fc" id="L81">            }</span>
+<span class="nc" id="L82">        } catch (IOException e) {</span>
+<span class="nc" id="L83">            throw new UncheckedIOException(&quot;failed to list dependency record files matching &quot; + prefix + &quot;* in &quot;</span>
                     + parent, e);
-<span class="fc" id="L79">        }</span>
-<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (!foundAny) {</span>
-<span class="fc bfc" id="L81" title="All 2 branches covered.">            String reason = crashReasons.isEmpty()</span>
-<span class="fc" id="L82">                    ? &quot;no files matching &quot; + prefix + &quot;* found in &quot; + parent</span>
+<span class="fc" id="L85">        }</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        if (!foundAny) {</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">            String reason = crashReasons.isEmpty()</span>
+<span class="fc" id="L88">                    ? &quot;no files matching &quot; + prefix + &quot;* found in &quot; + parent</span>
                     : &quot;the tracking agent's shutdown hook crashed before writing any data: &quot;
-<span class="fc" id="L84">                            + String.join(&quot;; &quot;, crashReasons);</span>
+<span class="fc" id="L90">                            + String.join(&quot;; &quot;, crashReasons);</span>
             // The reason must be part of THIS exception's own message, not only its cause:
             // a caller that reports getMessage() alone (as RunCommand's exclusion reason
             // does) would otherwise still show a generic &quot;failed to read...&quot; with no hint
             // that the agent actually ran and crashed, rather than never having attached.
-<span class="fc" id="L89">            throw new UncheckedIOException(</span>
+<span class="fc" id="L95">            throw new UncheckedIOException(</span>
                     &quot;failed to read dependency record from &quot; + baseOutputFile + &quot;: &quot; + reason, new IOException(reason));
         }
-<span class="fc bfc" id="L92" title="All 2 branches covered.">        for (TestIdentity test : mergedTests.keySet()) {</span>
-<span class="fc" id="L93">            mergedAmbient.remove(test.className());</span>
-<span class="fc" id="L94">        }</span>
-<span class="fc" id="L95">        return new DependencyRecordSet(Map.copyOf(mergedTests), Set.copyOf(mergedAmbient));</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        for (TestIdentity test : mergedTests.keySet()) {</span>
+<span class="fc" id="L99">            mergedAmbient.remove(test.className());</span>
+<span class="fc" id="L100">        }</span>
+<span class="fc" id="L101">        return new DependencyRecordSet(</span>
+<span class="fc" id="L102">                Map.copyOf(mergedTests), immutableDirectInvocations(mergedDirectInvocations), Set.copyOf(mergedAmbient));</span>
+    }
+
+    private static Map&lt;String, Set&lt;String&gt;&gt; mergeDirectInvocations(
+            Map&lt;String, Set&lt;String&gt;&gt; first, Map&lt;String, Set&lt;String&gt;&gt; second) {
+<span class="fc" id="L107">        Map&lt;String, Set&lt;String&gt;&gt; merged = new HashMap&lt;&gt;(first);</span>
+<span class="fc" id="L108">        second.forEach((source, targets) -&gt; merged.merge(source, targets, (left, right) -&gt; {</span>
+<span class="fc" id="L109">            Set&lt;String&gt; union = new HashSet&lt;&gt;(left);</span>
+<span class="fc" id="L110">            union.addAll(right);</span>
+<span class="fc" id="L111">            return union;</span>
+        }));
+<span class="fc" id="L113">        return merged;</span>
+    }
+
+    private static Map&lt;TestIdentity, Map&lt;String, Set&lt;String&gt;&gt;&gt; immutableDirectInvocations(
+            Map&lt;TestIdentity, Map&lt;String, Set&lt;String&gt;&gt;&gt; directInvocations) {
+<span class="fc" id="L118">        return directInvocations.entrySet().stream().collect(Collectors.toUnmodifiableMap(</span>
+                Map.Entry::getKey,
+<span class="fc" id="L120">                test -&gt; test.getValue().entrySet().stream().collect(Collectors.toUnmodifiableMap(</span>
+<span class="fc" id="L121">                        Map.Entry::getKey, source -&gt; Set.copyOf(source.getValue())))));</span>
     }
 
     private static String readCrashReason(Path markerFile) {
         try {
-<span class="fc" id="L100">            return Files.readString(markerFile);</span>
-<span class="nc" id="L101">        } catch (IOException e) {</span>
-<span class="nc" id="L102">            return &quot;crash marker at &quot; + markerFile + &quot; could not be read: &quot; + e.getMessage();</span>
+<span class="fc" id="L126">            return Files.readString(markerFile);</span>
+<span class="nc" id="L127">        } catch (IOException e) {</span>
+<span class="nc" id="L128">            return &quot;crash marker at &quot; + markerFile + &quot; could not be read: &quot; + e.getMessage();</span>
         }
     }
 }

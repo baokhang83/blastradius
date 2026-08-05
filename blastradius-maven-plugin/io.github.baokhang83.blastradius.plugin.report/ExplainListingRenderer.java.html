@@ -25,15 +25,18 @@ import java.util.Objects;
 <span class="fc bfc" id="L25" title="All 2 branches covered.">        String matched = decision.matchedChangedClass() == null</span>
 <span class="fc" id="L26">                ? &quot;&quot;</span>
 <span class="fc" id="L27">                : &quot; matchedChangedClass=&quot; + decision.matchedChangedClass();</span>
-<span class="fc" id="L28">        return &quot;[blastradius]   &quot; + testLabel(decision) + &quot; — &quot; + status + &quot; reason=&quot; + decision.reason() + matched;</span>
+<span class="fc bfc" id="L28" title="All 2 branches covered.">        String source = decision.directInvocationSourceClass() == null</span>
+<span class="fc" id="L29">                ? &quot;&quot;</span>
+<span class="fc" id="L30">                : &quot; directInvocationSourceClass=&quot; + decision.directInvocationSourceClass();</span>
+<span class="fc" id="L31">        return &quot;[blastradius]   &quot; + testLabel(decision) + &quot; — &quot; + status + &quot; reason=&quot; + decision.reason() + matched + source;</span>
     }
 
     private static String testLabel(SelectionDecision decision) {
-<span class="fc" id="L32">        return testLabel(decision.test());</span>
+<span class="fc" id="L35">        return testLabel(decision.test());</span>
     }
 
     private static String testLabel(TestIdentity test) {
-<span class="pc bpc" id="L36" title="1 of 2 branches missed.">        return test.methodName() == null ? test.className() : test.className() + &quot;#&quot; + test.methodName();</span>
+<span class="pc bpc" id="L39" title="1 of 2 branches missed.">        return test.methodName() == null ? test.className() : test.className() + &quot;#&quot; + test.methodName();</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

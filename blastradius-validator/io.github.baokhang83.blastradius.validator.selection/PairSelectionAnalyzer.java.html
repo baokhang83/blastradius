@@ -13,6 +13,8 @@ import io.github.baokhang83.blastradius.validator.git.CommitPair;
 import io.github.baokhang83.blastradius.validator.verdict.FlakyFailure;
 import io.github.baokhang83.blastradius.validator.verdict.WouldMissComparator;
 import java.util.List;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -21,11 +23,11 @@ import java.util.stream.Collectors;
  * The selection-and-comparison half of validator replay, shared by historical and synthetic
  * mutation edges once both sides have established full-suite outcomes.
  */
-<span class="fc" id="L24">public final class PairSelectionAnalyzer {</span>
+<span class="fc" id="L26">public final class PairSelectionAnalyzer {</span>
 
-<span class="fc" id="L26">    private final SelectionEngine selectionEngine = new SelectionEngine();</span>
-<span class="fc" id="L27">    private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();</span>
-<span class="fc" id="L28">    private final WouldMissComparator wouldMissComparator = new WouldMissComparator();</span>
+<span class="fc" id="L28">    private final SelectionEngine selectionEngine = new SelectionEngine();</span>
+<span class="fc" id="L29">    private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();</span>
+<span class="fc" id="L30">    private final WouldMissComparator wouldMissComparator = new WouldMissComparator();</span>
 
     public PairSelectionResult analyze(
             CommitPair edge,
@@ -33,34 +35,51 @@ import java.util.stream.Collectors;
             List&lt;GroundTruthResult&gt; baselineOutcomes,
             List&lt;GroundTruthResult&gt; headOutcomes,
             ReactorScope reactorScope) {
-<span class="fc" id="L36">        Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependencies = baselineDependencies.tests().entrySet().stream()</span>
-<span class="fc" id="L37">                .collect(Collectors.toMap(</span>
-<span class="fc" id="L38">                        entry -&gt; entry.getKey().baselineKey(),</span>
-<span class="fc" id="L39">                        entry -&gt; entry.getValue().keySet(),</span>
+<span class="fc" id="L38">        Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependencies = baselineDependencies.tests().entrySet().stream()</span>
+<span class="fc" id="L39">                .collect(Collectors.toMap(</span>
+<span class="fc" id="L40">                        entry -&gt; entry.getKey().baselineKey(),</span>
+<span class="fc" id="L41">                        entry -&gt; entry.getValue().keySet(),</span>
                         (left, right) -&gt; {
-<span class="nc" id="L41">                            Set&lt;String&gt; union = new java.util.HashSet&lt;&gt;(left);</span>
-<span class="nc" id="L42">                            union.addAll(right);</span>
-<span class="nc" id="L43">                            return union;</span>
+<span class="nc" id="L43">                            Set&lt;String&gt; union = new java.util.HashSet&lt;&gt;(left);</span>
+<span class="nc" id="L44">                            union.addAll(right);</span>
+<span class="nc" id="L45">                            return union;</span>
                         }));
-<span class="fc" id="L45">        Set&lt;String&gt; changedClassNames = edge.changedFiles().stream()</span>
-<span class="fc" id="L46">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
-<span class="fc" id="L47">                .collect(Collectors.toUnmodifiableSet());</span>
-<span class="fc" id="L48">        Set&lt;TestIdentity&gt; allTests = headOutcomes.stream()</span>
-<span class="fc" id="L49">                .map(GroundTruthResult::test)</span>
-<span class="fc" id="L50">                .collect(Collectors.toSet());</span>
-<span class="fc" id="L51">        Set&lt;TestIdentity&gt; newOrModifiedTests = allTests.stream()</span>
-<span class="fc" id="L52">                .filter(test -&gt; newOrModifiedTestSelector.appliesTo(</span>
-<span class="pc bpc" id="L53" title="1 of 2 branches missed.">                        test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))</span>
+<span class="fc" id="L47">        Map&lt;TestIdentity, Map&lt;String, Set&lt;String&gt;&gt;&gt; directInvocations = mergeDirectInvocations(</span>
+<span class="fc" id="L48">                baselineDependencies.directInvocations());</span>
+<span class="fc" id="L49">        Set&lt;String&gt; changedClassNames = edge.changedFiles().stream()</span>
+<span class="fc" id="L50">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
+<span class="fc" id="L51">                .collect(Collectors.toUnmodifiableSet());</span>
+<span class="fc" id="L52">        Set&lt;TestIdentity&gt; allTests = headOutcomes.stream()</span>
+<span class="fc" id="L53">                .map(GroundTruthResult::test)</span>
 <span class="fc" id="L54">                .collect(Collectors.toSet());</span>
-<span class="fc" id="L55">        List&lt;SelectionDecision&gt; decisions = selectionEngine.selectAll(</span>
-<span class="fc" id="L56">                allTests, testDependencies, newOrModifiedTests, edge.changedFiles(),</span>
-<span class="fc" id="L57">                baselineDependencies.ambientDependencies(), reactorScope);</span>
-<span class="fc" id="L58">        List&lt;FlakyFailure&gt; flakyFailures = headOutcomes.stream()</span>
-<span class="pc bpc" id="L59" title="1 of 2 branches missed.">                .filter(result -&gt; result.outcome() == Outcome.FLAKY)</span>
-<span class="pc" id="L60">                .map(result -&gt; new FlakyFailure(edge, result.test()))</span>
-<span class="fc" id="L61">                .toList();</span>
-<span class="fc" id="L62">        return new PairSelectionResult(</span>
-<span class="fc" id="L63">                decisions, wouldMissComparator.compare(edge, decisions, headOutcomes, baselineOutcomes), flakyFailures);</span>
+<span class="fc" id="L55">        Set&lt;TestIdentity&gt; newOrModifiedTests = allTests.stream()</span>
+<span class="fc" id="L56">                .filter(test -&gt; newOrModifiedTestSelector.appliesTo(</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">                        test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))</span>
+<span class="fc" id="L58">                .collect(Collectors.toSet());</span>
+<span class="fc" id="L59">        List&lt;SelectionDecision&gt; decisions = selectionEngine.selectAll(</span>
+<span class="fc" id="L60">                allTests, testDependencies, directInvocations, newOrModifiedTests, edge.changedFiles(),</span>
+<span class="fc" id="L61">                baselineDependencies.ambientDependencies(), reactorScope);</span>
+<span class="fc" id="L62">        List&lt;FlakyFailure&gt; flakyFailures = headOutcomes.stream()</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">                .filter(result -&gt; result.outcome() == Outcome.FLAKY)</span>
+<span class="pc" id="L64">                .map(result -&gt; new FlakyFailure(edge, result.test()))</span>
+<span class="fc" id="L65">                .toList();</span>
+<span class="fc" id="L66">        return new PairSelectionResult(</span>
+<span class="fc" id="L67">                decisions, wouldMissComparator.compare(edge, decisions, headOutcomes, baselineOutcomes), flakyFailures);</span>
+    }
+
+    private static Map&lt;TestIdentity, Map&lt;String, Set&lt;String&gt;&gt;&gt; mergeDirectInvocations(
+            Map&lt;TestIdentity, Map&lt;String, Set&lt;String&gt;&gt;&gt; directInvocations) {
+<span class="fc" id="L72">        Map&lt;TestIdentity, Map&lt;String, Set&lt;String&gt;&gt;&gt; merged = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L73">        directInvocations.forEach((test, sourceToTargets) -&gt; {</span>
+<span class="fc" id="L74">            Map&lt;String, Set&lt;String&gt;&gt; targetsBySource = merged.computeIfAbsent(test.baselineKey(), ignored -&gt; new HashMap&lt;&gt;());</span>
+<span class="fc" id="L75">            sourceToTargets.forEach((source, targets) -&gt; targetsBySource</span>
+<span class="fc" id="L76">                    .computeIfAbsent(source, ignored -&gt; new HashSet&lt;&gt;())</span>
+<span class="fc" id="L77">                    .addAll(targets));</span>
+<span class="fc" id="L78">        });</span>
+<span class="fc" id="L79">        return merged.entrySet().stream().collect(Collectors.toUnmodifiableMap(</span>
+                Map.Entry::getKey,
+<span class="fc" id="L81">                entry -&gt; entry.getValue().entrySet().stream().collect(Collectors.toUnmodifiableMap(</span>
+<span class="fc" id="L82">                        Map.Entry::getKey, target -&gt; Set.copyOf(target.getValue())))));</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

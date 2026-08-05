@@ -33,15 +33,24 @@ import java.util.Set;
 
     public void write(Path outputFile, Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; recordedDependencies,
             Set&lt;String&gt; ambientDependencies) {
-<span class="fc" id="L36">        List&lt;DependencyRecord&gt; records = recordedDependencies.entrySet().stream()</span>
-<span class="fc" id="L37">                .map(entry -&gt; new DependencyRecord(entry.getKey(), entry.getValue()))</span>
-<span class="fc" id="L38">                .toList();</span>
+<span class="fc" id="L36">        write(outputFile, recordedDependencies, Map.of(), ambientDependencies);</span>
+<span class="fc" id="L37">    }</span>
+
+    public void write(Path outputFile, Map&lt;TestIdentity, Map&lt;String, String&gt;&gt; recordedDependencies,
+            Map&lt;TestIdentity, Map&lt;String, Set&lt;String&gt;&gt;&gt; directInvocations, Set&lt;String&gt; ambientDependencies) {
+<span class="fc" id="L41">        List&lt;DependencyRecord&gt; records = recordedDependencies.entrySet().stream()</span>
+<span class="fc" id="L42">                .map(entry -&gt; new DependencyRecord(entry.getKey(), entry.getValue()))</span>
+<span class="fc" id="L43">                .toList();</span>
+<span class="fc" id="L44">        List&lt;DirectInvocationRecord&gt; directInvocationRecords = directInvocations.entrySet().stream()</span>
+<span class="fc" id="L45">                .map(entry -&gt; new DirectInvocationRecord(entry.getKey(), entry.getValue()))</span>
+<span class="fc" id="L46">                .toList();</span>
         try {
-<span class="fc" id="L40">            mapper.writeValue(outputFile.toFile(), new DependencyRecordFile(records, ambientDependencies));</span>
-<span class="nc" id="L41">        } catch (IOException e) {</span>
-<span class="nc" id="L42">            throw new UncheckedIOException(&quot;failed to write dependency record to &quot; + outputFile, e);</span>
-<span class="fc" id="L43">        }</span>
-<span class="fc" id="L44">    }</span>
+<span class="fc" id="L48">            mapper.writeValue(outputFile.toFile(), new DependencyRecordFile(</span>
+                    records, directInvocationRecords, ambientDependencies));
+<span class="nc" id="L50">        } catch (IOException e) {</span>
+<span class="nc" id="L51">            throw new UncheckedIOException(&quot;failed to write dependency record to &quot; + outputFile, e);</span>
+<span class="fc" id="L52">        }</span>
+<span class="fc" id="L53">    }</span>
 
     /**
      * Records why this JVM's shutdown hook produced no dependency data, so a caller sees
@@ -49,13 +58,13 @@ import java.util.Set;
      * never attached&quot;.
      */
     public void writeCrashMarker(Path outputFile, Throwable failure) {
-<span class="fc" id="L52">        Path markerFile = Path.of(outputFile + CRASH_MARKER_SUFFIX);</span>
-<span class="fc" id="L53">        String reason = failure.getClass().getName() + &quot;: &quot; + failure.getMessage();</span>
+<span class="fc" id="L61">        Path markerFile = Path.of(outputFile + CRASH_MARKER_SUFFIX);</span>
+<span class="fc" id="L62">        String reason = failure.getClass().getName() + &quot;: &quot; + failure.getMessage();</span>
         try {
-<span class="fc" id="L55">            Files.writeString(markerFile, reason);</span>
-<span class="nc" id="L56">        } catch (IOException e) {</span>
-<span class="nc" id="L57">            throw new UncheckedIOException(&quot;failed to write crash marker to &quot; + markerFile, e);</span>
-<span class="fc" id="L58">        }</span>
-<span class="fc" id="L59">    }</span>
+<span class="fc" id="L64">            Files.writeString(markerFile, reason);</span>
+<span class="nc" id="L65">        } catch (IOException e) {</span>
+<span class="nc" id="L66">            throw new UncheckedIOException(&quot;failed to write crash marker to &quot; + markerFile, e);</span>
+<span class="fc" id="L67">        }</span>
+<span class="fc" id="L68">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

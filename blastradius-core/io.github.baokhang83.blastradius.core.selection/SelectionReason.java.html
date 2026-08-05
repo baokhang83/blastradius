@@ -4,8 +4,14 @@
 <span class="fc" id="L4">public enum SelectionReason {</span>
     /** The test's tracked dependencies intersect a changed class (FR-002). */
 <span class="fc" id="L6">    DEPENDENCY_MATCH,</span>
+    /**
+     * A class the test demonstrably executed declares a direct method invocation to a changed
+     * class. This bounded, class-level fallback can over-select a branch that did not execute,
+     * but always names both the executed source and changed target (issue #225).
+     */
+<span class="fc" id="L12">    DIRECT_INVOCATION_REFERENCE,</span>
     /** A non-Java-source change forced selection of every test (FR-006). */
-<span class="fc" id="L8">    FALLBACK_NON_SOURCE_CHANGE,</span>
+<span class="fc" id="L14">    FALLBACK_NON_SOURCE_CHANGE,</span>
     /**
      * A non-Java-source change was scoped to the reactor: this test lives in a module that
      * changed, or in one that (transitively) depends on a changed module, so it was
@@ -13,16 +19,16 @@
      * {@link #FALLBACK_NON_SOURCE_CHANGE} when a reactor graph is available and the change
      * is not reactor-wide (root/parent pom).
      */
-<span class="fc" id="L16">    FALLBACK_NON_SOURCE_DEPENDENT_MODULE,</span>
+<span class="fc" id="L22">    FALLBACK_NON_SOURCE_DEPENDENT_MODULE,</span>
     /**
      * A changed class was loaded before any test's tracking window opened in some fork
      * (an &quot;ambient&quot; dependency), so no per-test dependency data can be trusted for it —
      * every test was conservatively selected instead of risking a silent {@code NO_MATCH}.
      */
-<span class="fc" id="L22">    FALLBACK_AMBIENT_DEPENDENCY,</span>
+<span class="fc" id="L28">    FALLBACK_AMBIENT_DEPENDENCY,</span>
     /** The test is new or its own file was modified (FR-007). */
-<span class="fc" id="L24">    NEW_OR_MODIFIED_TEST,</span>
+<span class="fc" id="L30">    NEW_OR_MODIFIED_TEST,</span>
     /** Not selected — no changed class intersects its tracked dependencies. */
-<span class="fc" id="L26">    NO_MATCH</span>
+<span class="fc" id="L32">    NO_MATCH</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
