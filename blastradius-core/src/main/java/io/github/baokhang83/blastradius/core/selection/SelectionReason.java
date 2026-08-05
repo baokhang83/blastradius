@@ -4,6 +4,12 @@ package io.github.baokhang83.blastradius.core.selection;
 public enum SelectionReason {
     /** The test's tracked dependencies intersect a changed class (FR-002). */
     DEPENDENCY_MATCH,
+    /**
+     * A class the test demonstrably executed declares a direct method invocation to a changed
+     * class. This bounded, class-level fallback can over-select a branch that did not execute,
+     * but always names both the executed source and changed target (issue #225).
+     */
+    DIRECT_INVOCATION_REFERENCE,
     /** A non-Java-source change forced selection of every test (FR-006). */
     FALLBACK_NON_SOURCE_CHANGE,
     /**

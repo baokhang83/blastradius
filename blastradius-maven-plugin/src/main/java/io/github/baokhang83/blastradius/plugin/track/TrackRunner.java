@@ -6,6 +6,7 @@ import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex;
 import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDependencyEntry;
+import io.github.baokhang83.blastradius.plugin.index.DependencyIndex.TestDirectInvocationEntry;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -72,7 +73,11 @@ public final class TrackRunner {
         List<TestDependencyEntry> entries = recorded.tests().entrySet().stream()
                 .map(entry -> new TestDependencyEntry(entry.getKey(), entry.getValue().keySet()))
                 .toList();
-        return new DependencyIndex(anchorCommit, Instant.now().toString(), entries, recorded.ambientDependencies());
+        List<TestDirectInvocationEntry> directInvocations = recorded.directInvocations().entrySet().stream()
+                .map(entry -> new TestDirectInvocationEntry(entry.getKey(), entry.getValue()))
+                .toList();
+        return new DependencyIndex(
+                anchorCommit, Instant.now().toString(), entries, directInvocations, recorded.ambientDependencies());
     }
 
     /**

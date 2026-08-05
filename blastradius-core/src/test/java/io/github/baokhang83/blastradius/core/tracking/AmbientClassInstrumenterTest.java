@@ -2,10 +2,12 @@ package io.github.baokhang83.blastradius.core.tracking;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class AmbientClassInstrumenterTest {
@@ -62,6 +64,21 @@ class AmbientClassInstrumenterTest {
 
         assertDoesNotThrow(() -> instrumenter.instrument(
                 FrameMergingNestedType.class.getName(), original, rejectingLoader));
+    }
+
+    @Test
+    void collectsDirectMethodInvocationOwnersFromTheOriginalClass() throws Exception {
+        byte[] original;
+        try (InputStream stream = NestedConstructorArgConstruction.class
+                .getResourceAsStream("AmbientClassInstrumenterTest$NestedConstructorArgConstruction.class")) {
+            assertNotNull(stream, "fixture class bytes must be available as a resource");
+            original = stream.readAllBytes();
+        }
+
+        Set<String> owners = instrumenter.directInvocationOwners(original);
+
+        assertTrue(owners.contains(Wrapper.class.getName()));
+        assertTrue(owners.contains(ArrayList.class.getName()));
     }
 
     static final class Wrapper {

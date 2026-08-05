@@ -17,6 +17,7 @@ public final class BlastradiusPlugin implements Plugin<Project> {
         BlastradiusExtension extension = project.getExtensions()
                 .create("blastradius", BlastradiusExtension.class);
         extension.getIndexPath().convention(".blastradius/index.json");
+        extension.getDirectInvocationFallback().convention(true);
         extension.getIndexStore().convention("file");
         extension.getS3Prefix().convention("");
 
@@ -34,15 +35,17 @@ public final class BlastradiusPlugin implements Plugin<Project> {
                     extension.getS3Prefix().get(), extension.getS3Region().getOrNull(), extension.getS3Endpoint().getOrNull());
 
             project.getTasks().withType(Test.class).configureEach(test -> configureTest(
-                    project, test, repositoryDirectory, indexPathKey, resolvedGitState, extension.getBaseRef().get(), indexStore));
+                    project, test, repositoryDirectory, indexPathKey, resolvedGitState, extension.getBaseRef().get(),
+                    indexStore, extension));
         }));
     }
 
     private static void configureTest(Project project, Test test, Path repositoryDirectory, String indexPathKey, GitBuildState gitState,
-            String baseReference, ConfiguredIndexStore indexStore) {
+            String baseReference, ConfiguredIndexStore indexStore, BlastradiusExtension extension) {
         test.getInputs().property("blastradius.baseReference", baseReference);
         test.getInputs().property("blastradius.headCommit", gitState.headCommit());
         test.getInputs().property("blastradius.baseReferenceCommit", gitState.baseReferenceCommit());
+        test.getInputs().property("blastradius.directInvocationFallback", extension.getDirectInvocationFallback());
 
         if (gitState.baseReferenceBuild()) {
             configureTracking(test, repositoryDirectory, indexPathKey, gitState.headCommit(), indexStore);
@@ -57,7 +60,8 @@ public final class BlastradiusPlugin implements Plugin<Project> {
                     .files(project.files(baselineIndexPath.toFile()).filter(File::isFile))
                     .withPathSensitivity(PathSensitivity.RELATIVE);
             test.doFirst(new ApplySelectionAction(
-                    repositoryDirectory.toFile(), indexPathKey, comparisonBase, gitState.headCommit(), indexStore));
+                    repositoryDirectory.toFile(), indexPathKey, comparisonBase, gitState.headCommit(), indexStore,
+                    extension.getDirectInvocationFallback().get()));
         }
         
     }

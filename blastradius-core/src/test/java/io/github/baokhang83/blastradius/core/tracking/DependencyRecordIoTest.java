@@ -135,4 +135,24 @@ class DependencyRecordIoTest {
         assertFalse(merged.ambientDependencies().contains("com.example.a.FooTest"));
         assertFalse(merged.ambientDependencies().contains("com.example.b.UsesFooTest"));
     }
+
+    @Test
+    void readAllMergesDirectInvocationOwnersAcrossForks(@TempDir Path tempDir) throws Exception {
+        Path base = tempDir.resolve("dependencies.json");
+        TestIdentity fooTest = new TestIdentity("com.example.FooTest", "checksFoo");
+        writer.write(base.resolveSibling(base.getFileName() + ".111"),
+                Map.of(fooTest, Map.of("com.example.Selector", "abc")),
+                Map.of(fooTest, Map.of("com.example.Selector", Set.of("com.example.QueryParser"))),
+                Set.of());
+        writer.write(base.resolveSibling(base.getFileName() + ".222"),
+                Map.of(fooTest, Map.of("com.example.Helper", "def")),
+                Map.of(fooTest, Map.of("com.example.Selector", Set.of("com.example.TokenQueue"))),
+                Set.of());
+
+        DependencyRecordSet merged = reader.readAll(base);
+
+        assertEquals(Set.of("com.example.QueryParser", "com.example.TokenQueue"), merged.directInvocations()
+                .get(fooTest)
+                .get("com.example.Selector"));
+    }
 }

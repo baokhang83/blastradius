@@ -19,16 +19,30 @@ import java.util.stream.Collectors;
  * DependencyMatchSelector} logic only ever consumes class names.
  */
 public record DependencyIndex(int formatVersion, String anchorCommit, String builtAt,
-        List<TestDependencyEntry> testDependencies, Set<String> ambientDependencies) {
+        List<TestDependencyEntry> testDependencies, List<TestDirectInvocationEntry> directInvocations,
+        Set<String> ambientDependencies) {
 
     public DependencyIndex {
         formatVersion = DependencyIndexFormat.migrateLegacyVersion(formatVersion);
+        directInvocations = directInvocations == null ? List.of() : List.copyOf(directInvocations);
         ambientDependencies = ambientDependencies == null ? Set.of() : Set.copyOf(ambientDependencies);
     }
 
     public DependencyIndex(String anchorCommit, String builtAt, List<TestDependencyEntry> testDependencies,
             Set<String> ambientDependencies) {
-        this(DependencyIndexFormat.CURRENT_VERSION, anchorCommit, builtAt, testDependencies, ambientDependencies);
+        this(anchorCommit, builtAt, testDependencies, List.of(), ambientDependencies);
+    }
+
+    /** Compatibility constructor for callers deliberately exercising an older format. */
+    public DependencyIndex(int formatVersion, String anchorCommit, String builtAt,
+            List<TestDependencyEntry> testDependencies, Set<String> ambientDependencies) {
+        this(formatVersion, anchorCommit, builtAt, testDependencies, List.of(), ambientDependencies);
+    }
+
+    public DependencyIndex(String anchorCommit, String builtAt, List<TestDependencyEntry> testDependencies,
+            List<TestDirectInvocationEntry> directInvocations, Set<String> ambientDependencies) {
+        this(DependencyIndexFormat.CURRENT_VERSION, anchorCommit, builtAt,
+                testDependencies, directInvocations, ambientDependencies);
     }
 
     /** Convenience for callers that don't populate {@code ambientDependencies} (mostly tests). */
@@ -38,10 +52,19 @@ public record DependencyIndex(int formatVersion, String anchorCommit, String bui
 
     public record TestDependencyEntry(TestIdentity test, Set<String> dependsOnClasses) {}
 
+    /** A test's dynamically-executed source classes and their declared direct target classes. */
+    public record TestDirectInvocationEntry(TestIdentity test, Map<String, Set<String>> sourceToTargetClasses) {}
+
     /** {@code testDependencies}, reshaped into the map form the selection engine consumes. */
     public Map<TestIdentity, Set<String>> testDependenciesByTest() {
         return testDependencies.stream()
                 .collect(Collectors.toUnmodifiableMap(TestDependencyEntry::test, TestDependencyEntry::dependsOnClasses));
+    }
+
+    /** Direct references reshaped into the map form the selection engine consumes. */
+    public Map<TestIdentity, Map<String, Set<String>>> directInvocationsByTest() {
+        return directInvocations.stream().collect(Collectors.toUnmodifiableMap(
+                TestDirectInvocationEntry::test, TestDirectInvocationEntry::sourceToTargetClasses));
     }
 
     public boolean hasCurrentFormat() {

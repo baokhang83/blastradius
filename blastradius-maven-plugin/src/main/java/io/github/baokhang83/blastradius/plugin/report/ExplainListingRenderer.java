@@ -25,7 +25,10 @@ public final class ExplainListingRenderer {
         String matched = decision.matchedChangedClass() == null
                 ? ""
                 : " matchedChangedClass=" + decision.matchedChangedClass();
-        return "[blastradius]   " + testLabel(decision) + " — " + status + " reason=" + decision.reason() + matched;
+        String source = decision.directInvocationSourceClass() == null
+                ? ""
+                : " directInvocationSourceClass=" + decision.directInvocationSourceClass();
+        return "[blastradius]   " + testLabel(decision) + " — " + status + " reason=" + decision.reason() + matched + source;
     }
 
     private static String testLabel(SelectionDecision decision) {

@@ -13,6 +13,8 @@ import io.github.baokhang83.blastradius.validator.git.CommitPair;
 import io.github.baokhang83.blastradius.validator.verdict.FlakyFailure;
 import io.github.baokhang83.blastradius.validator.verdict.WouldMissComparator;
 import java.util.List;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -42,6 +44,8 @@ public final class PairSelectionAnalyzer {
                             union.addAll(right);
                             return union;
                         }));
+        Map<TestIdentity, Map<String, Set<String>>> directInvocations = mergeDirectInvocations(
+                baselineDependencies.directInvocations());
         Set<String> changedClassNames = edge.changedFiles().stream()
                 .flatMap(file -> file.candidateClassNames().stream())
                 .collect(Collectors.toUnmodifiableSet());
@@ -53,7 +57,7 @@ public final class PairSelectionAnalyzer {
                         test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))
                 .collect(Collectors.toSet());
         List<SelectionDecision> decisions = selectionEngine.selectAll(
-                allTests, testDependencies, newOrModifiedTests, edge.changedFiles(),
+                allTests, testDependencies, directInvocations, newOrModifiedTests, edge.changedFiles(),
                 baselineDependencies.ambientDependencies(), reactorScope);
         List<FlakyFailure> flakyFailures = headOutcomes.stream()
                 .filter(result -> result.outcome() == Outcome.FLAKY)
@@ -61,5 +65,20 @@ public final class PairSelectionAnalyzer {
                 .toList();
         return new PairSelectionResult(
                 decisions, wouldMissComparator.compare(edge, decisions, headOutcomes, baselineOutcomes), flakyFailures);
+    }
+
+    private static Map<TestIdentity, Map<String, Set<String>>> mergeDirectInvocations(
+            Map<TestIdentity, Map<String, Set<String>>> directInvocations) {
+        Map<TestIdentity, Map<String, Set<String>>> merged = new HashMap<>();
+        directInvocations.forEach((test, sourceToTargets) -> {
+            Map<String, Set<String>> targetsBySource = merged.computeIfAbsent(test.baselineKey(), ignored -> new HashMap<>());
+            sourceToTargets.forEach((source, targets) -> targetsBySource
+                    .computeIfAbsent(source, ignored -> new HashSet<>())
+                    .addAll(targets));
+        });
+        return merged.entrySet().stream().collect(Collectors.toUnmodifiableMap(
+                Map.Entry::getKey,
+                entry -> entry.getValue().entrySet().stream().collect(Collectors.toUnmodifiableMap(
+                        Map.Entry::getKey, target -> Set.copyOf(target.getValue())))));
     }
 }

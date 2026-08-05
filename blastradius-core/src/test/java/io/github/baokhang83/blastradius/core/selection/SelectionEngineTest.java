@@ -72,6 +72,47 @@ class SelectionEngineTest {
     }
 
     @Test
+    void directInvocationReferenceSelectsOnlyTheTestThatExecutedItsSourceClass() {
+        List<ChangedFile> changed = List.of(new ChangedFile(
+                "src/main/java/com/example/QueryParser.java", FileKind.JAVA_SOURCE, "com.example.QueryParser"));
+
+        List<SelectionDecision> decisions = engine.selectAll(
+                Set.of(MATCHED_TEST, UNRELATED_TEST),
+                Map.of(MATCHED_TEST, Set.of("com.example.Selector"), UNRELATED_TEST, Set.of("com.example.Other")),
+                Map.of(MATCHED_TEST, Map.of("com.example.Selector", Set.of("com.example.QueryParser"))),
+                Set.of(),
+                changed,
+                Set.of());
+
+        SelectionDecision matched = decisions.stream().filter(d -> d.test().equals(MATCHED_TEST)).findFirst().orElseThrow();
+        SelectionDecision unrelated = decisions.stream().filter(d -> d.test().equals(UNRELATED_TEST)).findFirst().orElseThrow();
+
+        assertTrue(matched.selected());
+        assertEquals(SelectionReason.DIRECT_INVOCATION_REFERENCE, matched.reason());
+        assertEquals("com.example.QueryParser", matched.matchedChangedClass());
+        assertEquals("com.example.Selector", matched.directInvocationSourceClass());
+        assertEquals(SelectionReason.NO_MATCH, unrelated.reason());
+    }
+
+    @Test
+    void ordinaryDependencyMatchTakesPrecedenceOverDirectInvocationReference() {
+        List<ChangedFile> changed = List.of(new ChangedFile(
+                "src/main/java/com/example/QueryParser.java", FileKind.JAVA_SOURCE, "com.example.QueryParser"));
+
+        SelectionDecision decision = engine.selectAll(
+                        Set.of(MATCHED_TEST),
+                        Map.of(MATCHED_TEST, Set.of("com.example.QueryParser")),
+                        Map.of(MATCHED_TEST, Map.of("com.example.Selector", Set.of("com.example.QueryParser"))),
+                        Set.of(),
+                        changed,
+                        Set.of())
+                .getFirst();
+
+        assertEquals(SelectionReason.DEPENDENCY_MATCH, decision.reason());
+        assertEquals(null, decision.directInvocationSourceClass());
+    }
+
+    @Test
     void kotlinFileFacadeCandidateContributesToDependencyMatching() {
         List<ChangedFile> changed = List.of(new ChangedFile(
                 "src/main/kotlin/com/example/Greeting.kt", FileKind.JAVA_SOURCE, "com.example.Greeting"));

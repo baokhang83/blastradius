@@ -1,10 +1,10 @@
 {
-  "feature": "220-decide-whether-to-mitigate-string-dispatched-cached-depe",
-  "branch": "feature/220-decide-whether-to-mitigate-string-dispatched-cached-depe",
+  "feature": "225-prototype-direct-invocation-reference-fallback-for-cache",
+  "branch": "feature/225-prototype-direct-invocation-reference-fallback-for-cache",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/220-decide-whether-to-mitigate-string-dispatched-cached-depe/sessions/001-record-bounded-direct-invocation-reference-fallback-deci.md",
+  "last_session": "docs/fluencyloop/features/225-prototype-direct-invocation-reference-fallback-for-cache/sessions/001-track-and-select-bounded-direct-invocation-references.md",
   "base_ref": "main",
-  "feature_dir": "docs/fluencyloop/features/220-decide-whether-to-mitigate-string-dispatched-cached-depe",
+  "feature_dir": "docs/fluencyloop/features/225-prototype-direct-invocation-reference-fallback-for-cache",
   "plan": "",
   "updated": "2026-08-05"
 }

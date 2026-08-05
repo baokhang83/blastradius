@@ -169,6 +169,30 @@ class DependencyTrackingAgentTest {
     }
 
     @Test
+    void executedProjectClassContributesItsDirectInvocationOwnersToTheCurrentTest() throws Exception {
+        currentTest.set(null);
+        byte[] fixtureBytes = classBytes(DirectInvocationFixture.class);
+        String fixtureName = "com.example.DirectInvocationFixture";
+        agent.transform(null, fixtureName.replace('.', '/'), null, productionProtectionDomain(), fixtureBytes);
+
+        Field installedAgentField = DependencyTrackingAgent.class.getDeclaredField("installedAgent");
+        installedAgentField.setAccessible(true);
+        Object previousInstalledAgent = installedAgentField.get(null);
+        installedAgentField.set(null, agent);
+        try {
+            currentTest.set(FOO_TEST);
+            DependencyTrackingAgent.recordAmbientExecution(fixtureName);
+        } finally {
+            installedAgentField.set(null, previousInstalledAgent);
+        }
+
+        assertTrue(agent.directInvocationOwnersByTest()
+                .get(FOO_TEST)
+                .get(fixtureName)
+                .contains(String.class.getName()));
+    }
+
+    @Test
     void differentTestsAreRecordedSeparately() {
         TestIdentity barTest = new TestIdentity("com.example.BarTest", "checksSubtract");
 
@@ -347,10 +371,20 @@ class DependencyTrackingAgentTest {
     }
 
     private static byte[] ownClassBytes() throws Exception {
-        try (InputStream stream = DependencyTrackingAgentTest.class
-                .getResourceAsStream("DependencyTrackingAgentTest.class")) {
+        return classBytes(DependencyTrackingAgentTest.class);
+    }
+
+    private static byte[] classBytes(Class<?> type) throws Exception {
+        String resourceName = type.getName().substring(type.getName().lastIndexOf('.') + 1) + ".class";
+        try (InputStream stream = type.getResourceAsStream(resourceName)) {
             assertTrue(stream != null, "test class bytes must be available as a resource");
             return stream.readAllBytes();
+        }
+    }
+
+    static final class DirectInvocationFixture {
+        static String stringify(int value) {
+            return String.valueOf(value);
         }
     }
 

@@ -80,6 +80,49 @@ class BlastradiusPluginFunctionalTest {
     }
 
     @Test
+    void selectsAnExecutedSourceClassForItsChangedDirectInvocationTarget() throws Exception {
+        writeProject();
+        write("src/main/java/example/Selector.java", """
+                package example;
+                public final class Selector {
+                    public int selectCached() { return 1; }
+                    public int parseOnCacheMiss() { return QueryParser.parse(); }
+                }
+                """);
+        write("src/main/java/example/QueryParser.java",
+                "package example; public final class QueryParser { public static int parse() { return 1; } }\n");
+        write("src/test/java/example/SelectorTest.java", """
+                package example;
+
+                import java.nio.file.Files;
+                import java.nio.file.Path;
+                import org.junit.jupiter.api.Test;
+
+                class SelectorTest {
+                    @Test
+                    void selectsQuery() throws Exception {
+                        new Selector().selectCached();
+                        Files.writeString(Path.of("build/selector-ran"), "ran");
+                    }
+                }
+        """);
+        String baselineCommit = commitBaseline();
+        BuildResult trackResult = runGradle("clean", "test");
+        assertTrue(trackResult.getOutput().contains("[blastradius] TRACK — 3 / 3 tests selected"), trackResult.getOutput());
+        Files.deleteIfExists(projectDir.resolve("build/foo-ran"));
+        Files.deleteIfExists(projectDir.resolve("build/bar-ran"));
+        Files.deleteIfExists(projectDir.resolve("build/selector-ran"));
+        changeQueryParser();
+
+        BuildResult result = runGradle("clean", "test");
+
+        assertTrue(result.getOutput().contains("[blastradius] SELECT — 1 / 3 tests selected"), result.getOutput());
+        assertTrue(Files.exists(projectDir.resolve("build/selector-ran")));
+        assertFalse(Files.exists(projectDir.resolve("build/foo-ran")));
+        assertFalse(Files.exists(projectDir.resolve("build/bar-ran")));
+    }
+
+    @Test
     void selectsAgainstTheMergeBaseWhenMainAdvancesAfterTheFeatureBranches() throws Exception {
         writeProject();
         String branchPoint = commitBaseline();
@@ -204,6 +247,16 @@ class BlastradiusPluginFunctionalTest {
         }
     }
 
+    private void changeQueryParser() throws Exception {
+        write("src/main/java/example/QueryParser.java",
+                "package example; public final class QueryParser { public static int parse() { return 2; } }\n");
+        try (Git git = Git.open(projectDir.toFile())) {
+            git.checkout().setCreateBranch(true).setName("feature").call();
+            git.add().addFilepattern("src/main/java/example/QueryParser.java").call();
+            git.commit().setMessage("change query parser").setAuthor("fixture", "fixture@example.invalid").call();
+        }
+    }
+
     private void advanceMainWithBarChange() throws Exception {
         try (Git git = Git.open(projectDir.toFile())) {
             git.checkout().setName("main").call();
@@ -219,6 +272,7 @@ class BlastradiusPluginFunctionalTest {
     private void writeIndex(String baselineCommit) throws IOException {
         write(CommitIndexKey.forCommit(".blastradius/index.json", baselineCommit), """
                 {
+                  "formatVersion": 3,
                   "anchorCommit": "%s",
                   "builtAt": "2026-07-20T00:00:00Z",
                   "testDependencies": [

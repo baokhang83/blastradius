@@ -85,6 +85,10 @@ public final class SelectMojo extends AbstractMojo {
     @Parameter(property = "blastradius.explain", defaultValue = "false")
     private boolean explain;
 
+    /** Controls the enabled-by-default, one-hop static fallback recorded by format-3 indexes (issue #225). */
+    @Parameter(property = "blastradius.directInvocationFallback", defaultValue = "true")
+    private boolean directInvocationFallback;
+
     /**
      * Set only by {@link TrackRunner}, on the {@code mvn} subprocess it forks against this
      * same project directory to gather instrumented dependency data. That subprocess's pom
@@ -319,7 +323,8 @@ public final class SelectMojo extends AbstractMojo {
             Map<TestIdentity, Long> durationsByTest) throws MojoExecutionException {
         try {
             Set<TestIdentity> allTests = discoverProjectTests();
-            List<SelectionDecision> decisions = computeDecisions(allTests, applicability.index(), changes.changedFiles());
+            List<SelectionDecision> decisions = computeDecisions(
+                    allTests, applicability.index(), changes.changedFiles(), directInvocationFallback);
             Set<TestIdentity> selectedTests = decisions.stream()
                     .filter(SelectionDecision::selected)
                     .map(SelectionDecision::test)
@@ -380,6 +385,11 @@ public final class SelectMojo extends AbstractMojo {
      */
     static List<SelectionDecision> computeDecisions(Set<TestIdentity> allTests, DependencyIndex index,
             List<ChangedFile> changedFiles) {
+        return computeDecisions(allTests, index, changedFiles, true);
+    }
+
+    static List<SelectionDecision> computeDecisions(Set<TestIdentity> allTests, DependencyIndex index,
+            List<ChangedFile> changedFiles, boolean directInvocationFallback) {
         Map<TestIdentity, Set<String>> testDependencies = index.testDependenciesByTest().entrySet().stream()
                 .collect(Collectors.toMap(
                         entry -> entry.getKey().baselineKey(),
@@ -389,6 +399,12 @@ public final class SelectMojo extends AbstractMojo {
                             union.addAll(b);
                             return union;
                         }));
+
+        Map<TestIdentity, Map<String, Set<String>>> directInvocations = index.directInvocationsByTest().entrySet().stream()
+                .collect(Collectors.toMap(
+                        entry -> entry.getKey().baselineKey(),
+                        Map.Entry::getValue,
+                        SelectMojo::mergeDirectInvocations));
 
         Set<String> changedClassNames = changedFiles.stream()
                 .flatMap(file -> file.candidateClassNames().stream())
@@ -400,6 +416,18 @@ public final class SelectMojo extends AbstractMojo {
                 .collect(Collectors.toSet());
 
         return SELECTION_ENGINE.selectAll(
-                allTests, testDependencies, newOrModifiedTests, changedFiles, index.ambientDependencies());
+                allTests, testDependencies, directInvocationFallback ? directInvocations : Map.of(), newOrModifiedTests,
+                changedFiles, index.ambientDependencies());
+    }
+
+    private static Map<String, Set<String>> mergeDirectInvocations(
+            Map<String, Set<String>> first, Map<String, Set<String>> second) {
+        Map<String, Set<String>> merged = new java.util.HashMap<>(first);
+        second.forEach((source, targets) -> merged.merge(source, targets, (left, right) -> {
+            Set<String> union = new java.util.HashSet<>(left);
+            union.addAll(right);
+            return Set.copyOf(union);
+        }));
+        return Map.copyOf(merged);
     }
 }
