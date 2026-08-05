@@ -32,12 +32,12 @@ or an injected mutant but that selection chose not to run.
 
 <sup>1</sup>`org.apache.shenyu.springboot.starter.sync.data.http.HttpClientPluginConfigurationTest` was excluded as flaky.    
 <sup>2</sup>`org.apache.hc.client5.testing.sync.TestTlsHandshakeTimeout#testTimeout` was excluded as flaky under the 5-way parallel build load.    
-<sup>3</sup>Unlike the two runs above, jsoup needed no test configured out as flaky. The 10 excluded pairs each hit the
+<sup>3</sup> Unlike the two runs above, jsoup needed no test configured out as flaky. The 10 excluded pairs each hit the
 10-minute build timeout, because a handful of injected mutants turn jsoup's tree traversal into an infinite loop —
 the timeout is the harness refusing to wait, not a selection result. The harness did detect 35 flaky failures
 in-flight (34 of them `org.jsoup.parser.HtmlParserTest#handlesManyChildren`), which are classified as flaky rather
 than counted as would-misses precisely because they passed on confirmation rerun.    
-<sup>4</sup>Zero on real history: the window's one newly-confirmed failing test was selected. Selection did skip tests
+<sup>4</sup> Zero on real history: the window's one newly-confirmed failing test was selected. Selection did skip tests
 that would have caught *injected* faults — see the mutation table below, where that evidence belongs.
 
 Bounded mutation validation ran on the same window: for each pair it injects synthetic faults into
@@ -47,7 +47,7 @@ head and checks whether the tests selected catch them.
 | --- | ---: | ---: | :---: | ---: |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 872 (778) | 339 | **943 / 943** | 686 / 257 |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/httpcomponents-client">httpcomponents-client</a></h4> | 916 (916) | 551 | **75,380 / 75,380** | 3,571 / 71,809 |
-| <h4><img width="20" height="20" align="top" src="https://github.com/jhy.png?size=40"/><a href="https://github.com/jhy/jsoup">jsoup</a></h4> | 942 (938) | 652 | **44,798 / 47,866** | 42,440 / 5,426 |
+| <h4><a href="https://github.com/jhy/jsoup">jsoup</a></h4> | 942 (938) | 652 | **44,798 / 47,866** | 42,440 / 5,426 |
 
 A "killing test" is one that actually caught an injected fault (passed on head, failed on the mutant, stayed failed on
 confirmation), so it is a test the selection *must not* skip. Counts are per mutant, so a test that kills five mutants
