@@ -87,6 +87,26 @@ class SurefireReportParserTest {
     }
 
     @Test
+    void aNoncharacterEmbeddedInAFailureMessageDoesNotFailTheWholeFile(@TempDir Path reportsDir) throws Exception {
+        // U+FFFE is well-formed UTF-8 but illegal in XML 1.0; Surefire has been observed to embed it
+        // verbatim in a failure message copied from a raw byte of the process under test.
+        writeReport(reportsDir, "TEST-com.example.FooTest.xml", """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <testsuite name="com.example.FooTest" tests="2" errors="0" skipped="0" failures="1">
+                    <testcase name="checksAdd" classname="com.example.FooTest" time="0.01"/>
+                    <testcase name="checksSubtract" classname="com.example.FooTest" time="0.02">
+                        <failure message="corrupted byte: ￾" type="org.opentest4j.AssertionFailedError">stack trace here</failure>
+                    </testcase>
+                </testsuite>
+                """);
+
+        Map<TestIdentity, Boolean> results = parser.parse(reportsDir);
+
+        assertTrue(results.get(new TestIdentity("com.example.FooTest", "checksAdd")));
+        assertFalse(results.get(new TestIdentity("com.example.FooTest", "checksSubtract")));
+    }
+
+    @Test
     void missingReportsDirectoryYieldsEmptyResults(@TempDir Path tempDir) {
         Path nonExistent = tempDir.resolve("does-not-exist");
         Map<TestIdentity, Boolean> results = parser.parse(nonExistent);
