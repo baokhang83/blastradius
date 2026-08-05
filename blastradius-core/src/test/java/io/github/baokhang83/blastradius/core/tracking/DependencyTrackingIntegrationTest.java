@@ -198,6 +198,44 @@ class DependencyTrackingIntegrationTest {
     }
 
     @Test
+    void classLoadedOnlyDuringAfterAllIsAttributedToEveryClassTest(@TempDir Path projectDir, @TempDir Path outDir)
+            throws Exception {
+        Path agentJar = findOwnAgentJar();
+        Path recordFile = outDir.resolve("deps.json");
+
+        FixtureProjectBuilder fixture = FixtureProjectBuilder.singleModule(projectDir);
+        fixture.addSystemDependency(null, agentJar);
+        fixture.writeClass("com.example.CleanupDependency", """
+                package com.example;
+                public final class CleanupDependency {
+                    public static void close() {}
+                }
+                """);
+        fixture.writeTest("com.example.CleanupDependencyTest", """
+                package com.example;
+                import org.junit.jupiter.api.AfterAll;
+                import org.junit.jupiter.api.Test;
+                class CleanupDependencyTest {
+                    @Test void first() {}
+                    @Test void second() {}
+                    @AfterAll static void cleanup() { CleanupDependency.close(); }
+                }
+                """);
+        fixture.commit("initial");
+
+        runMvnTest(projectDir, agentJar, recordFile);
+
+        Map<TestIdentity, Map<String, String>> recorded = new DependencyRecordReader().readAll(recordFile).tests();
+        TestIdentity first = new TestIdentity("com.example.CleanupDependencyTest", "first");
+        TestIdentity second = new TestIdentity("com.example.CleanupDependencyTest", "second");
+
+        assertTrue(recorded.get(first).containsKey("com.example.CleanupDependency"),
+                "@AfterAll-only dependency must be unioned into the first class test: " + recorded.get(first));
+        assertTrue(recorded.get(second).containsKey("com.example.CleanupDependency"),
+                "@AfterAll-only dependency must be unioned into the second class test: " + recorded.get(second));
+    }
+
+    @Test
     void virtualThreadAttributionIncludesSealedAndHiddenClassLoadsOnJdk25(
             @TempDir Path projectDir, @TempDir Path outDir) throws Exception {
         Path agentJar = findOwnAgentJar();
