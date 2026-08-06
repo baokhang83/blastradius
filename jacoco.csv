@@ -17,14 +17,14 @@ coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,Depende
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.1.new MethodVisitor() {...},14,69,3,3,3,18,3,7,1,6
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DependencyRecordWriter,18,90,0,0,4,20,0,7,0,7
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestIdentity,0,41,0,4,0,7,0,4,0,2
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,DirectInvocationReferenceSelector,0,55,1,7,0,9,1,6,0,3
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,DirectInvocationReferenceSelector,0,115,1,17,0,20,1,12,0,4
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,FallbackSelector,0,19,0,2,0,3,0,5,0,4
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,DependencyMatchSelector,0,36,0,6,0,8,0,6,0,3
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,AmbientDependencySelector,0,14,0,2,0,3,0,4,0,3
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,NewOrModifiedTestSelector,0,17,0,4,0,3,0,5,0,3
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,SelectionReason,0,45,0,0,0,8,0,1,0,1
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,SelectionEngine,0,205,0,24,0,37,0,18,0,6
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,SelectionDecision,13,116,1,9,3,17,2,12,1,8
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,SelectionReason,0,51,0,0,0,9,0,1,0,1
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,SelectionEngine,0,238,0,24,0,42,0,22,0,10
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.selection,SelectionDecision,28,154,2,18,6,21,4,17,2,9
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,ModuleId,0,17,0,0,0,4,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,ReactorModuleGraphBuilder.new SimpleFileVisitor() {...},2,45,2,10,0,8,2,7,0,3
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.reactor,ReactorModuleGraph,7,121,5,15,2,26,5,12,0,7
@@ -119,7 +119,7 @@ coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.report
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.report,TestTiming,5,17,1,1,1,4,1,1,0,1
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.report,TimingCoverage,5,22,3,3,1,4,3,2,0,2
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.report,BuildReport.Mode,0,21,0,0,0,4,0,1,0,1
-coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.report,ExplainListingRenderer,3,61,1,7,0,15,1,8,0,5
+coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.report,ExplainListingRenderer,3,71,1,9,0,18,1,9,0,5
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.blastradius_maven_plugin,HelpMojo,773,0,112,0,156,0,72,0,16,0
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.index,DependencyIndex.TestDirectInvocationEntry,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.index,DependencyIndex,0,93,0,4,0,17,0,10,0,8

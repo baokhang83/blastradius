@@ -4,20 +4,38 @@ import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.util.Map;
 import java.util.Set;
 
-/** Selects a test when one of its dynamically-executed classes directly references a changed class. */
-<span class="fc" id="L8">final class DirectInvocationReferenceSelector {</span>
+/**
+ * Selects a test when one of its dynamically-executed classes reaches a changed class in one or
+ * two recorded static invocation edges.
+ */
+<span class="fc" id="L11">final class DirectInvocationReferenceSelector {</span>
 
     SelectionDecision select(TestIdentity test, Map&lt;String, Set&lt;String&gt;&gt; directInvocationOwners,
-            Set&lt;String&gt; changedClassNames) {
-<span class="fc bfc" id="L12" title="All 2 branches covered.">        for (Map.Entry&lt;String, Set&lt;String&gt;&gt; source : directInvocationOwners.entrySet()) {</span>
-<span class="fc bfc" id="L13" title="All 2 branches covered.">            for (String changedClassName : changedClassNames) {</span>
-<span class="fc bfc" id="L14" title="All 2 branches covered.">                if (source.getValue().contains(changedClassName)</span>
-<span class="pc bpc" id="L15" title="1 of 2 branches missed.">                        || source.getValue().stream().anyMatch(owner -&gt; owner.startsWith(changedClassName + &quot;$&quot;))) {</span>
-<span class="fc" id="L16">                    return SelectionDecision.directInvocationReference(test, source.getKey(), changedClassName);</span>
+            Map&lt;String, Set&lt;String&gt;&gt; invocationGraph, Set&lt;String&gt; changedClassNames) {
+<span class="fc bfc" id="L15" title="All 2 branches covered.">        for (Map.Entry&lt;String, Set&lt;String&gt;&gt; source : directInvocationOwners.entrySet()) {</span>
+<span class="fc bfc" id="L16" title="All 2 branches covered.">            for (String changedClassName : changedClassNames) {</span>
+<span class="fc bfc" id="L17" title="All 2 branches covered.">                if (referencesChangedClass(source.getValue(), changedClassName)) {</span>
+<span class="fc" id="L18">                    return SelectionDecision.directInvocationReference(test, source.getKey(), changedClassName);</span>
                 }
-<span class="fc" id="L18">            }</span>
-<span class="fc" id="L19">        }</span>
-<span class="fc" id="L20">        return SelectionDecision.noMatch(test);</span>
+<span class="fc" id="L20">            }</span>
+<span class="fc" id="L21">        }</span>
+<span class="fc bfc" id="L22" title="All 2 branches covered.">        for (Map.Entry&lt;String, Set&lt;String&gt;&gt; source : directInvocationOwners.entrySet()) {</span>
+<span class="fc bfc" id="L23" title="All 2 branches covered.">            for (String intermediateClass : source.getValue()) {</span>
+<span class="fc" id="L24">                Set&lt;String&gt; targets = invocationGraph.getOrDefault(intermediateClass, Set.of());</span>
+<span class="fc bfc" id="L25" title="All 2 branches covered.">                for (String changedClassName : changedClassNames) {</span>
+<span class="fc bfc" id="L26" title="All 2 branches covered.">                    if (referencesChangedClass(targets, changedClassName)) {</span>
+<span class="fc" id="L27">                        return SelectionDecision.transitiveDirectInvocationReference(</span>
+<span class="fc" id="L28">                                test, source.getKey(), intermediateClass, changedClassName);</span>
+                    }
+<span class="fc" id="L30">                }</span>
+<span class="fc" id="L31">            }</span>
+<span class="fc" id="L32">        }</span>
+<span class="fc" id="L33">        return SelectionDecision.noMatch(test);</span>
+    }
+
+    private static boolean referencesChangedClass(Set&lt;String&gt; targets, String changedClassName) {
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        return targets.contains(changedClassName)</span>
+<span class="pc bpc" id="L38" title="1 of 2 branches missed.">                || targets.stream().anyMatch(target -&gt; target.startsWith(changedClassName + &quot;$&quot;));</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

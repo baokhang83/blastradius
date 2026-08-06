@@ -11,62 +11,91 @@ import java.util.Objects;
  * @param selected             whether it was selected
  * @param reason               the reason (see {@link SelectionReason})
  * @param matchedChangedClass  the specific changed class responsible, only present when
- *                             {@code reason == DEPENDENCY_MATCH || reason == DIRECT_INVOCATION_REFERENCE}
+ *                             {@code reason == DEPENDENCY_MATCH || reason == DIRECT_INVOCATION_REFERENCE ||
+ *                             reason == TRANSITIVE_DIRECT_INVOCATION_REFERENCE}
  * @param directInvocationSourceClass the executed class that declared the direct invocation,
- *                                    only present for {@code DIRECT_INVOCATION_REFERENCE}
+ *                                    only present for a direct-invocation reason
+ * @param directInvocationIntermediateClass the intermediate invocation target, only present for
+ *                                          {@code TRANSITIVE_DIRECT_INVOCATION_REFERENCE}
  */
 public record SelectionDecision(
         TestIdentity test, boolean selected, SelectionReason reason, String matchedChangedClass,
-        String directInvocationSourceClass) {
+        String directInvocationSourceClass, String directInvocationIntermediateClass) {
 
     /** Preserves callers that do not carry a direct-invocation source. */
     public SelectionDecision(TestIdentity test, boolean selected, SelectionReason reason, String matchedChangedClass) {
-<span class="nc" id="L24">        this(test, selected, reason, matchedChangedClass, null);</span>
-<span class="nc" id="L25">    }</span>
+<span class="nc" id="L27">        this(test, selected, reason, matchedChangedClass, null, null);</span>
+<span class="nc" id="L28">    }</span>
 
-<span class="fc" id="L27">    public SelectionDecision {</span>
-<span class="fc" id="L28">        Objects.requireNonNull(test, &quot;test&quot;);</span>
-<span class="fc" id="L29">        Objects.requireNonNull(reason, &quot;reason&quot;);</span>
-<span class="fc bfc" id="L30" title="All 4 branches covered.">        if (reason == SelectionReason.DEPENDENCY_MATCH || reason == SelectionReason.DIRECT_INVOCATION_REFERENCE) {</span>
-<span class="fc" id="L31">            Objects.requireNonNull(matchedChangedClass, &quot;matchedChangedClass required for DEPENDENCY_MATCH&quot;);</span>
+    /** Preserves callers that carry a one-hop direct-invocation source. */
+    public SelectionDecision(
+            TestIdentity test, boolean selected, SelectionReason reason, String matchedChangedClass,
+            String directInvocationSourceClass) {
+<span class="nc" id="L34">        this(test, selected, reason, matchedChangedClass, directInvocationSourceClass, null);</span>
+<span class="nc" id="L35">    }</span>
+
+<span class="fc" id="L37">    public SelectionDecision {</span>
+<span class="fc" id="L38">        Objects.requireNonNull(test, &quot;test&quot;);</span>
+<span class="fc" id="L39">        Objects.requireNonNull(reason, &quot;reason&quot;);</span>
+<span class="fc bfc" id="L40" title="All 6 branches covered.">        if (reason == SelectionReason.DEPENDENCY_MATCH</span>
+                || reason == SelectionReason.DIRECT_INVOCATION_REFERENCE
+                || reason == SelectionReason.TRANSITIVE_DIRECT_INVOCATION_REFERENCE) {
+<span class="fc" id="L43">            Objects.requireNonNull(matchedChangedClass, &quot;matchedChangedClass required for DEPENDENCY_MATCH&quot;);</span>
         }
-<span class="fc bfc" id="L33" title="All 2 branches covered.">        if (reason == SelectionReason.DIRECT_INVOCATION_REFERENCE) {</span>
-<span class="fc" id="L34">            Objects.requireNonNull(directInvocationSourceClass,</span>
-                    &quot;directInvocationSourceClass required for DIRECT_INVOCATION_REFERENCE&quot;);
+<span class="fc bfc" id="L45" title="All 4 branches covered.">        if (reason == SelectionReason.DIRECT_INVOCATION_REFERENCE</span>
+                || reason == SelectionReason.TRANSITIVE_DIRECT_INVOCATION_REFERENCE) {
+<span class="fc" id="L47">            Objects.requireNonNull(directInvocationSourceClass,</span>
+                    &quot;directInvocationSourceClass required for a direct-invocation reason&quot;);
         }
-<span class="fc bfc" id="L37" title="All 2 branches covered.">        boolean expectedSelected = reason != SelectionReason.NO_MATCH;</span>
-<span class="pc bpc" id="L38" title="1 of 2 branches missed.">        if (selected != expectedSelected) {</span>
-<span class="nc" id="L39">            throw new IllegalArgumentException(&quot;selected must be true iff reason is not NO_MATCH&quot;);</span>
+<span class="pc bpc" id="L50" title="1 of 4 branches missed.">        if (reason == SelectionReason.DIRECT_INVOCATION_REFERENCE</span>
+                &amp;&amp; directInvocationIntermediateClass != null) {
+<span class="nc" id="L52">            throw new IllegalArgumentException(</span>
+                    &quot;directInvocationIntermediateClass is only valid for a transitive direct-invocation reason&quot;);
         }
-<span class="fc" id="L41">    }</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        if (reason == SelectionReason.TRANSITIVE_DIRECT_INVOCATION_REFERENCE) {</span>
+<span class="fc" id="L56">            Objects.requireNonNull(directInvocationIntermediateClass,</span>
+                    &quot;directInvocationIntermediateClass required for TRANSITIVE_DIRECT_INVOCATION_REFERENCE&quot;);
+        }
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        boolean expectedSelected = reason != SelectionReason.NO_MATCH;</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">        if (selected != expectedSelected) {</span>
+<span class="nc" id="L61">            throw new IllegalArgumentException(&quot;selected must be true iff reason is not NO_MATCH&quot;);</span>
+        }
+<span class="fc" id="L63">    }</span>
 
     public static SelectionDecision dependencyMatch(TestIdentity test, String matchedChangedClass) {
-<span class="fc" id="L44">        return new SelectionDecision(test, true, SelectionReason.DEPENDENCY_MATCH, matchedChangedClass, null);</span>
+<span class="fc" id="L66">        return new SelectionDecision(test, true, SelectionReason.DEPENDENCY_MATCH, matchedChangedClass, null, null);</span>
     }
 
     public static SelectionDecision directInvocationReference(
             TestIdentity test, String sourceClass, String matchedChangedClass) {
-<span class="fc" id="L49">        return new SelectionDecision(test, true, SelectionReason.DIRECT_INVOCATION_REFERENCE, matchedChangedClass, sourceClass);</span>
+<span class="fc" id="L71">        return new SelectionDecision(</span>
+                test, true, SelectionReason.DIRECT_INVOCATION_REFERENCE, matchedChangedClass, sourceClass, null);
+    }
+
+    public static SelectionDecision transitiveDirectInvocationReference(
+            TestIdentity test, String sourceClass, String intermediateClass, String matchedChangedClass) {
+<span class="fc" id="L77">        return new SelectionDecision(test, true, SelectionReason.TRANSITIVE_DIRECT_INVOCATION_REFERENCE,</span>
+                matchedChangedClass, sourceClass, intermediateClass);
     }
 
     public static SelectionDecision fallback(TestIdentity test) {
-<span class="fc" id="L53">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_NON_SOURCE_CHANGE, null, null);</span>
+<span class="fc" id="L82">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_NON_SOURCE_CHANGE, null, null, null);</span>
     }
 
     public static SelectionDecision fallbackAmbientDependency(TestIdentity test) {
-<span class="fc" id="L57">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_AMBIENT_DEPENDENCY, null, null);</span>
+<span class="fc" id="L86">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_AMBIENT_DEPENDENCY, null, null, null);</span>
     }
 
     public static SelectionDecision fallbackNonSourceDependentModule(TestIdentity test) {
-<span class="fc" id="L61">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_NON_SOURCE_DEPENDENT_MODULE, null, null);</span>
+<span class="fc" id="L90">        return new SelectionDecision(test, true, SelectionReason.FALLBACK_NON_SOURCE_DEPENDENT_MODULE, null, null, null);</span>
     }
 
     public static SelectionDecision newOrModifiedTest(TestIdentity test) {
-<span class="fc" id="L65">        return new SelectionDecision(test, true, SelectionReason.NEW_OR_MODIFIED_TEST, null, null);</span>
+<span class="fc" id="L94">        return new SelectionDecision(test, true, SelectionReason.NEW_OR_MODIFIED_TEST, null, null, null);</span>
     }
 
     public static SelectionDecision noMatch(TestIdentity test) {
-<span class="fc" id="L69">        return new SelectionDecision(test, false, SelectionReason.NO_MATCH, null, null);</span>
+<span class="fc" id="L98">        return new SelectionDecision(test, false, SelectionReason.NO_MATCH, null, null, null);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

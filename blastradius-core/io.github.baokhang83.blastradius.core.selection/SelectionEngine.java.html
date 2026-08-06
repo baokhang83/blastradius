@@ -4,6 +4,8 @@ import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.core.reactor.ReactorScope;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -18,13 +20,13 @@ import java.util.stream.Collectors;
  * Otherwise, the new/modified-test rule (FR-007) takes precedence per test over ordinary
  * dependency matching (FR-002).
  */
-<span class="fc" id="L21">public final class SelectionEngine {</span>
+<span class="fc" id="L23">public final class SelectionEngine {</span>
 
-<span class="fc" id="L23">    private final FallbackSelector fallbackSelector = new FallbackSelector();</span>
-<span class="fc" id="L24">    private final AmbientDependencySelector ambientDependencySelector = new AmbientDependencySelector();</span>
-<span class="fc" id="L25">    private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();</span>
-<span class="fc" id="L26">    private final DependencyMatchSelector dependencyMatchSelector = new DependencyMatchSelector();</span>
-<span class="fc" id="L27">    private final DirectInvocationReferenceSelector directInvocationReferenceSelector = new DirectInvocationReferenceSelector();</span>
+<span class="fc" id="L25">    private final FallbackSelector fallbackSelector = new FallbackSelector();</span>
+<span class="fc" id="L26">    private final AmbientDependencySelector ambientDependencySelector = new AmbientDependencySelector();</span>
+<span class="fc" id="L27">    private final NewOrModifiedTestSelector newOrModifiedTestSelector = new NewOrModifiedTestSelector();</span>
+<span class="fc" id="L28">    private final DependencyMatchSelector dependencyMatchSelector = new DependencyMatchSelector();</span>
+<span class="fc" id="L29">    private final DirectInvocationReferenceSelector directInvocationReferenceSelector = new DirectInvocationReferenceSelector();</span>
 
     /**
      * @param allTests           every test in the suite
@@ -40,10 +42,10 @@ import java.util.stream.Collectors;
             Set&lt;TestIdentity&gt; newOrModifiedTests,
             List&lt;ChangedFile&gt; changedFiles,
             Set&lt;String&gt; ambientDependencies) {
-<span class="fc" id="L43">        return selectAll(allTests, testDependencies, Map.of(), newOrModifiedTests, changedFiles, ambientDependencies, null);</span>
+<span class="fc" id="L45">        return selectAll(allTests, testDependencies, Map.of(), newOrModifiedTests, changedFiles, ambientDependencies, null);</span>
     }
 
-    /** As {@link #selectAll(Set, Map, Set, List, Set)}, with optional one-hop direct references. */
+    /** As {@link #selectAll(Set, Map, Set, List, Set)}, with optional bounded direct references. */
     public List&lt;SelectionDecision&gt; selectAll(
             Set&lt;TestIdentity&gt; allTests,
             Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependencies,
@@ -51,7 +53,7 @@ import java.util.stream.Collectors;
             Set&lt;TestIdentity&gt; newOrModifiedTests,
             List&lt;ChangedFile&gt; changedFiles,
             Set&lt;String&gt; ambientDependencies) {
-<span class="fc" id="L54">        return selectAll(allTests, testDependencies, directInvocationOwnersByTest, newOrModifiedTests,</span>
+<span class="fc" id="L56">        return selectAll(allTests, testDependencies, directInvocationOwnersByTest, newOrModifiedTests,</span>
                 changedFiles, ambientDependencies, null);
     }
 
@@ -68,11 +70,11 @@ import java.util.stream.Collectors;
             List&lt;ChangedFile&gt; changedFiles,
             Set&lt;String&gt; ambientDependencies,
         ReactorScope reactorScope) {
-<span class="fc" id="L71">        return selectAll(allTests, testDependencies, Map.of(), newOrModifiedTests, changedFiles,</span>
+<span class="fc" id="L73">        return selectAll(allTests, testDependencies, Map.of(), newOrModifiedTests, changedFiles,</span>
                 ambientDependencies, reactorScope);
     }
 
-    /** As the reactor-aware overload, with optional one-hop direct references. */
+    /** As the reactor-aware overload, with optional bounded direct references. */
     public List&lt;SelectionDecision&gt; selectAll(
             Set&lt;TestIdentity&gt; allTests,
             Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependencies,
@@ -82,48 +84,62 @@ import java.util.stream.Collectors;
             Set&lt;String&gt; ambientDependencies,
             ReactorScope reactorScope) {
 
-<span class="fc" id="L85">        boolean scopedFallback =</span>
-<span class="fc bfc" id="L86" title="All 4 branches covered.">                fallbackSelector.shouldFallback(changedFiles)</span>
+<span class="fc" id="L87">        boolean scopedFallback =</span>
+<span class="fc bfc" id="L88" title="All 4 branches covered.">                fallbackSelector.shouldFallback(changedFiles)</span>
                         &amp;&amp; reactorScope != null
-<span class="fc bfc" id="L88" title="All 2 branches covered.">                        &amp;&amp; !reactorScope.isReactorWide(changedFiles);</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">                        &amp;&amp; !reactorScope.isReactorWide(changedFiles);</span>
 
-<span class="fc bfc" id="L90" title="All 4 branches covered.">        if (fallbackSelector.shouldFallback(changedFiles) &amp;&amp; !scopedFallback) {</span>
-<span class="fc" id="L91">            return allTests.stream().map(fallbackSelector::select).toList();</span>
+<span class="fc bfc" id="L92" title="All 4 branches covered.">        if (fallbackSelector.shouldFallback(changedFiles) &amp;&amp; !scopedFallback) {</span>
+<span class="fc" id="L93">            return allTests.stream().map(fallbackSelector::select).toList();</span>
         }
 
-<span class="fc" id="L94">        Set&lt;String&gt; changedClassNames = changedFiles.stream()</span>
-<span class="fc" id="L95">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
-<span class="fc" id="L96">                .collect(Collectors.toUnmodifiableSet());</span>
+<span class="fc" id="L96">        Set&lt;String&gt; changedClassNames = changedFiles.stream()</span>
+<span class="fc" id="L97">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
+<span class="fc" id="L98">                .collect(Collectors.toUnmodifiableSet());</span>
 
         // The ambient-dependency fallback is a whole-suite escape hatch and outranks reactor
         // scoping: a class loaded before any tracking window has no trustworthy per-test data,
         // so no module can be soundly ruled out for it.
-<span class="fc bfc" id="L101" title="All 2 branches covered.">        if (ambientDependencySelector.shouldFallback(changedClassNames, ambientDependencies)) {</span>
-<span class="fc" id="L102">            return allTests.stream().map(ambientDependencySelector::select).toList();</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">        if (ambientDependencySelector.shouldFallback(changedClassNames, ambientDependencies)) {</span>
+<span class="fc" id="L104">            return allTests.stream().map(ambientDependencySelector::select).toList();</span>
         }
 
-<span class="fc bfc" id="L105" title="All 2 branches covered.">        ReactorScope affectedScope = scopedFallback ? reactorScope.forChanges(changedFiles) : null;</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">        ReactorScope affectedScope = scopedFallback ? reactorScope.forChanges(changedFiles) : null;</span>
+<span class="fc" id="L108">        Map&lt;String, Set&lt;String&gt;&gt; invocationGraph = invocationGraph(directInvocationOwnersByTest);</span>
 
-<span class="fc" id="L107">        List&lt;SelectionDecision&gt; decisions = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L108" title="All 2 branches covered.">        for (TestIdentity test : allTests) {</span>
-<span class="fc bfc" id="L109" title="All 4 branches covered.">            if (affectedScope != null &amp;&amp; affectedScope.affects(test)) {</span>
-<span class="fc" id="L110">                decisions.add(SelectionDecision.fallbackNonSourceDependentModule(test));</span>
-<span class="fc" id="L111">                continue;</span>
+<span class="fc" id="L110">        List&lt;SelectionDecision&gt; decisions = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        for (TestIdentity test : allTests) {</span>
+<span class="fc bfc" id="L112" title="All 4 branches covered.">            if (affectedScope != null &amp;&amp; affectedScope.affects(test)) {</span>
+<span class="fc" id="L113">                decisions.add(SelectionDecision.fallbackNonSourceDependentModule(test));</span>
+<span class="fc" id="L114">                continue;</span>
             }
-<span class="fc bfc" id="L113" title="All 2 branches covered.">            if (newOrModifiedTests.contains(test)) {</span>
-<span class="fc" id="L114">                decisions.add(newOrModifiedTestSelector.select(test));</span>
-<span class="fc" id="L115">                continue;</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">            if (newOrModifiedTests.contains(test)) {</span>
+<span class="fc" id="L117">                decisions.add(newOrModifiedTestSelector.select(test));</span>
+<span class="fc" id="L118">                continue;</span>
             }
-<span class="fc" id="L117">            Set&lt;String&gt; dependencies = testDependencies.getOrDefault(test.baselineKey(), Set.of());</span>
-<span class="fc" id="L118">            SelectionDecision directMatch = dependencyMatchSelector.select(test, dependencies, changedClassNames);</span>
-<span class="fc bfc" id="L119" title="All 2 branches covered.">            if (directMatch.selected()) {</span>
-<span class="fc" id="L120">                decisions.add(directMatch);</span>
-<span class="fc" id="L121">                continue;</span>
+<span class="fc" id="L120">            Set&lt;String&gt; dependencies = testDependencies.getOrDefault(test.baselineKey(), Set.of());</span>
+<span class="fc" id="L121">            SelectionDecision directMatch = dependencyMatchSelector.select(test, dependencies, changedClassNames);</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">            if (directMatch.selected()) {</span>
+<span class="fc" id="L123">                decisions.add(directMatch);</span>
+<span class="fc" id="L124">                continue;</span>
             }
-<span class="fc" id="L123">            decisions.add(directInvocationReferenceSelector.select(</span>
-<span class="fc" id="L124">                    test, directInvocationOwnersByTest.getOrDefault(test.baselineKey(), Map.of()), changedClassNames));</span>
-<span class="fc" id="L125">        }</span>
-<span class="fc" id="L126">        return decisions;</span>
+<span class="fc" id="L126">            decisions.add(directInvocationReferenceSelector.select(</span>
+<span class="fc" id="L127">                    test, directInvocationOwnersByTest.getOrDefault(test.baselineKey(), Map.of()),</span>
+                    invocationGraph, changedClassNames));
+<span class="fc" id="L129">        }</span>
+<span class="fc" id="L130">        return decisions;</span>
+    }
+
+    /**
+     * Builds a suite-wide static invocation graph from the per-test records. The first edge of a
+     * transitive match remains test-specific; only the intermediate-to-changed edge is shared.
+     */
+    private static Map&lt;String, Set&lt;String&gt;&gt; invocationGraph(
+            Map&lt;TestIdentity, Map&lt;String, Set&lt;String&gt;&gt;&gt; directInvocationOwnersByTest) {
+<span class="fc" id="L139">        Map&lt;String, Set&lt;String&gt;&gt; graph = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L140">        directInvocationOwnersByTest.values().forEach(sources -&gt; sources.forEach((source, targets) -&gt;</span>
+<span class="fc" id="L141">                graph.computeIfAbsent(source, ignored -&gt; new HashSet&lt;&gt;()).addAll(targets)));</span>
+<span class="fc" id="L142">        return graph;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
