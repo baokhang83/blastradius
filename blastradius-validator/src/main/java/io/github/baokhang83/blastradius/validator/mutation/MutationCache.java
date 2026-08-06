@@ -60,7 +60,7 @@ import java.util.Optional;
 public final class MutationCache {
 
     /** Bump whenever a change to selection can alter an experiment's selected/skipped verdict. */
-    private static final String SELECTION_CACHE_VERSION = "selection-v2-direct-invocations";
+    private static final String SELECTION_CACHE_VERSION = "selection-v3-two-hop-direct-invocations";
 
     private final Path directory;
     private final SkippedTests skippedTests;

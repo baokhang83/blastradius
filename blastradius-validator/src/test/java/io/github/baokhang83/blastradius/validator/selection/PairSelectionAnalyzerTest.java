@@ -58,4 +58,26 @@ class PairSelectionAnalyzerTest {
         assertEquals(SelectionReason.DIRECT_INVOCATION_REFERENCE, result.decisions().getFirst().reason());
         assertTrue(result.failureComparison().wouldMissCases().isEmpty());
     }
+
+    @Test
+    void selectsAChangedTwoHopDirectInvocationTargetByDefault() {
+        TestIdentity test = new TestIdentity("com.example.DataUtilTest", "loadsSelector");
+        TestIdentity graphProvider = new TestIdentity("com.example.SelectorTest", "loadsQueryParser");
+        List<ChangedFile> changedFiles = List.of(new ChangedFile(
+                "src/main/java/com/example/QueryParser.java", FileKind.JAVA_SOURCE, "com.example.QueryParser"));
+        DependencyRecordSet baseline = new DependencyRecordSet(
+                Map.of(test, Map.of("com.example.DataUtil", "checksum"),
+                        graphProvider, Map.of("com.example.Selector", "checksum")),
+                Map.of(test, Map.of("com.example.DataUtil", Set.of("com.example.Selector")),
+                        graphProvider, Map.of("com.example.Selector", Set.of("com.example.QueryParser"))), Set.of());
+        CommitPair edge = CommitPair.analyzed("base", "head", changedFiles);
+
+        PairSelectionResult result = analyzer.analyze(
+                edge, baseline,
+                List.of(new GroundTruthResult(test, Outcome.PASSED)),
+                List.of(new GroundTruthResult(test, Outcome.CONFIRMED_FAILED)), null);
+
+        assertEquals(SelectionReason.TRANSITIVE_DIRECT_INVOCATION_REFERENCE, result.decisions().getFirst().reason());
+        assertTrue(result.failureComparison().wouldMissCases().isEmpty());
+    }
 }
