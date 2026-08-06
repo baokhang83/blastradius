@@ -37,7 +37,7 @@ head and checks whether the tests selected catch them.
 | --- | ---: | ---: | :---: | ---: |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 872 (778) | 339 | **943 / 943** | 686 / 257 |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/httpcomponents-client">httpcomponents-client</a></h4> | 916 (916) | 551 | **75,380 / 75,380** | 3,571 / 71,809 |
-| <h4><a href="https://github.com/jhy/jsoup">jsoup</a></h4> | 942 (938) | 652 | **44,798 / 47,866**<sup>4</sup> | 42,440 / 5,426 |
+| <h4><a href="https://github.com/jhy/jsoup">jsoup</a></h4> | 940 (931) | 606 | **53,300 / 53,300**<sup>4</sup> | 49,073 / 4,227 |
 
 A "killing test" is one that actually caught an injected fault (passed on head, failed on the mutant, stayed failed on
 confirmation), so it is a test the selection *must not* skip. Counts are per mutant, so a test that kills five mutants
@@ -56,8 +56,9 @@ analysis behind these numbers.
    base reference. This isolates the PR's own JVM source changes (Java and conventional Kotlin)
    from changes that landed on the target branch after the PR diverged.
 3. **Select.** A test runs if one of its tracked dependencies changed, it's new or was
-   itself modified, or a non-source change triggered the conservative "just run
-   everything" fallback.
+   itself modified, an executed class reaches a changed class through one or two recorded static
+   invocation edges, or a non-source change triggered the conservative "just run everything"
+   fallback.
 4. **Gate.** The selection narrows Surefire/Failsafe via the standard `-Dtest=` filter —
    nothing exotic, nothing that fights JaCoCo or a custom `argLine`.
 
@@ -263,12 +264,11 @@ Full text and rationale: [`.specify/memory/constitution.md`](.specify/memory/con
 ## Known limitations
 
 - A class reached only through a **string-dispatched API** can still be unattributed when it is not
-  a direct invocation target of an executed project class:
-  if the call is `select("div > p")` and the parse behind it sits on a cached path, the calling test
-  never records a load of the parser it truly depends on. Measured, not hypothetical — this is what
-  left 750 `QueryParser`-dependent tests unselected in the jsoup replay above. It bites hardest
-  where the central API is a string DSL: selector engines, expression languages, query parsers. If
-  that describes your project, weigh the daily full-suite run accordingly.
+  reachable within the bounded two-edge static-invocation fallback. The focused jsoup
+  `QueryParser` replay recovered its observed two-edge paths, but reflection, generated calls,
+  incomplete instrumentation, and deeper paths remain outside that evidence boundary. This bites
+  hardest where the central API is a string DSL: selector engines, expression languages, query
+  parsers. If that describes your project, weigh the daily full-suite run accordingly.
 - Refreshing the dependency index (a "track" build) runs the full suite once; correct, but
   not optimized for very slow suites. It only happens on base-reference builds, never on
   every PR build.
