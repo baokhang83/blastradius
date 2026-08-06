@@ -41,8 +41,7 @@ head and checks whether the tests selected catch them.
 
 A "killing test" is one that actually caught an injected fault (passed on head, failed on the mutant, stayed failed on
 confirmation), so it is a test the selection *must not* skip. Counts are per mutant, so a test that kills five mutants
-counts five times. Across shenyu's 872 injected faults and httpcomponents-client's 916, selection never skipped a test
-that would have caught one.
+counts five times. Across all injected faults, selection never skipped a test that would have caught one.
 
 See [HISTORICAL_REPLAY_ANALYSIS.md](HISTORICAL_REPLAY_ANALYSIS.md) for footnotes 1–4 and the full per-project
 analysis behind these numbers.
