@@ -3,6 +3,7 @@
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecord;
 import io.github.baokhang83.blastradius.core.tracking.DependencyRecordSet;
+import io.github.baokhang83.blastradius.core.tracking.DirectInvocationRecord;
 import io.github.baokhang83.blastradius.validator.build.CommitBuildService.BuildKey;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -45,16 +46,23 @@ import java.util.stream.Collectors;
  */
 public final class BuildCache {
 
-    private final Path directory;
-<span class="fc" id="L49">    private final ObjectMapper mapper = new ObjectMapper();</span>
+    /**
+     * Bump whenever the cached {@link DependencyRecordSet} representation changes. Keeping this
+     * in the filename makes entries from an older representation an automatic cache miss instead
+     * of letting selection run with incomplete dependency evidence.
+     */
+    private static final int FORMAT_VERSION = 2;
 
-<span class="fc" id="L51">    public BuildCache(Path directory) {</span>
-<span class="fc" id="L52">        this.directory = directory;</span>
-<span class="fc" id="L53">    }</span>
+    private final Path directory;
+<span class="fc" id="L57">    private final ObjectMapper mapper = new ObjectMapper();</span>
+
+<span class="fc" id="L59">    public BuildCache(Path directory) {</span>
+<span class="fc" id="L60">        this.directory = directory;</span>
+<span class="fc" id="L61">    }</span>
 
     /** True when a successful build for this key is already on disk and can be reused. */
     public boolean contains(BuildKey key) {
-<span class="fc" id="L57">        return Files.isRegularFile(fileFor(key));</span>
+<span class="fc" id="L65">        return Files.isRegularFile(fileFor(key));</span>
     }
 
     /**
@@ -64,15 +72,15 @@ public final class BuildCache {
      * the caller rebuild it rather than crash the run on a bad cache.
      */
     public Optional&lt;CommitBuild&gt; load(BuildKey key) {
-<span class="fc" id="L67">        Path file = fileFor(key);</span>
-<span class="fc bfc" id="L68" title="All 2 branches covered.">        if (!Files.isRegularFile(file)) {</span>
-<span class="fc" id="L69">            return Optional.empty();</span>
+<span class="fc" id="L75">        Path file = fileFor(key);</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (!Files.isRegularFile(file)) {</span>
+<span class="fc" id="L77">            return Optional.empty();</span>
         }
         try {
-<span class="fc" id="L72">            CachedBuild dto = mapper.readValue(file.toFile(), CachedBuild.class);</span>
-<span class="fc" id="L73">            return Optional.of(fromDto(dto));</span>
-<span class="fc" id="L74">        } catch (IOException | RuntimeException e) {</span>
-<span class="fc" id="L75">            return Optional.empty();</span>
+<span class="fc" id="L80">            CachedBuild dto = mapper.readValue(file.toFile(), CachedBuild.class);</span>
+<span class="fc" id="L81">            return Optional.of(fromDto(dto));</span>
+<span class="fc" id="L82">        } catch (IOException | RuntimeException e) {</span>
+<span class="fc" id="L83">            return Optional.empty();</span>
         }
     }
 
@@ -83,70 +91,85 @@ public final class BuildCache {
      * cached (see the class note).
      */
     public void store(BuildKey key, CommitBuild build) {
-<span class="fc bfc" id="L86" title="All 2 branches covered.">        if (build.failed()) {</span>
-<span class="fc" id="L87">            throw new IllegalArgumentException(&quot;only successful builds are cached; refusing to cache a failed build&quot;);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        if (build.failed()) {</span>
+<span class="fc" id="L95">            throw new IllegalArgumentException(&quot;only successful builds are cached; refusing to cache a failed build&quot;);</span>
         }
         try {
-<span class="fc" id="L90">            Files.createDirectories(directory);</span>
-<span class="fc" id="L91">            Path tmp = Files.createTempFile(directory, &quot;build-&quot;, &quot;.json.tmp&quot;);</span>
-<span class="fc" id="L92">            mapper.writeValue(tmp.toFile(), toDto(build));</span>
-<span class="fc" id="L93">            moveIntoPlace(tmp, fileFor(key));</span>
-<span class="nc" id="L94">        } catch (IOException e) {</span>
-<span class="nc" id="L95">            throw new UncheckedIOException(&quot;failed to write build cache entry for &quot; + key.sha(), e);</span>
-<span class="fc" id="L96">        }</span>
-<span class="fc" id="L97">    }</span>
+<span class="fc" id="L98">            Files.createDirectories(directory);</span>
+<span class="fc" id="L99">            Path tmp = Files.createTempFile(directory, &quot;build-&quot;, &quot;.json.tmp&quot;);</span>
+<span class="fc" id="L100">            mapper.writeValue(tmp.toFile(), toDto(build));</span>
+<span class="fc" id="L101">            moveIntoPlace(tmp, fileFor(key));</span>
+<span class="nc" id="L102">        } catch (IOException e) {</span>
+<span class="nc" id="L103">            throw new UncheckedIOException(&quot;failed to write build cache entry for &quot; + key.sha(), e);</span>
+<span class="fc" id="L104">        }</span>
+<span class="fc" id="L105">    }</span>
 
     private static void moveIntoPlace(Path tmp, Path target) throws IOException {
         try {
-<span class="fc" id="L101">            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);</span>
-<span class="nc" id="L102">        } catch (AtomicMoveNotSupportedException e) {</span>
+<span class="fc" id="L109">            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);</span>
+<span class="nc" id="L110">        } catch (AtomicMoveNotSupportedException e) {</span>
             // Some filesystems can't do an atomic move; a plain replace is the best available.
-<span class="nc" id="L104">            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);</span>
-<span class="fc" id="L105">        }</span>
-<span class="fc" id="L106">    }</span>
+<span class="nc" id="L112">            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);</span>
+<span class="fc" id="L113">        }</span>
+<span class="fc" id="L114">    }</span>
 
     private Path fileFor(BuildKey key) {
-<span class="fc bfc" id="L109" title="All 2 branches covered.">        return directory.resolve(key.sha() + (key.agentAttached() ? &quot;-agent&quot; : &quot;-noagent&quot;) + &quot;.json&quot;);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        return directory.resolve(key.sha() + (key.agentAttached() ? &quot;-agent&quot; : &quot;-noagent&quot;)</span>
+                + &quot;-v&quot; + FORMAT_VERSION + &quot;.json&quot;);
     }
 
     private static CachedBuild toDto(CommitBuild build) {
-<span class="fc" id="L113">        DependencyRecordSet set = build.dependencyRecordSet();</span>
-<span class="fc bfc" id="L114" title="All 2 branches covered.">        boolean hasDependencies = set != null;</span>
-<span class="fc bfc" id="L115" title="All 2 branches covered.">        List&lt;DependencyRecord&gt; dependencies = hasDependencies</span>
-<span class="fc" id="L116">                ? set.tests().entrySet().stream()</span>
-<span class="fc" id="L117">                        .map(e -&gt; new DependencyRecord(e.getKey(), e.getValue()))</span>
-<span class="fc" id="L118">                        .toList()</span>
-<span class="fc" id="L119">                : null;</span>
-<span class="fc bfc" id="L120" title="All 2 branches covered.">        Set&lt;String&gt; ambient = hasDependencies ? set.ambientDependencies() : null;</span>
-<span class="fc" id="L121">        return new CachedBuild(</span>
-<span class="fc" id="L122">                build.failed(), build.failureReason(), hasDependencies, dependencies, ambient, build.groundTruth());</span>
+<span class="fc" id="L122">        DependencyRecordSet set = build.dependencyRecordSet();</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        boolean hasDependencies = set != null;</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        List&lt;DependencyRecord&gt; dependencies = hasDependencies</span>
+<span class="fc" id="L125">                ? set.tests().entrySet().stream()</span>
+<span class="fc" id="L126">                        .map(e -&gt; new DependencyRecord(e.getKey(), e.getValue()))</span>
+<span class="fc" id="L127">                        .toList()</span>
+<span class="fc" id="L128">                : null;</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">        List&lt;DirectInvocationRecord&gt; directInvocations = hasDependencies</span>
+<span class="fc" id="L130">                ? set.directInvocations().entrySet().stream()</span>
+<span class="fc" id="L131">                        .map(e -&gt; new DirectInvocationRecord(e.getKey(), e.getValue()))</span>
+<span class="fc" id="L132">                        .toList()</span>
+<span class="fc" id="L133">                : null;</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">        Set&lt;String&gt; ambient = hasDependencies ? set.ambientDependencies() : null;</span>
+<span class="fc" id="L135">        return new CachedBuild(</span>
+<span class="fc" id="L136">                build.failed(), build.failureReason(), hasDependencies, dependencies, directInvocations, ambient,</span>
+<span class="fc" id="L137">                build.groundTruth());</span>
     }
 
     private static CommitBuild fromDto(CachedBuild dto) {
-<span class="fc bfc" id="L126" title="All 2 branches covered.">        DependencyRecordSet set = dto.hasDependencies()</span>
-<span class="fc" id="L127">                ? new DependencyRecordSet(</span>
-<span class="fc" id="L128">                        dto.dependencies().stream()</span>
-<span class="fc" id="L129">                                .collect(Collectors.toUnmodifiableMap(</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">        DependencyRecordSet set = dto.hasDependencies()</span>
+<span class="fc" id="L142">                ? new DependencyRecordSet(</span>
+<span class="fc" id="L143">                        dto.dependencies().stream()</span>
+<span class="fc" id="L144">                                .collect(Collectors.toUnmodifiableMap(</span>
                                         DependencyRecord::test, DependencyRecord::dependencies)),
-<span class="fc" id="L131">                        dto.ambientDependencies())</span>
-<span class="fc" id="L132">                : null;</span>
-<span class="pc bpc" id="L133" title="1 of 2 branches missed.">        List&lt;GroundTruthResult&gt; groundTruth = dto.groundTruth() == null ? List.of() : dto.groundTruth();</span>
-<span class="fc" id="L134">        return new CommitBuild(dto.failed(), dto.failureReason(), set, groundTruth);</span>
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">                        dto.directInvocations() == null</span>
+<span class="nc" id="L147">                                ? Map.of()</span>
+<span class="fc" id="L148">                                : dto.directInvocations().stream()</span>
+<span class="fc" id="L149">                                        .collect(Collectors.toUnmodifiableMap(</span>
+                                                DirectInvocationRecord::test,
+                                                DirectInvocationRecord::sourceToTargetClasses)),
+<span class="fc" id="L152">                        dto.ambientDependencies())</span>
+<span class="fc" id="L153">                : null;</span>
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">        List&lt;GroundTruthResult&gt; groundTruth = dto.groundTruth() == null ? List.of() : dto.groundTruth();</span>
+<span class="fc" id="L155">        return new CommitBuild(dto.failed(), dto.failureReason(), set, groundTruth);</span>
     }
 
     /**
      * On-disk shape of a cached build. The per-test dependency map is flattened to a
-     * {@code List&lt;DependencyRecord&gt;} — as {@link io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader}
-     * does — because its {@link io.github.baokhang83.blastradius.core.tracking.TestIdentity} key can't be a JSON
+     * {@code List&lt;DependencyRecord&gt;} / {@code List&lt;DirectInvocationRecord&gt;} — as
+     * {@link io.github.baokhang83.blastradius.core.tracking.DependencyRecordReader} does — because
+     * its {@link io.github.baokhang83.blastradius.core.tracking.TestIdentity} key can't be a JSON
      * object key without a custom Jackson key serializer. {@code hasDependencies} distinguishes an
      * agent-free ground-truth build (null {@link DependencyRecordSet}) from an agent build that
      * merely recorded no tests (empty set).
      */
-<span class="fc" id="L145">    record CachedBuild(</span>
+<span class="fc" id="L167">    record CachedBuild(</span>
             boolean failed,
             String failureReason,
             boolean hasDependencies,
             List&lt;DependencyRecord&gt; dependencies,
+            List&lt;DirectInvocationRecord&gt; directInvocations,
             Set&lt;String&gt; ambientDependencies,
             List&lt;GroundTruthResult&gt; groundTruth) {}
 }

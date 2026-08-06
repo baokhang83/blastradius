@@ -10,13 +10,13 @@ import java.util.Set;
     SelectionDecision select(TestIdentity test, Map&lt;String, Set&lt;String&gt;&gt; directInvocationOwners,
             Set&lt;String&gt; changedClassNames) {
 <span class="fc bfc" id="L12" title="All 2 branches covered.">        for (Map.Entry&lt;String, Set&lt;String&gt;&gt; source : directInvocationOwners.entrySet()) {</span>
-<span class="pc bpc" id="L13" title="1 of 2 branches missed.">            for (String changedClassName : changedClassNames) {</span>
-<span class="pc bpc" id="L14" title="1 of 2 branches missed.">                if (source.getValue().contains(changedClassName)</span>
-<span class="nc bnc" id="L15" title="All 2 branches missed.">                        || source.getValue().stream().anyMatch(owner -&gt; owner.startsWith(changedClassName + &quot;$&quot;))) {</span>
+<span class="fc bfc" id="L13" title="All 2 branches covered.">            for (String changedClassName : changedClassNames) {</span>
+<span class="fc bfc" id="L14" title="All 2 branches covered.">                if (source.getValue().contains(changedClassName)</span>
+<span class="pc bpc" id="L15" title="1 of 2 branches missed.">                        || source.getValue().stream().anyMatch(owner -&gt; owner.startsWith(changedClassName + &quot;$&quot;))) {</span>
 <span class="fc" id="L16">                    return SelectionDecision.directInvocationReference(test, source.getKey(), changedClassName);</span>
                 }
-<span class="nc" id="L18">            }</span>
-<span class="nc" id="L19">        }</span>
+<span class="fc" id="L18">            }</span>
+<span class="fc" id="L19">        }</span>
 <span class="fc" id="L20">        return SelectionDecision.noMatch(test);</span>
     }
 }

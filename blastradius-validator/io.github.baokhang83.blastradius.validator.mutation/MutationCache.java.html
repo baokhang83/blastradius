@@ -53,28 +53,32 @@ import java.util.Optional;
  * would poison every later resume. Mirrors {@code BuildCache}'s &quot;only successful builds&quot; stance.
  *
  * &lt;p&gt;&lt;b&gt;Cache validity is the operator's responsibility&lt;/b&gt;, exactly as for {@code BuildCache}: the
- * key fingerprints neither the target repository nor this tool's version. Point the run at a
- * different repository or upgrade the tracking agent and you must clear the cache directory first.
+ * key fingerprints neither the target repository nor this tool's version. A cache-schema revision
+ * is included for selection changes that affect the recorded selected/skipped verdict; otherwise,
+ * point the run at a different repository or upgrade the tracking agent and clear the cache first.
  */
 public final class MutationCache {
 
+    /** Bump whenever a change to selection can alter an experiment's selected/skipped verdict. */
+    private static final String SELECTION_CACHE_VERSION = &quot;selection-v2-direct-invocations&quot;;
+
     private final Path directory;
     private final SkippedTests skippedTests;
-<span class="fc" id="L63">    private final ObjectMapper mapper = new ObjectMapper();</span>
+<span class="fc" id="L67">    private final ObjectMapper mapper = new ObjectMapper();</span>
 
     public MutationCache(Path directory) {
-<span class="fc" id="L66">        this(directory, SkippedTests.none());</span>
-<span class="fc" id="L67">    }</span>
+<span class="fc" id="L70">        this(directory, SkippedTests.none());</span>
+<span class="fc" id="L71">    }</span>
 
     /**
      * @param skippedTests the exclusions applied to every target build for this run — folded into
      *                      the cache key (see the class note) so a run with a different skip list
      *                      never reuses an experiment computed under a different one.
      */
-<span class="fc" id="L74">    public MutationCache(Path directory, SkippedTests skippedTests) {</span>
-<span class="fc" id="L75">        this.directory = directory;</span>
-<span class="fc" id="L76">        this.skippedTests = java.util.Objects.requireNonNull(skippedTests, &quot;skippedTests&quot;);</span>
-<span class="fc" id="L77">    }</span>
+<span class="fc" id="L78">    public MutationCache(Path directory, SkippedTests skippedTests) {</span>
+<span class="fc" id="L79">        this.directory = directory;</span>
+<span class="fc" id="L80">        this.skippedTests = java.util.Objects.requireNonNull(skippedTests, &quot;skippedTests&quot;);</span>
+<span class="fc" id="L81">    }</span>
 
     /**
      * Reads back a previously {@linkplain #store stored} experiment for this candidate on this
@@ -84,14 +88,14 @@ public final class MutationCache {
      * crash the run on a bad cache.
      */
     public Optional&lt;MutationExperiment&gt; load(CommitPair pair, MutationCandidate candidate) {
-<span class="fc" id="L87">        Path file = fileFor(pair, candidate);</span>
-<span class="fc bfc" id="L88" title="All 2 branches covered.">        if (!Files.isRegularFile(file)) {</span>
-<span class="fc" id="L89">            return Optional.empty();</span>
+<span class="fc" id="L91">        Path file = fileFor(pair, candidate);</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">        if (!Files.isRegularFile(file)) {</span>
+<span class="fc" id="L93">            return Optional.empty();</span>
         }
         try {
-<span class="fc" id="L92">            return Optional.of(mapper.readValue(file.toFile(), MutationExperiment.class));</span>
-<span class="fc" id="L93">        } catch (IOException | RuntimeException e) {</span>
-<span class="fc" id="L94">            return Optional.empty();</span>
+<span class="fc" id="L96">            return Optional.of(mapper.readValue(file.toFile(), MutationExperiment.class));</span>
+<span class="fc" id="L97">        } catch (IOException | RuntimeException e) {</span>
+<span class="fc" id="L98">            return Optional.empty();</span>
         }
     }
 
@@ -102,28 +106,28 @@ public final class MutationCache {
      * unbuildable mutants are intentionally not cached (see the class note).
      */
     public void store(MutationExperiment experiment) {
-<span class="fc bfc" id="L105" title="All 2 branches covered.">        if (experiment.status() == MutationStatus.UNBUILDABLE) {</span>
-<span class="fc" id="L106">            throw new IllegalArgumentException(</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        if (experiment.status() == MutationStatus.UNBUILDABLE) {</span>
+<span class="fc" id="L110">            throw new IllegalArgumentException(</span>
                     &quot;only compilable experiments are cached; refusing to cache an unbuildable mutant&quot;);
         }
         try {
-<span class="fc" id="L110">            Files.createDirectories(directory);</span>
-<span class="fc" id="L111">            Path tmp = Files.createTempFile(directory, &quot;mutant-&quot;, &quot;.json.tmp&quot;);</span>
-<span class="fc" id="L112">            mapper.writeValue(tmp.toFile(), experiment);</span>
-<span class="fc" id="L113">            moveIntoPlace(tmp, fileFor(experiment.historicalPair(), experiment.mutation()));</span>
-<span class="nc" id="L114">        } catch (IOException e) {</span>
-<span class="nc" id="L115">            throw new UncheckedIOException(&quot;failed to write mutation cache entry&quot;, e);</span>
-<span class="fc" id="L116">        }</span>
-<span class="fc" id="L117">    }</span>
+<span class="fc" id="L114">            Files.createDirectories(directory);</span>
+<span class="fc" id="L115">            Path tmp = Files.createTempFile(directory, &quot;mutant-&quot;, &quot;.json.tmp&quot;);</span>
+<span class="fc" id="L116">            mapper.writeValue(tmp.toFile(), experiment);</span>
+<span class="fc" id="L117">            moveIntoPlace(tmp, fileFor(experiment.historicalPair(), experiment.mutation()));</span>
+<span class="nc" id="L118">        } catch (IOException e) {</span>
+<span class="nc" id="L119">            throw new UncheckedIOException(&quot;failed to write mutation cache entry&quot;, e);</span>
+<span class="fc" id="L120">        }</span>
+<span class="fc" id="L121">    }</span>
 
     private static void moveIntoPlace(Path tmp, Path target) throws IOException {
         try {
-<span class="fc" id="L121">            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);</span>
-<span class="nc" id="L122">        } catch (AtomicMoveNotSupportedException e) {</span>
+<span class="fc" id="L125">            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);</span>
+<span class="nc" id="L126">        } catch (AtomicMoveNotSupportedException e) {</span>
             // Some filesystems can't do an atomic move; a plain replace is the best available.
-<span class="nc" id="L124">            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);</span>
-<span class="fc" id="L125">        }</span>
-<span class="fc" id="L126">    }</span>
+<span class="nc" id="L128">            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);</span>
+<span class="fc" id="L129">        }</span>
+<span class="fc" id="L130">    }</span>
 
     /**
      * A collision-resistant filename derived from the mutant's full identity. The parts contain
@@ -131,20 +135,20 @@ public final class MutationCache {
      * separator keeps the fields unambiguous (no source token or path contains a NUL byte).
      */
     private Path fileFor(CommitPair pair, MutationCandidate candidate) {
-<span class="fc" id="L134">        String identity = String.join(&quot;\0&quot;,</span>
-<span class="fc" id="L135">                pair.baseCommit(), pair.headCommit(), candidate.sourcePath(),</span>
-<span class="fc" id="L136">                Integer.toString(candidate.offset()), candidate.operator().name(),</span>
-<span class="fc" id="L137">                candidate.original(), candidate.replacement(),</span>
-<span class="fc" id="L138">                String.join(&quot;,&quot;, skippedTests.classes()));</span>
-<span class="fc" id="L139">        return directory.resolve(sha256Hex(identity) + &quot;.json&quot;);</span>
+<span class="fc" id="L138">        String identity = String.join(&quot;\0&quot;,</span>
+<span class="fc" id="L139">                SELECTION_CACHE_VERSION, pair.baseCommit(), pair.headCommit(), candidate.sourcePath(),</span>
+<span class="fc" id="L140">                Integer.toString(candidate.offset()), candidate.operator().name(),</span>
+<span class="fc" id="L141">                candidate.original(), candidate.replacement(),</span>
+<span class="fc" id="L142">                String.join(&quot;,&quot;, skippedTests.classes()));</span>
+<span class="fc" id="L143">        return directory.resolve(sha256Hex(identity) + &quot;.json&quot;);</span>
     }
 
     private static String sha256Hex(String value) {
         try {
-<span class="fc" id="L144">            byte[] digest = MessageDigest.getInstance(&quot;SHA-256&quot;).digest(value.getBytes(StandardCharsets.UTF_8));</span>
-<span class="fc" id="L145">            return HexFormat.of().formatHex(digest);</span>
-<span class="nc" id="L146">        } catch (NoSuchAlgorithmException e) {</span>
-<span class="nc" id="L147">            throw new IllegalStateException(&quot;SHA-256 unavailable&quot;, e);</span>
+<span class="fc" id="L148">            byte[] digest = MessageDigest.getInstance(&quot;SHA-256&quot;).digest(value.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L149">            return HexFormat.of().formatHex(digest);</span>
+<span class="nc" id="L150">        } catch (NoSuchAlgorithmException e) {</span>
+<span class="nc" id="L151">            throw new IllegalStateException(&quot;SHA-256 unavailable&quot;, e);</span>
         }
     }
 }
