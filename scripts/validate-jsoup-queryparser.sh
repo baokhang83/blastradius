@@ -39,12 +39,14 @@ trap restore_checkout EXIT
 # Each head's first parent is the preceding SHA. With --commits 1, each invocation therefore
 # replays only its intended base -> head edge; QueryParser is a changed source in every one.
 heads=(cf88221 a4d451f 9d3f82c bbb56af)
+failed_replays=0
 
 for head in "${heads[@]}"; do
   git -C "${target_repo}" checkout --detach "${head}" >/dev/null
   report_stem="${output_dir}/jsoup-queryparser-${head}"
 
   echo "Replaying $(git -C "${target_repo}" rev-parse --short "${head}^") -> ${head}"
+  set +e
   MAVEN_OPTS="${MAVEN_OPTS:--Xmx1g}" java -Xmx8g -jar "${validator_jar}" run \
     --project-path "${target_repo}" \
     --commits 1 \
@@ -61,4 +63,15 @@ for head in "${heads[@]}"; do
     --mutation-time-limit-minutes 120 \
     --fast-ground-truth \
     > "${report_stem}.log" 2>&1
+  status=$?
+  set -e
+  if (( status != 0 )); then
+    echo "Replay ${head} finished with validator exit status ${status}; continuing to the next edge." >&2
+    ((failed_replays += 1))
+  fi
 done
+
+if (( failed_replays != 0 )); then
+  echo "${failed_replays} replay(s) reported validator failures; inspect their summaries." >&2
+  exit 1
+fi
