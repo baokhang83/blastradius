@@ -28,7 +28,11 @@ public final class ExplainListingRenderer {
         String source = decision.directInvocationSourceClass() == null
                 ? ""
                 : " directInvocationSourceClass=" + decision.directInvocationSourceClass();
-        return "[blastradius]   " + testLabel(decision) + " — " + status + " reason=" + decision.reason() + matched + source;
+        String intermediate = decision.directInvocationIntermediateClass() == null
+                ? ""
+                : " directInvocationIntermediateClass=" + decision.directInvocationIntermediateClass();
+        return "[blastradius]   " + testLabel(decision) + " — " + status + " reason=" + decision.reason()
+                + matched + source + intermediate;
     }
 
     private static String testLabel(SelectionDecision decision) {

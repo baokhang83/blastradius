@@ -95,6 +95,79 @@ class SelectionEngineTest {
     }
 
     @Test
+    void transitiveDirectInvocationReferenceSelectsARecordedTwoHopPath() {
+        TestIdentity graphProvider = new TestIdentity("com.example.GraphProviderTest", "loadsSelector");
+        List<ChangedFile> changed = List.of(new ChangedFile(
+                "src/main/java/com/example/QueryParser.java", FileKind.JAVA_SOURCE, "com.example.QueryParser"));
+
+        List<SelectionDecision> decisions = engine.selectAll(
+                Set.of(MATCHED_TEST, graphProvider),
+                Map.of(MATCHED_TEST, Set.of("com.example.DataUtil"), graphProvider, Set.of("com.example.Selector")),
+                Map.of(
+                        MATCHED_TEST, Map.of("com.example.DataUtil", Set.of("com.example.Selector")),
+                        graphProvider, Map.of("com.example.Selector", Set.of("com.example.QueryParser"))),
+                Set.of(),
+                changed,
+                Set.of());
+
+        SelectionDecision matched = decisions.stream().filter(d -> d.test().equals(MATCHED_TEST)).findFirst().orElseThrow();
+
+        assertTrue(matched.selected());
+        assertEquals(SelectionReason.TRANSITIVE_DIRECT_INVOCATION_REFERENCE, matched.reason());
+        assertEquals("com.example.QueryParser", matched.matchedChangedClass());
+        assertEquals("com.example.DataUtil", matched.directInvocationSourceClass());
+        assertEquals("com.example.Selector", matched.directInvocationIntermediateClass());
+    }
+
+    @Test
+    void transitiveDirectInvocationReferenceDoesNotTraverseBeyondTwoHops() {
+        TestIdentity firstProvider = new TestIdentity("com.example.FirstProviderTest", "loadsHelper");
+        TestIdentity secondProvider = new TestIdentity("com.example.SecondProviderTest", "loadsQueryParser");
+        List<ChangedFile> changed = List.of(new ChangedFile(
+                "src/main/java/com/example/QueryParser.java", FileKind.JAVA_SOURCE, "com.example.QueryParser"));
+
+        List<SelectionDecision> decisions = engine.selectAll(
+                Set.of(MATCHED_TEST, firstProvider, secondProvider),
+                Map.of(),
+                Map.of(
+                        MATCHED_TEST, Map.of("com.example.DataUtil", Set.of("com.example.Selector")),
+                        firstProvider, Map.of("com.example.Selector", Set.of("com.example.Helper")),
+                        secondProvider, Map.of("com.example.Helper", Set.of("com.example.QueryParser"))),
+                Set.of(),
+                changed,
+                Set.of());
+
+        SelectionDecision matched = decisions.stream().filter(d -> d.test().equals(MATCHED_TEST)).findFirst().orElseThrow();
+
+        assertEquals(SelectionReason.NO_MATCH, matched.reason());
+    }
+
+    @Test
+    void directInvocationReferenceTakesPrecedenceOverATwoHopReference() {
+        TestIdentity graphProvider = new TestIdentity("com.example.GraphProviderTest", "loadsSelector");
+        List<ChangedFile> changed = List.of(new ChangedFile(
+                "src/main/java/com/example/QueryParser.java", FileKind.JAVA_SOURCE, "com.example.QueryParser"));
+
+        SelectionDecision decision = engine.selectAll(
+                        Set.of(MATCHED_TEST, graphProvider),
+                        Map.of(),
+                        Map.of(
+                                MATCHED_TEST, Map.of("com.example.DataUtil", Set.of(
+                                        "com.example.Selector", "com.example.QueryParser")),
+                                graphProvider, Map.of("com.example.Selector", Set.of("com.example.QueryParser"))),
+                        Set.of(),
+                        changed,
+                        Set.of())
+                .stream()
+                .filter(candidate -> candidate.test().equals(MATCHED_TEST))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(SelectionReason.DIRECT_INVOCATION_REFERENCE, decision.reason());
+        assertEquals(null, decision.directInvocationIntermediateClass());
+    }
+
+    @Test
     void ordinaryDependencyMatchTakesPrecedenceOverDirectInvocationReference() {
         List<ChangedFile> changed = List.of(new ChangedFile(
                 "src/main/java/com/example/QueryParser.java", FileKind.JAVA_SOURCE, "com.example.QueryParser"));
@@ -110,6 +183,7 @@ class SelectionEngineTest {
 
         assertEquals(SelectionReason.DEPENDENCY_MATCH, decision.reason());
         assertEquals(null, decision.directInvocationSourceClass());
+        assertEquals(null, decision.directInvocationIntermediateClass());
     }
 
     @Test

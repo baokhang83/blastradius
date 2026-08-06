@@ -4,6 +4,8 @@ import io.github.baokhang83.blastradius.core.git.ChangedFile;
 import io.github.baokhang83.blastradius.core.reactor.ReactorScope;
 import io.github.baokhang83.blastradius.core.tracking.TestIdentity;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,7 +45,7 @@ public final class SelectionEngine {
         return selectAll(allTests, testDependencies, Map.of(), newOrModifiedTests, changedFiles, ambientDependencies, null);
     }
 
-    /** As {@link #selectAll(Set, Map, Set, List, Set)}, with optional one-hop direct references. */
+    /** As {@link #selectAll(Set, Map, Set, List, Set)}, with optional bounded direct references. */
     public List<SelectionDecision> selectAll(
             Set<TestIdentity> allTests,
             Map<TestIdentity, Set<String>> testDependencies,
@@ -72,7 +74,7 @@ public final class SelectionEngine {
                 ambientDependencies, reactorScope);
     }
 
-    /** As the reactor-aware overload, with optional one-hop direct references. */
+    /** As the reactor-aware overload, with optional bounded direct references. */
     public List<SelectionDecision> selectAll(
             Set<TestIdentity> allTests,
             Map<TestIdentity, Set<String>> testDependencies,
@@ -103,6 +105,7 @@ public final class SelectionEngine {
         }
 
         ReactorScope affectedScope = scopedFallback ? reactorScope.forChanges(changedFiles) : null;
+        Map<String, Set<String>> invocationGraph = invocationGraph(directInvocationOwnersByTest);
 
         List<SelectionDecision> decisions = new ArrayList<>();
         for (TestIdentity test : allTests) {
@@ -121,8 +124,21 @@ public final class SelectionEngine {
                 continue;
             }
             decisions.add(directInvocationReferenceSelector.select(
-                    test, directInvocationOwnersByTest.getOrDefault(test.baselineKey(), Map.of()), changedClassNames));
+                    test, directInvocationOwnersByTest.getOrDefault(test.baselineKey(), Map.of()),
+                    invocationGraph, changedClassNames));
         }
         return decisions;
+    }
+
+    /**
+     * Builds a suite-wide static invocation graph from the per-test records. The first edge of a
+     * transitive match remains test-specific; only the intermediate-to-changed edge is shared.
+     */
+    private static Map<String, Set<String>> invocationGraph(
+            Map<TestIdentity, Map<String, Set<String>>> directInvocationOwnersByTest) {
+        Map<String, Set<String>> graph = new HashMap<>();
+        directInvocationOwnersByTest.values().forEach(sources -> sources.forEach((source, targets) ->
+                graph.computeIfAbsent(source, ignored -> new HashSet<>()).addAll(targets)));
+        return graph;
     }
 }

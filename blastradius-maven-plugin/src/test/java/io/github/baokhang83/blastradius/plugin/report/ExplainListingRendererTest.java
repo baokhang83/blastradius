@@ -61,4 +61,20 @@ class ExplainListingRendererTest {
         assertTrue(line.contains("matchedChangedClass=com.example.QueryParser"));
         assertTrue(line.contains("directInvocationSourceClass=com.example.Selector"));
     }
+
+    @Test
+    void listsTheIntermediateClassForATransitiveDirectInvocationReference() {
+        TestIdentity matched = new TestIdentity("com.example.DataUtilTest", "loadsSelector");
+        BuildReport report = BuildReport.forSelect(
+                IndexApplicability.applicable(new DependencyIndex("abc123", "2026-07-09T10:00:00Z", List.of())),
+                List.of(SelectionDecision.transitiveDirectInvocationReference(
+                        matched, "com.example.DataUtil", "com.example.Selector", "com.example.QueryParser")));
+
+        String line = renderer.render(report).getFirst();
+
+        assertTrue(line.contains("TRANSITIVE_DIRECT_INVOCATION_REFERENCE"));
+        assertTrue(line.contains("matchedChangedClass=com.example.QueryParser"));
+        assertTrue(line.contains("directInvocationSourceClass=com.example.DataUtil"));
+        assertTrue(line.contains("directInvocationIntermediateClass=com.example.Selector"));
+    }
 }

@@ -10,6 +10,13 @@ public enum SelectionReason {
      * but always names both the executed source and changed target (issue #225).
      */
     DIRECT_INVOCATION_REFERENCE,
+    /**
+     * A class the test demonstrably executed invokes an intermediate class which, according to
+     * recorded static invocation data, directly invokes a changed class. This deliberately stops
+     * after those two edges: it closes the observed {@code source -> intermediate -> changed}
+     * gap without turning the fallback into an unbounded call-graph traversal (issue #227).
+     */
+    TRANSITIVE_DIRECT_INVOCATION_REFERENCE,
     /** A non-Java-source change forced selection of every test (FR-006). */
     FALLBACK_NON_SOURCE_CHANGE,
     /**
