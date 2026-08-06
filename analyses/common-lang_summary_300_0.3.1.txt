@@ -1,9 +1,0 @@
-Verdict: PASS
-Analyzed: 300 commit pair(s)
-Would-miss cases: 0
-
-Savings: 9297241 / 23610943 test executions selected (60.6% skipped)
-  - dependency-matched: 639752
-  - fallback-driven: 7898992
-  - module-scoped fallback: 0
-  - new-or-modified: 417365
