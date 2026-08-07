@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extensions>
+    <!-- Loaded before Maven reads the reactor. The extension safely no-ops unless
+         blastradius-maven-plugin is declared for the build. -->
+    <extension>
+        <groupId>io.github.baokhang83.blastradius</groupId>
+        <artifactId>blastradius-cache-warmer-maven-extension</artifactId>
+        <version>0.3.4</version>
+    </extension>
+</extensions>
