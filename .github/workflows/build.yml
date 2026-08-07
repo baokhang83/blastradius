@@ -40,6 +40,10 @@ jobs:
           key: blastradius-index-v2-${{ runner.os }}-jdk${{ matrix.java }}-${{ github.sha }}
           restore-keys: |
             blastradius-index-v2-${{ runner.os }}-jdk${{ matrix.java }}-
+      - name: Expose GitHub Actions cache runtime
+        # The core extension runs in Maven shell steps. Export the runner's short-lived cache
+        # endpoint and token so it can use the GitHub Actions cache backend.
+        uses: crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0
       - name: Bootstrap Blastradius plugin
         run: |
           RELEASE_VERSION="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"
