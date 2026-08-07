@@ -39,7 +39,7 @@ head and checks whether the tests selected catch them.
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/shenyu">shenyu</a></h4> | 872 (778) | 339 | **943 / 943** | 686 / 257 |
 | <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/httpcomponents-client">httpcomponents-client</a></h4> | 916 (916) | 551 | **75,380 / 75,380** | 3,571 / 71,809 |
 | <h4><a href="https://github.com/jhy/jsoup">jsoup</a></h4> | 940 (931) | 606 | **53,300 / 53,300** <sup>5</sup> | 49,073 / 4,227 |
-| <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/commons-io">commons-io</a></h4> | 901 (901) | 850 | **30,637 / 31,648**<sup>6</sup> | 4,469 / 27,179 |
+| <h4><img width="20" height="20" align="top" src="https://github.com/apache.png?size=40"/><a href="https://github.com/apache/commons-io">commons-io</a></h4> | 901 (901) | 850 | **30,637 / 31,648** <sup>6</sup> | 4,469 / 27,179 |
 
 A "killing test" is one that actually caught an injected fault (passed on head, failed on the mutant, stayed failed on
 confirmation), so it is a test the selection *must not* skip. Counts are per mutant, so a test that kills five mutants
