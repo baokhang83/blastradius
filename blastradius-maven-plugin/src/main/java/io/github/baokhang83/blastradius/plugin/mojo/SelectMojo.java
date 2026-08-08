@@ -101,6 +101,14 @@ public final class SelectMojo extends AbstractMojo {
     @Parameter(property = "blastradius.trackChild", defaultValue = "false")
     private boolean trackChild;
 
+    /**
+     * Lets an orchestration build run the complete Maven lifecycle without making a selection
+     * decision. CI uses this for its required main build, while a separate post-build workflow
+     * performs the unchanged TRACK replay and persists its index.
+     */
+    @Parameter(property = "blastradius.skipSelection", defaultValue = "false")
+    private boolean skipSelection;
+
     @Parameter(defaultValue = "${project}", readonly = true, required = true)
     private MavenProject project;
 
@@ -123,9 +131,13 @@ public final class SelectMojo extends AbstractMojo {
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
-        if (trackChild) {
-            getLog().info("[blastradius] skipping select goal (this build is a TRACK-mode subprocess "
-                    + "collecting dependency data; the ambient gated build's own Surefire execution is untouched)");
+        if (shouldSkipSelection(trackChild, skipSelection)) {
+            if (trackChild) {
+                getLog().info("[blastradius] skipping select goal (this build is a TRACK-mode subprocess "
+                        + "collecting dependency data; the ambient gated build's own Surefire execution is untouched)");
+            } else {
+                getLog().info("[blastradius] skipping select goal (selection is delegated to the post-build TRACK workflow)");
+            }
             return;
         }
         if (isAggregatorOnlyProject(project.getPackaging())) {
@@ -231,6 +243,10 @@ public final class SelectMojo extends AbstractMojo {
 
     static boolean isAggregatorOnlyProject(String packaging) {
         return "pom".equals(packaging);
+    }
+
+    static boolean shouldSkipSelection(boolean trackChild, boolean skipSelection) {
+        return trackChild || skipSelection;
     }
 
     /**

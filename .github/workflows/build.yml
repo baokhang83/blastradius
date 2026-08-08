@@ -64,14 +64,13 @@ jobs:
             -Dpackaging=maven-plugin \
             -DgeneratePom=true
       - name: Verify with Blastradius
-        env:
-          # A restore-key hit contains an older baseline. It is safe for a PR to select
-          # from that baseline, but main must rebuild before saving this commit's cache key.
-          BLASTRADIUS_REFRESH_MAIN_INDEX: ${{ github.ref == 'refs/heads/main' && steps.blastradius-index.outputs.cache-hit != 'true' }}
         run: |
+          # The required main build stays cache-aware and runs the full suite. Its expensive,
+          # statistics-preserving TRACK replay is delegated to refresh-index.yml after this job
+          # succeeds, so it does not hold up the developer-facing build.
           blastradius_mode=()
-          if [[ "$BLASTRADIUS_REFRESH_MAIN_INDEX" == "true" ]]; then
-            blastradius_mode+=("-Dblastradius.mode=track")
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            blastradius_mode+=("-Dblastradius.skipSelection=true")
           fi
           mvn -B --no-transfer-progress "${blastradius_mode[@]}" -Pself-host-blastradius clean verify
       - name: Generate JaCoCo badge
@@ -85,46 +84,6 @@ jobs:
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: coverage/target/site/jacoco-aggregate
-      - name: Check Blastradius index refresh actually succeeded
-        id: blastradius-track-check
-        if: ${{ github.ref == 'refs/heads/main' && success() && steps.blastradius-index.outputs.cache-hit != 'true' }}
-        run: |
-          # A TRACK attempt that fails internally (e.g. an instrumentation bug) falls back
-          # to running the full suite without ever refreshing the index, but the outer Maven
-          # build still exits 0 — so success() alone can't tell a real refresh from a silent
-          # fallback. Without this check, "Save Blastradius index from main" below would keep
-          # re-saving an unrefreshed, increasingly stale index under each new commit's cache
-          # key, and every later PR would silently inherit that staleness.
-          report_paths=(
-            blastradius-core/.blastradius/last-build-report.json
-            blastradius-s3-index-store/.blastradius/last-build-report.json
-            blastradius-validator/.blastradius/last-build-report.json
-            blastradius-maven-plugin/.blastradius/last-build-report.json
-          )
-          track_ok=true
-          for report_path in "${report_paths[@]}"; do
-            if [[ ! -f "$report_path" ]]; then
-              echo "::warning::Blastradius index refresh check: $report_path is missing, cannot confirm TRACK succeeded"
-              track_ok=false
-              continue
-            fi
-            mode="$(jq -r '.mode' "$report_path")"
-            if [[ "$mode" != "TRACK" ]]; then
-              applicability="$(jq -r '.indexApplicability' "$report_path")"
-              echo "::warning::Blastradius index refresh check: $report_path reports mode=$mode (indexApplicability=$applicability), expected TRACK"
-              track_ok=false
-            fi
-          done
-          echo "track-ok=$track_ok" >> "$GITHUB_OUTPUT"
-      - name: Save Blastradius index from main
-        if: ${{ github.ref == 'refs/heads/main' && success() && steps.blastradius-index.outputs.cache-hit != 'true' && steps.blastradius-track-check.outputs.track-ok == 'true' }}
-        uses: actions/cache/save@v6
-        with:
-          path: |
-            .blastradius
-            **/.blastradius
-            !**/target/**/.blastradius
-          key: blastradius-index-v2-${{ runner.os }}-jdk${{ matrix.java }}-${{ github.sha }}
       - name: Publish Blastradius selection feedback
         if: ${{ always() }}
         uses: ./.github/actions/blastradius-selection-summary

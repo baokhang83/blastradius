@@ -1,0 +1,104 @@
+name: Refresh Blastradius index
+
+on:
+  workflow_run:
+    workflows: [Build]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    name: Rebuild main dependency index / JDK ${{ matrix.java }}
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['21', '25']
+    concurrency:
+      group: blastradius-index-main-jdk${{ matrix.java }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-java@v5.6.0
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+      - uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.6
+      - name: Restore Blastradius index
+        id: blastradius-index
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            .blastradius
+            **/.blastradius
+            !**/target/**/.blastradius
+          key: blastradius-index-v2-${{ runner.os }}-jdk${{ matrix.java }}-${{ github.event.workflow_run.head_sha }}
+          restore-keys: |
+            blastradius-index-v2-${{ runner.os }}-jdk${{ matrix.java }}-
+      - name: Expose GitHub Actions cache runtime
+        uses: crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0
+      - name: Bootstrap Blastradius plugin
+        run: |
+          RELEASE_VERSION="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"
+          SELF_HOST_VERSION="${RELEASE_VERSION}-selfhost"
+          export SELF_HOST_VERSION
+          mvn -B --no-transfer-progress -DskipTests -Dinvoker.skip=true -pl blastradius-maven-plugin -am package
+          mkdir -p target/self-host/META-INF/maven
+          cp "blastradius-maven-plugin/target/blastradius-maven-plugin-${RELEASE_VERSION}.jar" "target/blastradius-maven-plugin-${SELF_HOST_VERSION}.jar"
+          unzip -p "blastradius-maven-plugin/target/blastradius-maven-plugin-${RELEASE_VERSION}.jar" META-INF/maven/plugin.xml \
+            | perl -0pe 's{(<artifactId>blastradius-maven-plugin</artifactId>\s*<version>)[^<]+(</version>)}{$1 . $ENV{SELF_HOST_VERSION} . $2}e' \
+            > target/self-host/META-INF/maven/plugin.xml
+          (cd target/self-host && jar uf "../blastradius-maven-plugin-${SELF_HOST_VERSION}.jar" META-INF/maven/plugin.xml)
+          mvn -B --no-transfer-progress org.apache.maven.plugins:maven-install-plugin:3.1.2:install-file \
+            -Dfile="target/blastradius-maven-plugin-${SELF_HOST_VERSION}.jar" \
+            -DgroupId=io.github.baokhang83.blastradius \
+            -DartifactId=blastradius-maven-plugin \
+            -Dversion="${SELF_HOST_VERSION}" \
+            -Dpackaging=maven-plugin \
+            -DgeneratePom=true
+      - name: Rebuild the Blastradius index
+        run: mvn -B --no-transfer-progress -Dblastradius.mode=track -Pself-host-blastradius clean verify
+      - name: Check index refresh actually succeeded
+        id: blastradius-track-check
+        run: |
+          report_paths=(
+            blastradius-core/.blastradius/last-build-report.json
+            blastradius-s3-index-store/.blastradius/last-build-report.json
+            blastradius-validator/.blastradius/last-build-report.json
+            blastradius-maven-plugin/.blastradius/last-build-report.json
+          )
+          track_ok=true
+          for report_path in "${report_paths[@]}"; do
+            if [[ ! -f "$report_path" ]]; then
+              echo "::warning::Blastradius index refresh check: $report_path is missing, cannot confirm TRACK succeeded"
+              track_ok=false
+              continue
+            fi
+            mode="$(jq -r '.mode' "$report_path")"
+            if [[ "$mode" != "TRACK" ]]; then
+              applicability="$(jq -r '.indexApplicability' "$report_path")"
+              echo "::warning::Blastradius index refresh check: $report_path reports mode=$mode (indexApplicability=$applicability), expected TRACK"
+              track_ok=false
+            fi
+          done
+          echo "track-ok=$track_ok" >> "$GITHUB_OUTPUT"
+      - name: Save Blastradius index
+        if: steps.blastradius-track-check.outputs.track-ok == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            .blastradius
+            **/.blastradius
+            !**/target/**/.blastradius
+          key: blastradius-index-v2-${{ runner.os }}-jdk${{ matrix.java }}-${{ github.event.workflow_run.head_sha }}

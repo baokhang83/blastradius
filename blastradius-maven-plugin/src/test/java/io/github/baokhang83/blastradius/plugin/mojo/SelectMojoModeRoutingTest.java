@@ -20,6 +20,13 @@ class SelectMojoModeRoutingTest {
         assertFalse(SelectMojo.isAggregatorOnlyProject("jar"));
     }
 
+    @Test
+    void skipsSelectionForTheDedicatedMainBuildWithoutMarkingItAsATrackChild() {
+        assertTrue(SelectMojo.shouldSkipSelection(false, true));
+        assertTrue(SelectMojo.shouldSkipSelection(true, false));
+        assertFalse(SelectMojo.shouldSkipSelection(false, false));
+    }
+
     private static final CurrentChanges BASE_REF_BUILD =
             new CurrentChanges("main", "abc123", Optional.of("abc123"), "abc123", true, List.of());
     private static final CurrentChanges PR_BUILD =
