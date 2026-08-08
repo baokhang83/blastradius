@@ -6,7 +6,7 @@
 
     <groupId>io.github.baokhang83.blastradius</groupId>
     <artifactId>blastradius-parent</artifactId>
-    <version>0.3.2</version>
+    <version>0.3.3</version>
     <packaging>pom</packaging>
 
     <name>Blastradius parent</name>
@@ -38,7 +38,7 @@
         <connection>scm:git:https://github.com/baokhang83/blastradius.git</connection>
         <developerConnection>scm:git:ssh://git@github.com/baokhang83/blastradius.git</developerConnection>
         <url>https://github.com/baokhang83/blastradius</url>
-        <tag>v0.3.2</tag>
+        <tag>v0.3.3</tag>
     </scm>
 
     <issueManagement>

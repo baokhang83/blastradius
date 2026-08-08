@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.3.3] - 2026-08-08
+
+### Added
+
+- Added conservative direct-invocation fallback data for cached dependency indexes.
+- Attribute classes loaded by `@BeforeAll` and cleanup lifecycle methods to their owning tests.
+
+### Fixed
+
+- Preserve direct invocations in the validator cache and correctly follow two-hop invocation
+  paths during selection.
+- Stage the plugin artifact for Maven Invoker tracking tests.
+
+### Documentation
+
+- Corrected the Maven plugin version in the installation examples.
+
 ## [0.3.2] - 2026-08-01
 
 ### Documentation
