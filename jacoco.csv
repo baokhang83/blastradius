@@ -133,5 +133,5 @@ coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.mojo,S
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.mojo,TestDiscoverer,15,129,0,6,2,28,1,10,1,7
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.mojo,TestDiscoverer.ProjectFirstClassLoader,3,35,2,4,1,12,2,3,0,2
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.mojo,ReactorTrackingGate,0,28,0,2,0,6,0,2,0,1
-coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.mojo,SelectMojo,635,121,39,11,139,26,39,14,18,9
+coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.mojo,SelectMojo,646,129,41,15,141,27,40,17,18,10
 coverage/blastradius-maven-plugin,io.github.baokhang83.blastradius.plugin.track,TrackRunner,60,224,5,7,15,46,4,8,0,6

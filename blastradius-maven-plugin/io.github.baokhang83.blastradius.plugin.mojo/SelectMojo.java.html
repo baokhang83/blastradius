@@ -101,36 +101,48 @@ import org.apache.maven.project.MavenProject;
     @Parameter(property = &quot;blastradius.trackChild&quot;, defaultValue = &quot;false&quot;)
     private boolean trackChild;
 
+    /**
+     * Lets an orchestration build run the complete Maven lifecycle without making a selection
+     * decision. CI uses this for its required main build, while a separate post-build workflow
+     * performs the unchanged TRACK replay and persists its index.
+     */
+    @Parameter(property = &quot;blastradius.skipSelection&quot;, defaultValue = &quot;false&quot;)
+    private boolean skipSelection;
+
     @Parameter(defaultValue = &quot;${project}&quot;, readonly = true, required = true)
     private MavenProject project;
 
     @Parameter(defaultValue = &quot;${session}&quot;, readonly = true, required = true)
     private MavenSession session;
 
-<span class="fc" id="L110">    private static final SelectionEngine SELECTION_ENGINE = new SelectionEngine();</span>
-<span class="fc" id="L111">    private static final NewOrModifiedTestSelector NEW_OR_MODIFIED_TEST_SELECTOR = new NewOrModifiedTestSelector();</span>
+<span class="fc" id="L118">    private static final SelectionEngine SELECTION_ENGINE = new SelectionEngine();</span>
+<span class="fc" id="L119">    private static final NewOrModifiedTestSelector NEW_OR_MODIFIED_TEST_SELECTOR = new NewOrModifiedTestSelector();</span>
 
-<span class="nc" id="L113">    private final CurrentChangesResolver currentChangesResolver = new CurrentChangesResolver();</span>
-<span class="nc" id="L114">    private final IndexApplicabilityResolver indexApplicabilityResolver = new IndexApplicabilityResolver();</span>
-<span class="nc" id="L115">    private final SurefireFilterApplier surefireFilterApplier = new SurefireFilterApplier();</span>
-<span class="nc" id="L116">    private final TestDiscoverer testDiscoverer = new TestDiscoverer();</span>
-<span class="nc" id="L117">    private final BuildReportWriter buildReportWriter = new BuildReportWriter();</span>
-<span class="nc" id="L118">    private final ConsoleSummaryRenderer consoleSummaryRenderer = new ConsoleSummaryRenderer();</span>
-<span class="nc" id="L119">    private final ExplainListingRenderer explainListingRenderer = new ExplainListingRenderer();</span>
-<span class="nc" id="L120">    private final TrackRunner trackRunner = new TrackRunner();</span>
-<span class="nc" id="L121">    private final TestTimingHistoryStore timingHistoryStore = new TestTimingHistoryStore();</span>
-<span class="nc" id="L122">    private final SurefireReportReader surefireReportReader = new SurefireReportReader();</span>
+<span class="nc" id="L121">    private final CurrentChangesResolver currentChangesResolver = new CurrentChangesResolver();</span>
+<span class="nc" id="L122">    private final IndexApplicabilityResolver indexApplicabilityResolver = new IndexApplicabilityResolver();</span>
+<span class="nc" id="L123">    private final SurefireFilterApplier surefireFilterApplier = new SurefireFilterApplier();</span>
+<span class="nc" id="L124">    private final TestDiscoverer testDiscoverer = new TestDiscoverer();</span>
+<span class="nc" id="L125">    private final BuildReportWriter buildReportWriter = new BuildReportWriter();</span>
+<span class="nc" id="L126">    private final ConsoleSummaryRenderer consoleSummaryRenderer = new ConsoleSummaryRenderer();</span>
+<span class="nc" id="L127">    private final ExplainListingRenderer explainListingRenderer = new ExplainListingRenderer();</span>
+<span class="nc" id="L128">    private final TrackRunner trackRunner = new TrackRunner();</span>
+<span class="nc" id="L129">    private final TestTimingHistoryStore timingHistoryStore = new TestTimingHistoryStore();</span>
+<span class="nc" id="L130">    private final SurefireReportReader surefireReportReader = new SurefireReportReader();</span>
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
-<span class="nc bnc" id="L126" title="All 2 branches missed.">        if (trackChild) {</span>
-<span class="nc" id="L127">            getLog().info(&quot;[blastradius] skipping select goal (this build is a TRACK-mode subprocess &quot;</span>
-                    + &quot;collecting dependency data; the ambient gated build's own Surefire execution is untouched)&quot;);
-<span class="nc" id="L129">            return;</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        if (shouldSkipSelection(trackChild, skipSelection)) {</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">            if (trackChild) {</span>
+<span class="nc" id="L136">                getLog().info(&quot;[blastradius] skipping select goal (this build is a TRACK-mode subprocess &quot;</span>
+                        + &quot;collecting dependency data; the ambient gated build's own Surefire execution is untouched)&quot;);
+            } else {
+<span class="nc" id="L139">                getLog().info(&quot;[blastradius] skipping select goal (selection is delegated to the post-build TRACK workflow)&quot;);</span>
+            }
+<span class="nc" id="L141">            return;</span>
         }
-<span class="nc bnc" id="L131" title="All 2 branches missed.">        if (isAggregatorOnlyProject(project.getPackaging())) {</span>
-<span class="nc" id="L132">            getLog().info(&quot;[blastradius] skipping select goal for aggregator-only project &quot; + project.getArtifactId());</span>
-<span class="nc" id="L133">            return;</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">        if (isAggregatorOnlyProject(project.getPackaging())) {</span>
+<span class="nc" id="L144">            getLog().info(&quot;[blastradius] skipping select goal for aggregator-only project &quot; + project.getArtifactId());</span>
+<span class="nc" id="L145">            return;</span>
         }
 
         // Anchored at the reactor root (not project.getBasedir()), which for a
@@ -140,77 +152,77 @@ import org.apache.maven.project.MavenProject;
         // module-agnostically (README's cross-module attribution) — every module's own
         // goal execution must resolve that same file, not one relative to its own
         // basedir (tasks.md T026/T029, FR-010).
-<span class="nc" id="L143">        Path reactorRoot = Path.of(session.getExecutionRootDirectory());</span>
-<span class="nc" id="L144">        Path normalizedReactorRoot = reactorRoot.normalize();</span>
-<span class="nc" id="L145">        Path resolvedIndexPath = reactorRoot.resolve(indexPath).normalize();</span>
-<span class="nc bnc" id="L146" title="All 2 branches missed.">        if (!resolvedIndexPath.startsWith(normalizedReactorRoot)) {</span>
-<span class="nc" id="L147">            throw new MojoExecutionException(&quot;invalid configuration: indexPath \&quot;&quot; + indexPath</span>
+<span class="nc" id="L155">        Path reactorRoot = Path.of(session.getExecutionRootDirectory());</span>
+<span class="nc" id="L156">        Path normalizedReactorRoot = reactorRoot.normalize();</span>
+<span class="nc" id="L157">        Path resolvedIndexPath = reactorRoot.resolve(indexPath).normalize();</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">        if (!resolvedIndexPath.startsWith(normalizedReactorRoot)) {</span>
+<span class="nc" id="L159">            throw new MojoExecutionException(&quot;invalid configuration: indexPath \&quot;&quot; + indexPath</span>
                     + &quot;\&quot; resolves outside the project directory (&quot; + resolvedIndexPath + &quot;)&quot;);
         }
-<span class="nc" id="L150">        String indexPathKey = normalizedReactorRoot.relativize(resolvedIndexPath).toString();</span>
-<span class="nc" id="L151">        IndexStore&lt;DependencyIndex&gt; indexStore = createIndexStore(normalizedReactorRoot);</span>
+<span class="nc" id="L162">        String indexPathKey = normalizedReactorRoot.relativize(resolvedIndexPath).toString();</span>
+<span class="nc" id="L163">        IndexStore&lt;DependencyIndex&gt; indexStore = createIndexStore(normalizedReactorRoot);</span>
 
         try {
             CurrentChanges changes;
             try {
-<span class="nc" id="L156">                changes = currentChangesResolver.resolve(reactorRoot, baseRef);</span>
-<span class="nc" id="L157">            } catch (IllegalStateException e) {</span>
-<span class="nc" id="L158">                throw new MojoExecutionException(&quot;invalid configuration: &quot; + e.getMessage(), e);</span>
-<span class="nc" id="L159">            }</span>
-<span class="nc" id="L160">            CurrentChanges initialChanges = changes;</span>
-<span class="nc" id="L161">            IndexApplicability applicability = initialChanges.comparisonBaseCommit()</span>
-<span class="nc" id="L162">                    .map(comparisonBase -&gt; indexApplicabilityResolver.resolve(</span>
+<span class="nc" id="L168">                changes = currentChangesResolver.resolve(reactorRoot, baseRef);</span>
+<span class="nc" id="L169">            } catch (IllegalStateException e) {</span>
+<span class="nc" id="L170">                throw new MojoExecutionException(&quot;invalid configuration: &quot; + e.getMessage(), e);</span>
+<span class="nc" id="L171">            }</span>
+<span class="nc" id="L172">            CurrentChanges initialChanges = changes;</span>
+<span class="nc" id="L173">            IndexApplicability applicability = initialChanges.comparisonBaseCommit()</span>
+<span class="nc" id="L174">                    .map(comparisonBase -&gt; indexApplicabilityResolver.resolve(</span>
                             indexStore,
-<span class="nc" id="L164">                            CommitIndexKey.forCommit(indexPathKey, comparisonBase),</span>
+<span class="nc" id="L176">                            CommitIndexKey.forCommit(indexPathKey, comparisonBase),</span>
                             indexPathKey,
                             comparisonBase,
-<span class="nc" id="L167">                            initialChanges.currentCommit(),</span>
+<span class="nc" id="L179">                            initialChanges.currentCommit(),</span>
                             reactorRoot))
-<span class="nc" id="L169">                    .orElseGet(IndexApplicability::mergeBaseUnavailable);</span>
-<span class="nc bnc" id="L170" title="All 2 branches missed.">            if (applicability.status() == IndexApplicability.Status.STALE_BASELINE) {</span>
-<span class="nc" id="L171">                changes = currentChangesResolver.resolveFromAnchor(</span>
-<span class="nc" id="L172">                        reactorRoot, changes, applicability.index().anchorCommit());</span>
+<span class="nc" id="L181">                    .orElseGet(IndexApplicability::mergeBaseUnavailable);</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">            if (applicability.status() == IndexApplicability.Status.STALE_BASELINE) {</span>
+<span class="nc" id="L183">                changes = currentChangesResolver.resolveFromAnchor(</span>
+<span class="nc" id="L184">                        reactorRoot, changes, applicability.index().anchorCommit());</span>
             }
 
-<span class="nc" id="L175">            BuildReport.Mode resolvedMode = determineMode(changes, applicability, mode);</span>
-<span class="nc" id="L176">            Map&lt;TestIdentity, Long&gt; durationsByTest = timingHistoryStore.load(timingHistoryPath()).durationsByTest();</span>
+<span class="nc" id="L187">            BuildReport.Mode resolvedMode = determineMode(changes, applicability, mode);</span>
+<span class="nc" id="L188">            Map&lt;TestIdentity, Long&gt; durationsByTest = timingHistoryStore.load(timingHistoryPath()).durationsByTest();</span>
 
-<span class="nc bnc" id="L178" title="All 4 branches missed.">            switch (resolvedMode) {</span>
-<span class="nc" id="L179">                case TRACK -&gt; runTrack(changes, applicability, reactorRoot, indexStore, indexPathKey);</span>
-<span class="nc" id="L180">                case SELECT -&gt; runSelect(changes, applicability, durationsByTest);</span>
-<span class="nc" id="L181">                case FALLBACK -&gt; runFallback(changes, applicability);</span>
+<span class="nc bnc" id="L190" title="All 4 branches missed.">            switch (resolvedMode) {</span>
+<span class="nc" id="L191">                case TRACK -&gt; runTrack(changes, applicability, reactorRoot, indexStore, indexPathKey);</span>
+<span class="nc" id="L192">                case SELECT -&gt; runSelect(changes, applicability, durationsByTest);</span>
+<span class="nc" id="L193">                case FALLBACK -&gt; runFallback(changes, applicability);</span>
             }
-<span class="nc" id="L183">            registerTimingRecorder();</span>
+<span class="nc" id="L195">            registerTimingRecorder();</span>
         } finally {
-<span class="nc" id="L185">            close(indexStore);</span>
+<span class="nc" id="L197">            close(indexStore);</span>
         }
-<span class="nc" id="L187">    }</span>
+<span class="nc" id="L199">    }</span>
 
     private IndexStore&lt;DependencyIndex&gt; createIndexStore(Path root) throws MojoExecutionException {
-<span class="nc bnc" id="L190" title="All 6 branches missed.">        if (indexStoreType == null || indexStoreType.isBlank() || &quot;file&quot;.equalsIgnoreCase(indexStoreType)) {</span>
-<span class="nc" id="L191">            return new FileIndexStore&lt;&gt;(root, DependencyIndex.class);</span>
+<span class="nc bnc" id="L202" title="All 6 branches missed.">        if (indexStoreType == null || indexStoreType.isBlank() || &quot;file&quot;.equalsIgnoreCase(indexStoreType)) {</span>
+<span class="nc" id="L203">            return new FileIndexStore&lt;&gt;(root, DependencyIndex.class);</span>
         }
-<span class="nc bnc" id="L193" title="All 2 branches missed.">        if (!&quot;s3&quot;.equalsIgnoreCase(indexStoreType)) {</span>
-<span class="nc" id="L194">            throw new MojoExecutionException(&quot;invalid configuration: indexStore must be file or s3&quot;);</span>
+<span class="nc bnc" id="L205" title="All 2 branches missed.">        if (!&quot;s3&quot;.equalsIgnoreCase(indexStoreType)) {</span>
+<span class="nc" id="L206">            throw new MojoExecutionException(&quot;invalid configuration: indexStore must be file or s3&quot;);</span>
         }
         try {
-<span class="nc" id="L197">            return S3IndexStoreFactory.create(new S3IndexStoreConfiguration(</span>
-<span class="nc bnc" id="L198" title="All 4 branches missed.">                    s3Bucket, s3Prefix, s3Region, s3Endpoint == null || s3Endpoint.isBlank() ? null : URI.create(s3Endpoint)),</span>
+<span class="nc" id="L209">            return S3IndexStoreFactory.create(new S3IndexStoreConfiguration(</span>
+<span class="nc bnc" id="L210" title="All 4 branches missed.">                    s3Bucket, s3Prefix, s3Region, s3Endpoint == null || s3Endpoint.isBlank() ? null : URI.create(s3Endpoint)),</span>
                     DependencyIndex.class);
-<span class="nc" id="L200">        } catch (IllegalArgumentException e) {</span>
-<span class="nc" id="L201">            throw new MojoExecutionException(&quot;invalid S3 index-store configuration: &quot; + e.getMessage(), e);</span>
+<span class="nc" id="L212">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L213">            throw new MojoExecutionException(&quot;invalid S3 index-store configuration: &quot; + e.getMessage(), e);</span>
         }
     }
 
     private static void close(IndexStore&lt;?&gt; store) {
-<span class="nc bnc" id="L206" title="All 2 branches missed.">        if (store instanceof AutoCloseable closeable) {</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        if (store instanceof AutoCloseable closeable) {</span>
             try {
-<span class="nc" id="L208">                closeable.close();</span>
-<span class="nc" id="L209">            } catch (Exception ignored) {</span>
+<span class="nc" id="L220">                closeable.close();</span>
+<span class="nc" id="L221">            } catch (Exception ignored) {</span>
                 // The index operation already completed; closing an SDK client must not change its result.
-<span class="nc" id="L211">            }</span>
+<span class="nc" id="L223">            }</span>
         }
-<span class="nc" id="L213">    }</span>
+<span class="nc" id="L225">    }</span>
 
     /**
      * The mode-routing decision itself (research.md #1; contracts' three-state table) —
@@ -219,18 +231,22 @@ import org.apache.maven.project.MavenProject;
      * always tracks; otherwise a valid index selects, and anything else falls back.
      */
     static BuildReport.Mode determineMode(CurrentChanges changes, IndexApplicability applicability, String explicitMode) {
-<span class="fc bfc" id="L222" title="All 4 branches covered.">        if (changes.isBaseRefBuild() || &quot;track&quot;.equalsIgnoreCase(explicitMode)) {</span>
-<span class="fc" id="L223">            return BuildReport.Mode.TRACK;</span>
+<span class="fc bfc" id="L234" title="All 4 branches covered.">        if (changes.isBaseRefBuild() || &quot;track&quot;.equalsIgnoreCase(explicitMode)) {</span>
+<span class="fc" id="L235">            return BuildReport.Mode.TRACK;</span>
         }
-<span class="fc bfc" id="L225" title="All 2 branches covered.">        if (applicability.status() == IndexApplicability.Status.APPLICABLE</span>
-<span class="pc bpc" id="L226" title="1 of 2 branches missed.">                || applicability.status() == IndexApplicability.Status.STALE_BASELINE) {</span>
-<span class="fc" id="L227">            return BuildReport.Mode.SELECT;</span>
+<span class="fc bfc" id="L237" title="All 2 branches covered.">        if (applicability.status() == IndexApplicability.Status.APPLICABLE</span>
+<span class="pc bpc" id="L238" title="1 of 2 branches missed.">                || applicability.status() == IndexApplicability.Status.STALE_BASELINE) {</span>
+<span class="fc" id="L239">            return BuildReport.Mode.SELECT;</span>
         }
-<span class="fc" id="L229">        return BuildReport.Mode.FALLBACK;</span>
+<span class="fc" id="L241">        return BuildReport.Mode.FALLBACK;</span>
     }
 
     static boolean isAggregatorOnlyProject(String packaging) {
-<span class="fc" id="L233">        return &quot;pom&quot;.equals(packaging);</span>
+<span class="fc" id="L245">        return &quot;pom&quot;.equals(packaging);</span>
+    }
+
+    static boolean shouldSkipSelection(boolean trackChild, boolean skipSelection) {
+<span class="fc bfc" id="L249" title="All 4 branches covered.">        return trackChild || skipSelection;</span>
     }
 
     /**
@@ -241,33 +257,33 @@ import org.apache.maven.project.MavenProject;
      */
     private void runTrack(CurrentChanges changes, IndexApplicability applicability, Path reactorRoot,
             IndexStore&lt;DependencyIndex&gt; indexStore, String indexPathKey) throws MojoExecutionException {
-<span class="nc" id="L244">        String indexKey = CommitIndexKey.forCommit(indexPathKey, changes.currentCommit());</span>
+<span class="nc" id="L260">        String indexKey = CommitIndexKey.forCommit(indexPathKey, changes.currentCommit());</span>
         DependencyIndex freshIndex;
-<span class="nc bnc" id="L246" title="All 2 branches missed.">        if (ReactorTrackingGate.claim(session.getUserProperties(), reactorRoot.toAbsolutePath().toString(), changes.currentCommit())) {</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">        if (ReactorTrackingGate.claim(session.getUserProperties(), reactorRoot.toAbsolutePath().toString(), changes.currentCommit())) {</span>
             try {
-<span class="nc" id="L248">                Path agentJar = locateCoreAgentJar();</span>
-<span class="nc" id="L249">                freshIndex = trackRunner.track(reactorRoot, agentJar, changes.currentCommit());</span>
-<span class="nc" id="L250">                indexStore.put(indexKey, freshIndex);</span>
-<span class="nc" id="L251">            } catch (MojoExecutionException | RuntimeException e) {</span>
-<span class="nc" id="L252">                getLog().warn(&quot;[blastradius] tracking failed; discarding its incomplete dependency data and &quot;</span>
+<span class="nc" id="L264">                Path agentJar = locateCoreAgentJar();</span>
+<span class="nc" id="L265">                freshIndex = trackRunner.track(reactorRoot, agentJar, changes.currentCommit());</span>
+<span class="nc" id="L266">                indexStore.put(indexKey, freshIndex);</span>
+<span class="nc" id="L267">            } catch (MojoExecutionException | RuntimeException e) {</span>
+<span class="nc" id="L268">                getLog().warn(&quot;[blastradius] tracking failed; discarding its incomplete dependency data and &quot;</span>
                         + &quot;falling back to the full suite&quot;, e);
-<span class="nc" id="L254">                runFallback(changes, IndexApplicability.internalError());</span>
-<span class="nc" id="L255">                return;</span>
-<span class="nc" id="L256">            }</span>
+<span class="nc" id="L270">                runFallback(changes, IndexApplicability.internalError());</span>
+<span class="nc" id="L271">                return;</span>
+<span class="nc" id="L272">            }</span>
         } else {
-<span class="nc" id="L258">            freshIndex = indexStore.get(indexKey).orElse(null);</span>
-<span class="nc bnc" id="L259" title="All 2 branches missed.">            if (freshIndex == null) {</span>
-<span class="nc" id="L260">                getLog().warn(&quot;[blastradius] no reactor tracking index was produced; falling back to the full suite&quot;);</span>
-<span class="nc" id="L261">                runFallback(changes, IndexApplicability.internalError());</span>
-<span class="nc" id="L262">                return;</span>
+<span class="nc" id="L274">            freshIndex = indexStore.get(indexKey).orElse(null);</span>
+<span class="nc bnc" id="L275" title="All 2 branches missed.">            if (freshIndex == null) {</span>
+<span class="nc" id="L276">                getLog().warn(&quot;[blastradius] no reactor tracking index was produced; falling back to the full suite&quot;);</span>
+<span class="nc" id="L277">                runFallback(changes, IndexApplicability.internalError());</span>
+<span class="nc" id="L278">                return;</span>
             }
         }
 
-<span class="nc" id="L266">        int totalCount = discoverProjectTests().size();</span>
-<span class="nc" id="L267">        BuildReport report = BuildReport.forTrack(applicability.status(), totalCount, freshIndex, changes.changedFiles());</span>
-<span class="nc" id="L268">        buildReportWriter.write(reportPath(), report);</span>
-<span class="nc" id="L269">        renderReport(report, null);</span>
-<span class="nc" id="L270">    }</span>
+<span class="nc" id="L282">        int totalCount = discoverProjectTests().size();</span>
+<span class="nc" id="L283">        BuildReport report = BuildReport.forTrack(applicability.status(), totalCount, freshIndex, changes.changedFiles());</span>
+<span class="nc" id="L284">        buildReportWriter.write(reportPath(), report);</span>
+<span class="nc" id="L285">        renderReport(report, null);</span>
+<span class="nc" id="L286">    }</span>
 
     /**
      * No valid index and this build is not of the base reference — the full suite runs,
@@ -275,11 +291,11 @@ import org.apache.maven.project.MavenProject;
      * anchor for the shared index) (research.md #1, tasks.md T046).
      */
     private void runFallback(CurrentChanges changes, IndexApplicability applicability) throws MojoExecutionException {
-<span class="nc" id="L278">        int totalCount = discoverProjectTests().size();</span>
-<span class="nc" id="L279">        BuildReport report = BuildReport.forFallback(applicability.status(), totalCount, changes.changedFiles());</span>
-<span class="nc" id="L280">        buildReportWriter.write(reportPath(), report);</span>
-<span class="nc" id="L281">        renderReport(report, null);</span>
-<span class="nc" id="L282">    }</span>
+<span class="nc" id="L294">        int totalCount = discoverProjectTests().size();</span>
+<span class="nc" id="L295">        BuildReport report = BuildReport.forFallback(applicability.status(), totalCount, changes.changedFiles());</span>
+<span class="nc" id="L296">        buildReportWriter.write(reportPath(), report);</span>
+<span class="nc" id="L297">        renderReport(report, null);</span>
+<span class="nc" id="L298">    }</span>
 
     /**
      * Uses this plugin's own shaded artifact as the tracking agent. The published POM has
@@ -289,25 +305,25 @@ import org.apache.maven.project.MavenProject;
      */
     private static Path locateCoreAgentJar() throws MojoExecutionException {
         try {
-<span class="nc" id="L292">            Path pluginJar = Path.of(SelectMojo.class.getProtectionDomain().getCodeSource().getLocation().toURI());</span>
-<span class="nc bnc" id="L293" title="All 2 branches missed.">            if (java.nio.file.Files.isRegularFile(pluginJar)) {</span>
-<span class="nc" id="L294">                return pluginJar;</span>
+<span class="nc" id="L308">            Path pluginJar = Path.of(SelectMojo.class.getProtectionDomain().getCodeSource().getLocation().toURI());</span>
+<span class="nc bnc" id="L309" title="All 2 branches missed.">            if (java.nio.file.Files.isRegularFile(pluginJar)) {</span>
+<span class="nc" id="L310">                return pluginJar;</span>
             }
-<span class="nc" id="L296">        } catch (URISyntaxException | NullPointerException e) {</span>
-<span class="nc" id="L297">            throw new MojoExecutionException(&quot;could not resolve the shaded plugin jar for tracking&quot;, e);</span>
-<span class="nc" id="L298">        }</span>
-<span class="nc" id="L299">        throw new MojoExecutionException(&quot;the tracking agent requires the packaged blastradius plugin jar&quot;);</span>
+<span class="nc" id="L312">        } catch (URISyntaxException | NullPointerException e) {</span>
+<span class="nc" id="L313">            throw new MojoExecutionException(&quot;could not resolve the shaded plugin jar for tracking&quot;, e);</span>
+<span class="nc" id="L314">        }</span>
+<span class="nc" id="L315">        throw new MojoExecutionException(&quot;the tracking agent requires the packaged blastradius plugin jar&quot;);</span>
     }
 
     private Set&lt;TestIdentity&gt; discoverProjectTests() throws MojoExecutionException {
-<span class="nc" id="L303">        Path testClassesDir = Path.of(project.getBuild().getTestOutputDirectory());</span>
+<span class="nc" id="L319">        Path testClassesDir = Path.of(project.getBuild().getTestOutputDirectory());</span>
         List&lt;String&gt; testClasspathElements;
         try {
-<span class="nc" id="L306">            testClasspathElements = project.getTestClasspathElements();</span>
-<span class="nc" id="L307">        } catch (DependencyResolutionRequiredException e) {</span>
-<span class="nc" id="L308">            throw new MojoExecutionException(&quot;failed to resolve the test classpath for &quot; + project.getArtifactId(), e);</span>
-<span class="nc" id="L309">        }</span>
-<span class="nc" id="L310">        return testDiscoverer.discoverAllTests(testClassesDir, testClasspathElements);</span>
+<span class="nc" id="L322">            testClasspathElements = project.getTestClasspathElements();</span>
+<span class="nc" id="L323">        } catch (DependencyResolutionRequiredException e) {</span>
+<span class="nc" id="L324">            throw new MojoExecutionException(&quot;failed to resolve the test classpath for &quot; + project.getArtifactId(), e);</span>
+<span class="nc" id="L325">        }</span>
+<span class="nc" id="L326">        return testDiscoverer.discoverAllTests(testClassesDir, testClasspathElements);</span>
     }
 
     /**
@@ -322,43 +338,43 @@ import org.apache.maven.project.MavenProject;
     private void runSelect(CurrentChanges changes, IndexApplicability applicability,
             Map&lt;TestIdentity, Long&gt; durationsByTest) throws MojoExecutionException {
         try {
-<span class="nc" id="L325">            Set&lt;TestIdentity&gt; allTests = discoverProjectTests();</span>
-<span class="nc" id="L326">            List&lt;SelectionDecision&gt; decisions = computeDecisions(</span>
-<span class="nc" id="L327">                    allTests, applicability.index(), changes.changedFiles(), directInvocationFallback);</span>
-<span class="nc" id="L328">            Set&lt;TestIdentity&gt; selectedTests = decisions.stream()</span>
-<span class="nc" id="L329">                    .filter(SelectionDecision::selected)</span>
-<span class="nc" id="L330">                    .map(SelectionDecision::test)</span>
-<span class="nc" id="L331">                    .collect(Collectors.toSet());</span>
+<span class="nc" id="L341">            Set&lt;TestIdentity&gt; allTests = discoverProjectTests();</span>
+<span class="nc" id="L342">            List&lt;SelectionDecision&gt; decisions = computeDecisions(</span>
+<span class="nc" id="L343">                    allTests, applicability.index(), changes.changedFiles(), directInvocationFallback);</span>
+<span class="nc" id="L344">            Set&lt;TestIdentity&gt; selectedTests = decisions.stream()</span>
+<span class="nc" id="L345">                    .filter(SelectionDecision::selected)</span>
+<span class="nc" id="L346">                    .map(SelectionDecision::test)</span>
+<span class="nc" id="L347">                    .collect(Collectors.toSet());</span>
 
-<span class="nc" id="L333">            surefireFilterApplier.apply(project, selectedTests);</span>
+<span class="nc" id="L349">            surefireFilterApplier.apply(project, selectedTests);</span>
 
-<span class="nc" id="L335">            BuildReport report = BuildReport.forSelect(applicability, changes.changedFiles(), decisions, durationsByTest);</span>
-<span class="nc" id="L336">            buildReportWriter.write(reportPath(), report);</span>
-<span class="nc" id="L337">            renderReport(report, applicability.index());</span>
-<span class="nc" id="L338">        } catch (RuntimeException e) {</span>
-<span class="nc" id="L339">            getLog().warn(&quot;[blastradius] internal error during selection computation — falling back to running &quot;</span>
+<span class="nc" id="L351">            BuildReport report = BuildReport.forSelect(applicability, changes.changedFiles(), decisions, durationsByTest);</span>
+<span class="nc" id="L352">            buildReportWriter.write(reportPath(), report);</span>
+<span class="nc" id="L353">            renderReport(report, applicability.index());</span>
+<span class="nc" id="L354">        } catch (RuntimeException e) {</span>
+<span class="nc" id="L355">            getLog().warn(&quot;[blastradius] internal error during selection computation — falling back to running &quot;</span>
                     + &quot;the full suite unfiltered rather than risk a crashed build or an unsound selection&quot;, e);
-<span class="nc" id="L341">            int totalCount = discoverProjectTests().size();</span>
-<span class="nc" id="L342">            BuildReport report = BuildReport.forFallback(</span>
-<span class="nc" id="L343">                    IndexApplicability.Status.INTERNAL_ERROR, totalCount, changes.changedFiles());</span>
-<span class="nc" id="L344">            buildReportWriter.write(reportPath(), report);</span>
-<span class="nc" id="L345">            renderReport(report, null);</span>
-<span class="nc" id="L346">        }</span>
-<span class="nc" id="L347">    }</span>
+<span class="nc" id="L357">            int totalCount = discoverProjectTests().size();</span>
+<span class="nc" id="L358">            BuildReport report = BuildReport.forFallback(</span>
+<span class="nc" id="L359">                    IndexApplicability.Status.INTERNAL_ERROR, totalCount, changes.changedFiles());</span>
+<span class="nc" id="L360">            buildReportWriter.write(reportPath(), report);</span>
+<span class="nc" id="L361">            renderReport(report, null);</span>
+<span class="nc" id="L362">        }</span>
+<span class="nc" id="L363">    }</span>
 
     private void renderReport(BuildReport report, DependencyIndex usedIndex) {
-<span class="nc" id="L350">        consoleSummaryRenderer.render(report, usedIndex).forEach(getLog()::info);</span>
-<span class="nc bnc" id="L351" title="All 2 branches missed.">        if (explain) {</span>
-<span class="nc" id="L352">            explainListingRenderer.render(report).forEach(getLog()::info);</span>
+<span class="nc" id="L366">        consoleSummaryRenderer.render(report, usedIndex).forEach(getLog()::info);</span>
+<span class="nc bnc" id="L367" title="All 2 branches missed.">        if (explain) {</span>
+<span class="nc" id="L368">            explainListingRenderer.render(report).forEach(getLog()::info);</span>
         }
-<span class="nc" id="L354">    }</span>
+<span class="nc" id="L370">    }</span>
 
     private Path reportPath() {
-<span class="nc" id="L357">        return project.getBasedir().toPath().resolve(&quot;.blastradius/last-build-report.json&quot;);</span>
+<span class="nc" id="L373">        return project.getBasedir().toPath().resolve(&quot;.blastradius/last-build-report.json&quot;);</span>
     }
 
     private Path timingHistoryPath() {
-<span class="nc" id="L361">        return project.getBasedir().toPath().resolve(&quot;.blastradius/test-timings.json&quot;);</span>
+<span class="nc" id="L377">        return project.getBasedir().toPath().resolve(&quot;.blastradius/test-timings.json&quot;);</span>
     }
 
     /**
@@ -367,14 +383,14 @@ import org.apache.maven.project.MavenProject;
      * adopters to configure a second goal. The wrapper forwards every existing listener event.
      */
     private void registerTimingRecorder() {
-<span class="nc" id="L370">        ExecutionListener existing = session.getRequest().getExecutionListener();</span>
-<span class="nc bnc" id="L371" title="All 2 branches missed.">        if (existing instanceof TimingHistoryRecorder) {</span>
-<span class="nc" id="L372">            return;</span>
+<span class="nc" id="L386">        ExecutionListener existing = session.getRequest().getExecutionListener();</span>
+<span class="nc bnc" id="L387" title="All 2 branches missed.">        if (existing instanceof TimingHistoryRecorder) {</span>
+<span class="nc" id="L388">            return;</span>
         }
-<span class="nc" id="L374">        session.getRequest().setExecutionListener(new TimingHistoryRecorder(</span>
-<span class="nc bnc" id="L375" title="All 2 branches missed.">                existing == null ? new AbstractExecutionListener() : existing,</span>
-<span class="nc" id="L376">                timingHistoryStore, surefireReportReader, getLog()::warn));</span>
-<span class="nc" id="L377">    }</span>
+<span class="nc" id="L390">        session.getRequest().setExecutionListener(new TimingHistoryRecorder(</span>
+<span class="nc bnc" id="L391" title="All 2 branches missed.">                existing == null ? new AbstractExecutionListener() : existing,</span>
+<span class="nc" id="L392">                timingHistoryStore, surefireReportReader, getLog()::warn));</span>
+<span class="nc" id="L393">    }</span>
 
     /**
      * Computes one {@link SelectionDecision} per test, reusing {@code blastradius-core}'s
@@ -385,50 +401,50 @@ import org.apache.maven.project.MavenProject;
      */
     static List&lt;SelectionDecision&gt; computeDecisions(Set&lt;TestIdentity&gt; allTests, DependencyIndex index,
             List&lt;ChangedFile&gt; changedFiles) {
-<span class="fc" id="L388">        return computeDecisions(allTests, index, changedFiles, true);</span>
+<span class="fc" id="L404">        return computeDecisions(allTests, index, changedFiles, true);</span>
     }
 
     static List&lt;SelectionDecision&gt; computeDecisions(Set&lt;TestIdentity&gt; allTests, DependencyIndex index,
             List&lt;ChangedFile&gt; changedFiles, boolean directInvocationFallback) {
-<span class="fc" id="L393">        Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependencies = index.testDependenciesByTest().entrySet().stream()</span>
-<span class="fc" id="L394">                .collect(Collectors.toMap(</span>
-<span class="fc" id="L395">                        entry -&gt; entry.getKey().baselineKey(),</span>
+<span class="fc" id="L409">        Map&lt;TestIdentity, Set&lt;String&gt;&gt; testDependencies = index.testDependenciesByTest().entrySet().stream()</span>
+<span class="fc" id="L410">                .collect(Collectors.toMap(</span>
+<span class="fc" id="L411">                        entry -&gt; entry.getKey().baselineKey(),</span>
                         Map.Entry::getValue,
                         (a, b) -&gt; {
-<span class="nc" id="L398">                            Set&lt;String&gt; union = new java.util.HashSet&lt;&gt;(a);</span>
-<span class="nc" id="L399">                            union.addAll(b);</span>
-<span class="nc" id="L400">                            return union;</span>
+<span class="nc" id="L414">                            Set&lt;String&gt; union = new java.util.HashSet&lt;&gt;(a);</span>
+<span class="nc" id="L415">                            union.addAll(b);</span>
+<span class="nc" id="L416">                            return union;</span>
                         }));
 
-<span class="fc" id="L403">        Map&lt;TestIdentity, Map&lt;String, Set&lt;String&gt;&gt;&gt; directInvocations = index.directInvocationsByTest().entrySet().stream()</span>
-<span class="fc" id="L404">                .collect(Collectors.toMap(</span>
-<span class="fc" id="L405">                        entry -&gt; entry.getKey().baselineKey(),</span>
+<span class="fc" id="L419">        Map&lt;TestIdentity, Map&lt;String, Set&lt;String&gt;&gt;&gt; directInvocations = index.directInvocationsByTest().entrySet().stream()</span>
+<span class="fc" id="L420">                .collect(Collectors.toMap(</span>
+<span class="fc" id="L421">                        entry -&gt; entry.getKey().baselineKey(),</span>
                         Map.Entry::getValue,
                         SelectMojo::mergeDirectInvocations));
 
-<span class="fc" id="L409">        Set&lt;String&gt; changedClassNames = changedFiles.stream()</span>
-<span class="fc" id="L410">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
-<span class="fc" id="L411">                .collect(Collectors.toUnmodifiableSet());</span>
+<span class="fc" id="L425">        Set&lt;String&gt; changedClassNames = changedFiles.stream()</span>
+<span class="fc" id="L426">                .flatMap(file -&gt; file.candidateClassNames().stream())</span>
+<span class="fc" id="L427">                .collect(Collectors.toUnmodifiableSet());</span>
 
-<span class="fc" id="L413">        Set&lt;TestIdentity&gt; newOrModifiedTests = allTests.stream()</span>
-<span class="fc" id="L414">                .filter(test -&gt; NEW_OR_MODIFIED_TEST_SELECTOR.appliesTo(</span>
-<span class="fc bfc" id="L415" title="All 2 branches covered.">                        test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))</span>
-<span class="fc" id="L416">                .collect(Collectors.toSet());</span>
+<span class="fc" id="L429">        Set&lt;TestIdentity&gt; newOrModifiedTests = allTests.stream()</span>
+<span class="fc" id="L430">                .filter(test -&gt; NEW_OR_MODIFIED_TEST_SELECTOR.appliesTo(</span>
+<span class="fc bfc" id="L431" title="All 2 branches covered.">                        test, !testDependencies.containsKey(test.baselineKey()), changedClassNames))</span>
+<span class="fc" id="L432">                .collect(Collectors.toSet());</span>
 
-<span class="fc" id="L418">        return SELECTION_ENGINE.selectAll(</span>
-<span class="fc bfc" id="L419" title="All 2 branches covered.">                allTests, testDependencies, directInvocationFallback ? directInvocations : Map.of(), newOrModifiedTests,</span>
-<span class="fc" id="L420">                changedFiles, index.ambientDependencies());</span>
+<span class="fc" id="L434">        return SELECTION_ENGINE.selectAll(</span>
+<span class="fc bfc" id="L435" title="All 2 branches covered.">                allTests, testDependencies, directInvocationFallback ? directInvocations : Map.of(), newOrModifiedTests,</span>
+<span class="fc" id="L436">                changedFiles, index.ambientDependencies());</span>
     }
 
     private static Map&lt;String, Set&lt;String&gt;&gt; mergeDirectInvocations(
             Map&lt;String, Set&lt;String&gt;&gt; first, Map&lt;String, Set&lt;String&gt;&gt; second) {
-<span class="nc" id="L425">        Map&lt;String, Set&lt;String&gt;&gt; merged = new java.util.HashMap&lt;&gt;(first);</span>
-<span class="nc" id="L426">        second.forEach((source, targets) -&gt; merged.merge(source, targets, (left, right) -&gt; {</span>
-<span class="nc" id="L427">            Set&lt;String&gt; union = new java.util.HashSet&lt;&gt;(left);</span>
-<span class="nc" id="L428">            union.addAll(right);</span>
-<span class="nc" id="L429">            return Set.copyOf(union);</span>
+<span class="nc" id="L441">        Map&lt;String, Set&lt;String&gt;&gt; merged = new java.util.HashMap&lt;&gt;(first);</span>
+<span class="nc" id="L442">        second.forEach((source, targets) -&gt; merged.merge(source, targets, (left, right) -&gt; {</span>
+<span class="nc" id="L443">            Set&lt;String&gt; union = new java.util.HashSet&lt;&gt;(left);</span>
+<span class="nc" id="L444">            union.addAll(right);</span>
+<span class="nc" id="L445">            return Set.copyOf(union);</span>
         }));
-<span class="nc" id="L431">        return Map.copyOf(merged);</span>
+<span class="nc" id="L447">        return Map.copyOf(merged);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
