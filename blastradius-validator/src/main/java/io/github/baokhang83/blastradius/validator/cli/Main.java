@@ -27,6 +27,7 @@ public final class Main {
             return;
         }
         switch (args[0]) {
+            case "hello" -> HelloCommand.writeTo(System.out);
             case "run" -> runHistory(args);
             default -> {
                 usage();
