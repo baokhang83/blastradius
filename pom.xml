@@ -51,6 +51,7 @@
         <module>blastradius-s3-index-store</module>
         <module>blastradius-validator</module>
         <module>blastradius-maven-plugin</module>
+        <module>hello-world</module>
         <module>coverage</module>
     </modules>
 
