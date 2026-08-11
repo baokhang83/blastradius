@@ -28,11 +28,17 @@ public final class Main {
         }
         switch (args[0]) {
             case "run" -> runHistory(args);
+            case "hello" -> hello(args);
             default -> {
                 usage();
                 System.exit(2);
             }
         }
+    }
+
+    private static void hello(String[] args) {
+        String target = args.length > 1 ? args[1] : "World";
+        System.out.println(new HelloCommand().greeting(target));
     }
 
     private static void runHistory(String[] args) {

@@ -1,10 +1,11 @@
 {
-  "feature": "225-prototype-direct-invocation-reference-fallback-for-cache",
-  "branch": "feature/225-prototype-direct-invocation-reference-fallback-for-cache",
+  "schema_version": "1",
+  "feature": "demo-do-a-helloworld",
+  "branch": "feature/demo-do-a-helloworld",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/225-prototype-direct-invocation-reference-fallback-for-cache/sessions/001-track-and-select-bounded-direct-invocation-references.md",
+  "last_session": "001-add-a-hello-cli-subcommand-tdd",
   "base_ref": "main",
-  "feature_dir": "docs/fluencyloop/features/225-prototype-direct-invocation-reference-fallback-for-cache",
+  "feature_dir": "",
   "plan": "",
-  "updated": "2026-08-05"
+  "updated": "2026-08-11"
 }
