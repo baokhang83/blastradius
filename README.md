@@ -108,7 +108,7 @@ store is a better fit for your runners:
 
 ```groovy
 plugins {
-  id 'io.github.baokhang83.blastradius' version '0.3.0'
+  id 'io.github.baokhang83.blastradius' version '0.3.3'
 }
 
 blastradius {
@@ -243,26 +243,6 @@ cadence (recommended: daily)** as a complementary safety net, so even an occasio
 caught within a day rather than never. That combination — fast, sound-by-default selection
 on every build, backstopped by a full run — is the intended trust model, not either one
 alone.
-
-## Design principles (project constitution, v2.0.0)
-
-- **Test-Driven Development is non-negotiable.** Every piece of engine code was built
-  red → green → refactor; a tool that decides which tests to skip cannot itself be
-  undertested.
-- **Clean code & simplicity.** No speculative abstraction — `blastradius-core` was
-  extracted only once a second real consumer (the plugin) needed it.
-- **Safety over speed.** Sound, conservative selection is the strong default, complemented
-  by the recommended daily full-suite run above, not a substitute for one.
-- **Deterministic core before ML.** Selection is pure, explainable dependency tracking,
-  requiring zero historical/training data and correct from a project's very first run —
-  no machine learning, no probabilistic shortcuts.
-- **Explainability.** Every decision carries a concrete reason — which changed class a
-  test's tracked dependencies intersect with, or which fallback rule fired — never an
-  opaque score.
-- **Maintainable, modern foundations.** JUnit 5 Platform, current JDK, no deprecated APIs
-  or abandoned tooling.
-
-Full text and rationale: [`.specify/memory/constitution.md`](.specify/memory/constitution.md).
 
 ## Known limitations
 
