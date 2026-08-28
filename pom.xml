@@ -76,7 +76,7 @@
         <javadoc.plugin.version>3.12.0</javadoc.plugin.version>
         <gpg.plugin.version>3.2.8</gpg.plugin.version>
         <central.publishing.plugin.version>0.11.0</central.publishing.plugin.version>
-        <flatten.plugin.version>1.6.0</flatten.plugin.version>
+        <flatten.plugin.version>1.8.0</flatten.plugin.version>
         <invoker.plugin.version>3.10.1</invoker.plugin.version>
         <aws.sdk.version>2.51.1</aws.sdk.version>
         <slf4j.version>2.0.18</slf4j.version>
