@@ -64,7 +64,7 @@
         <blastradius.self.host.version>${project.version}-selfhost</blastradius.self.host.version>
 
         <jgit.version>7.7.0.202606012155-r</jgit.version>
-        <jackson.version>2.17.1</jackson.version>
+        <jackson.version>2.22.2</jackson.version>
         <asm.version>9.10.1</asm.version>
         <junit.version>5.10.2</junit.version>
         <surefire.version>3.5.6</surefire.version>
