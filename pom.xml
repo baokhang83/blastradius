@@ -65,7 +65,7 @@
 
         <jgit.version>7.8.0.202609011348-r</jgit.version>
         <jackson.version>2.22.3</jackson.version>
-        <asm.version>9.10.1</asm.version>
+        <asm.version>9.11</asm.version>
         <junit.version>5.10.2</junit.version>
         <surefire.version>3.6.0</surefire.version>
         <compiler.plugin.version>3.16.0</compiler.plugin.version>
