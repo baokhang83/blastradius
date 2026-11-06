@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>HtmlReportWriter.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-maven-plugin</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.plugin.report</a> &gt; <span class="el_source">HtmlReportWriter.java</span></div><h1>HtmlReportWriter.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.plugin.report;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+/** Writes a self-contained view of the same selection data as the JSON report. */
+<span class="fc" id="L10">public final class HtmlReportWriter {</span>
+    public void write(Path output, BuildReport report) {
+<span class="fc" id="L12">        StringBuilder html = new StringBuilder(&quot;&quot;&quot;</span>
+                &lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;
+                &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+                &lt;title&gt;Blastradius selection report&lt;/title&gt;&lt;style&gt;
+                body{font:16px system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#202833}
+                table{border-collapse:collapse;width:100%;margin:1rem 0}th,td{border-bottom:1px solid #d6dce2;padding:.55rem;text-align:left;overflow-wrap:anywhere}
+                th{background:#f2f5f7}code{font-size:.9em}.summary{display:flex;gap:2rem;flex-wrap:wrap}
+                &lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h1&gt;Blastradius selection report&lt;/h1&gt;
+                &quot;&quot;&quot;);
+<span class="fc" id="L21">        html.append(&quot;&lt;p&gt;Mode: &lt;strong&gt;&quot;).append(escape(report.mode().name()))</span>
+<span class="fc" id="L22">                .append(&quot;&lt;/strong&gt; · Index: &quot;).append(escape(report.indexApplicability().name())).append(&quot;&lt;/p&gt;&quot;);</span>
+<span class="fc" id="L23">        html.append(&quot;&lt;div class=\&quot;summary\&quot;&gt;&lt;p&gt;Selected: &quot;).append(report.selectedCount())</span>
+<span class="fc" id="L24">                .append(&quot;&lt;/p&gt;&lt;p&gt;Skipped: &quot;).append(report.skippedCount()).append(&quot;&lt;/p&gt;&lt;p&gt;Total: &quot;)</span>
+<span class="fc" id="L25">                .append(report.totalCount()).append(&quot;&lt;/p&gt;&lt;/div&gt;&lt;p&gt;Estimated time saved: &quot;);</span>
+<span class="fc bfc" id="L26" title="All 2 branches covered.">        if (report.estimatedTimeSavedMillis() == null) {</span>
+<span class="fc" id="L27">            html.append(&quot;unavailable (timing history: &quot;).append(report.timingCoverage().recordedSkippedTests())</span>
+<span class="fc" id="L28">                    .append(&quot; of &quot;).append(report.timingCoverage().totalSkippedTests()).append(&quot; skipped tests)&quot;);</span>
+        } else {
+<span class="fc" id="L30">            html.append(report.estimatedTimeSavedMillis()).append(&quot; ms&quot;);</span>
+        }
+<span class="fc" id="L32">        html.append(&quot;&lt;/p&gt;&lt;h2&gt;Changed files&lt;/h2&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Path&lt;/th&gt;&lt;th&gt;Kind&lt;/th&gt;&lt;th&gt;Class&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&quot;);</span>
+<span class="fc" id="L33">        report.changedFiles().forEach(file -&gt; html.append(&quot;&lt;tr&gt;&lt;td&gt;&lt;code&gt;&quot;).append(escape(file.path()))</span>
+<span class="fc" id="L34">                .append(&quot;&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&quot;).append(escape(file.kind().name())).append(&quot;&lt;/td&gt;&lt;td&gt;&quot;)</span>
+<span class="fc" id="L35">                .append(escape(file.changedClassName())).append(&quot;&lt;/td&gt;&lt;/tr&gt;&quot;));</span>
+<span class="fc" id="L36">        html.append(&quot;&lt;/tbody&gt;&lt;/table&gt;&lt;h2&gt;Test decisions&lt;/h2&gt;&quot;);</span>
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        if (report.decisions().isEmpty()) {</span>
+<span class="fc" id="L38">            html.append(&quot;&lt;p&gt;No per-test decisions were recorded for this build mode.&lt;/p&gt;&quot;);</span>
+        } else {
+<span class="fc" id="L40">            html.append(&quot;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Test&lt;/th&gt;&lt;th&gt;Result&lt;/th&gt;&lt;th&gt;Reason&lt;/th&gt;&lt;th&gt;Changed class&lt;/th&gt;&lt;th&gt;Invocation path&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&quot;);</span>
+<span class="fc" id="L41">            report.decisions().forEach(decision -&gt; html.append(&quot;&lt;tr&gt;&lt;td&gt;&lt;code&gt;&quot;)</span>
+<span class="fc" id="L42">                    .append(escape(decision.test().className())).append(&quot;#&quot;).append(escape(decision.test().methodName()))</span>
+<span class="pc bpc" id="L43" title="1 of 2 branches missed.">                    .append(&quot;&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&quot;).append(decision.selected() ? &quot;Selected&quot; : &quot;Skipped&quot;)</span>
+<span class="fc" id="L44">                    .append(&quot;&lt;/td&gt;&lt;td&gt;&quot;).append(escape(decision.reason().name())).append(&quot;&lt;/td&gt;&lt;td&gt;&quot;)</span>
+<span class="fc" id="L45">                    .append(escape(decision.matchedChangedClass())).append(&quot;&lt;/td&gt;&lt;td&gt;&quot;)</span>
+<span class="fc" id="L46">                    .append(escape(decision.directInvocationSourceClass()))</span>
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">                    .append(decision.directInvocationIntermediateClass() == null ? &quot;&quot; : &quot; → &quot; + escape(decision.directInvocationIntermediateClass()))</span>
+<span class="fc" id="L48">                    .append(&quot;&lt;/td&gt;&lt;/tr&gt;&quot;));</span>
+<span class="fc" id="L49">            html.append(&quot;&lt;/tbody&gt;&lt;/table&gt;&quot;);</span>
+        }
+<span class="fc" id="L51">        html.append(&quot;&lt;/body&gt;&lt;/html&gt;\n&quot;);</span>
+        try {
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">            if (output.getParent() != null) {</span>
+<span class="fc" id="L54">                Files.createDirectories(output.getParent());</span>
+            }
+<span class="fc" id="L56">            Files.writeString(output, html, StandardCharsets.UTF_8);</span>
+<span class="nc" id="L57">        } catch (IOException e) {</span>
+<span class="nc" id="L58">            throw new UncheckedIOException(&quot;failed to write HTML report to &quot; + output, e);</span>
+<span class="fc" id="L59">        }</span>
+<span class="fc" id="L60">    }</span>
+
+    private static String escape(String value) {
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L64">            return &quot;&quot;;</span>
+        }
+<span class="fc" id="L66">        return value.replace(&quot;&amp;&quot;, &quot;&amp;amp;&quot;).replace(&quot;&lt;&quot;, &quot;&amp;lt;&quot;).replace(&quot;&gt;&quot;, &quot;&amp;gt;&quot;)</span>
+<span class="fc" id="L67">                .replace(&quot;\&quot;&quot;, &quot;&amp;quot;&quot;).replace(&quot;'&quot;, &quot;&amp;#39;&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

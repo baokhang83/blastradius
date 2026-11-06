@@ -149,14 +149,14 @@ public record BuildReport(
      * unconditionally, and deliberately no index is produced or refreshed (research.md #1).
      */
     public static BuildReport forFallback(IndexApplicability.Status indexApplicability, int totalCount) {
-<span class="nc" id="L152">        return forFallback(indexApplicability, totalCount, List.of());</span>
+<span class="fc" id="L152">        return forFallback(indexApplicability, totalCount, List.of());</span>
     }
 
     public static BuildReport forFallback(IndexApplicability.Status indexApplicability, int totalCount,
             List&lt;ChangedFile&gt; changedFiles) {
-<span class="nc" id="L157">        Objects.requireNonNull(indexApplicability, &quot;indexApplicability&quot;);</span>
-<span class="nc" id="L158">        return new BuildReport(Mode.FALLBACK, indexApplicability, List.of(), totalCount, totalCount, null,</span>
-<span class="nc" id="L159">                changedFiles, 0L, TimingCoverage.none());</span>
+<span class="fc" id="L157">        Objects.requireNonNull(indexApplicability, &quot;indexApplicability&quot;);</span>
+<span class="fc" id="L158">        return new BuildReport(Mode.FALLBACK, indexApplicability, List.of(), totalCount, totalCount, null,</span>
+<span class="fc" id="L159">                changedFiles, 0L, TimingCoverage.none());</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
