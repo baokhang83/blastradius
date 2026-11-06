@@ -6,7 +6,7 @@ This repository publishes only:
 io.github.baokhang83.blastradius:blastradius-maven-plugin:0.4.0
 ```
 
-`blastradius-core` and `blastradius-validator` are internal reactor modules. The plugin
+`blastradius-core`, `blastradius-s3-index-store`, and `blastradius-validator` are internal reactor modules. The plugin
 contains the core and its tracking agent in the published, shaded artifact.
 
 ## One-time Maven Central setup

@@ -247,6 +247,7 @@
                             <excludeArtifacts>
                                 <excludeArtifact>blastradius-parent</excludeArtifact>
                                 <excludeArtifact>blastradius-core</excludeArtifact>
+                                <excludeArtifact>blastradius-s3-index-store</excludeArtifact>
                                 <excludeArtifact>blastradius-validator</excludeArtifact>
                                 <excludeArtifact>coverage</excludeArtifact>
                             </excludeArtifacts>
