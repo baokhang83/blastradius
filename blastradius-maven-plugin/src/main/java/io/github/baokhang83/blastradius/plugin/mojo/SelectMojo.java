@@ -18,6 +18,7 @@ import io.github.baokhang83.blastradius.plugin.index.IndexApplicabilityResolver;
 import io.github.baokhang83.blastradius.plugin.report.BuildReport;
 import io.github.baokhang83.blastradius.plugin.report.BuildReportWriter;
 import io.github.baokhang83.blastradius.plugin.report.HtmlReportWriter;
+import io.github.baokhang83.blastradius.plugin.report.MetricsHistoryWriter;
 import io.github.baokhang83.blastradius.plugin.report.ConsoleSummaryRenderer;
 import io.github.baokhang83.blastradius.plugin.report.ExplainListingRenderer;
 import io.github.baokhang83.blastradius.plugin.report.SurefireReportReader;
@@ -125,6 +126,7 @@ public final class SelectMojo extends AbstractMojo {
     private final TestDiscoverer testDiscoverer = new TestDiscoverer();
     private final BuildReportWriter buildReportWriter = new BuildReportWriter();
     private final HtmlReportWriter htmlReportWriter = new HtmlReportWriter();
+    private final MetricsHistoryWriter metricsHistoryWriter = new MetricsHistoryWriter();
     private final ConsoleSummaryRenderer consoleSummaryRenderer = new ConsoleSummaryRenderer();
     private final ExplainListingRenderer explainListingRenderer = new ExplainListingRenderer();
     private final TrackRunner trackRunner = new TrackRunner();
@@ -370,6 +372,11 @@ public final class SelectMojo extends AbstractMojo {
             htmlReportWriter.write(reportPath().resolveSibling("last-build-report.html"), report);
         } catch (java.io.UncheckedIOException e) {
             getLog().warn("[blastradius] could not write HTML selection report", e);
+        }
+        try {
+            metricsHistoryWriter.append(reportPath().resolveSibling("metrics.jsonl"), report);
+        } catch (java.io.UncheckedIOException e) {
+            getLog().warn("[blastradius] could not append selection metrics", e);
         }
     }
 
