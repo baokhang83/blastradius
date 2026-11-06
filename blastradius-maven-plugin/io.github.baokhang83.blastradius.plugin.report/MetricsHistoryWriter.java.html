@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>MetricsHistoryWriter.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">blastradius-maven-plugin</a> &gt; <a href="index.source.html" class="el_package">io.github.baokhang83.blastradius.plugin.report</a> &gt; <span class="el_source">MetricsHistoryWriter.java</span></div><h1>MetricsHistoryWriter.java</h1><pre class="source lang-java linenums">package io.github.baokhang83.blastradius.plugin.report;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.time.Instant;
+
+/** Appends one independently readable metrics sample for each selection report. */
+<span class="fc" id="L16">public final class MetricsHistoryWriter {</span>
+<span class="fc" id="L17">    private static final Object APPEND_LOCK = new Object();</span>
+<span class="fc" id="L18">    private final ObjectMapper mapper = new ObjectMapper();</span>
+
+    public void append(Path output, BuildReport report) {
+<span class="fc" id="L21">        var sample = new Sample(1, Instant.now().toString(), report.mode().name(), report.selectedCount(),</span>
+<span class="fc" id="L22">                report.skippedCount(), report.totalCount(), report.estimatedTimeSavedMillis(),</span>
+<span class="fc" id="L23">                report.timingCoverage(), null);</span>
+        try {
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">            if (output.getParent() != null) {</span>
+<span class="fc" id="L26">                Files.createDirectories(output.getParent());</span>
+            }
+<span class="fc" id="L28">            byte[] bytes = (mapper.writeValueAsString(sample) + &quot;\n&quot;).getBytes(StandardCharsets.UTF_8);</span>
+<span class="fc" id="L29">            synchronized (APPEND_LOCK) {</span>
+<span class="fc" id="L30">                try (FileChannel channel = FileChannel.open(output, StandardOpenOption.CREATE,</span>
+                        StandardOpenOption.WRITE, StandardOpenOption.APPEND);
+<span class="fc" id="L32">                     FileLock lock = channel.lock()) {</span>
+<span class="fc" id="L33">                    ByteBuffer buffer = ByteBuffer.wrap(bytes);</span>
+<span class="fc bfc" id="L34" title="All 2 branches covered.">                    while (buffer.hasRemaining()) {</span>
+<span class="fc" id="L35">                        channel.write(buffer);</span>
+                    }
+                }
+<span class="fc" id="L38">            }</span>
+<span class="nc" id="L39">        } catch (IOException e) {</span>
+<span class="nc" id="L40">            throw new UncheckedIOException(&quot;failed to append build metrics to &quot; + output, e);</span>
+<span class="fc" id="L41">        }</span>
+<span class="fc" id="L42">    }</span>
+
+    /** Null audit misses means no audit result was available for this build. */
+<span class="fc" id="L45">    record Sample(int schemaVersion, String recordedAt, String mode, int selectedCount, int skippedCount,</span>
+            int totalCount, Long estimatedTimeSavedMillis, TimingCoverage timingCoverage, Integer auditMisses) { }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
