@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.4.0] - 2026-11-06
+
+### Added
+
+- Write a self-contained HTML selection report alongside the existing JSON report.
+- Append timestamped selection and estimated savings metrics to `.blastradius/metrics.jsonl`.
+  Audit misses remain unavailable until audit mode is implemented.
+
+### Documentation
+
+- Added focused Maven and Gradle adoption guides and clarified validation limits and plugin availability.
+
 ## [0.3.3] - 2026-08-08
 
 ### Added
