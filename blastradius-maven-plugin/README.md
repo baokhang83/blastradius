@@ -323,6 +323,8 @@ module's project directory.
   only when every skipped test has a timing sample; otherwise it is `null` and `timingCoverage`
   states how much of the skipped set is known. The selected/skipped counts describe the set the
   goal passes to Surefire/Failsafe, not a claim about the test engines' final outcome.
+- **`last-build-report.html`** — a self-contained view of the same selection, changed files,
+  reasons, and timing estimate. Open it in a browser without a web server.
 - **`test-timings.json`** — version 1 local cache of the most recently observed duration for
   each test. The goal observes completed Surefire/Failsafe executions and updates this cache
   after their standard XML reports are written. Persist `.blastradius/` in CI when you want
