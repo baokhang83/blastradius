@@ -14,7 +14,7 @@ Add the following to the project's `<build><plugins>` section:
 <plugin>
   <groupId>io.github.baokhang83.blastradius</groupId>
   <artifactId>blastradius-maven-plugin</artifactId>
-  <version>0.3.3</version>
+  <version>0.4.0</version>
   <executions>
     <execution>
       <phase>process-test-classes</phase>
