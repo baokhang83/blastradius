@@ -63,7 +63,7 @@ Requires a Maven/JUnit 5 project and a resolvable repository for the plugin arti
 <plugin>
   <groupId>io.github.baokhang83.blastradius</groupId>
   <artifactId>blastradius-maven-plugin</artifactId>
-  <version>0.3.3</version>
+  <version>0.4.0</version>
   <executions>
     <execution>
       <phase>process-test-classes</phase>
@@ -262,7 +262,7 @@ jobs. Never place those values in the POM, Gradle build file, repository, or cac
 **`TRACK`** — a base-branch build, building/refreshing the index:
 
 ```
-[INFO] --- blastradius:0.3.3:select (default) @ your-project ---
+[INFO] --- blastradius:0.4.0:select (default) @ your-project ---
 [INFO] [blastradius] TRACK — building a fresh index
 [INFO] [blastradius] 2 / 2 tests selected (0.0% skipped)
 ```
@@ -273,7 +273,7 @@ computes a selection at all, it just reports how big the suite it ran full was.
 **`SELECT`** — a PR build, narrowed by a real index:
 
 ```
-[INFO] --- blastradius:0.3.3:select (default) @ your-project ---
+[INFO] --- blastradius:0.4.0:select (default) @ your-project ---
 [INFO] [blastradius] SELECT — index built from 4e02156 (2026-07-10T03:03:04Z)
 [INFO] [blastradius] 1 / 2 tests selected (50.0% skipped)
 [INFO] [blastradius]   dependency-matched: 1, new-or-modified: 0, fallback: 0
@@ -290,7 +290,7 @@ Add `-Dblastradius.explain=true` for the per-test breakdown that line is pointin
 **`FALLBACK`** — no usable index, running safe:
 
 ```
-[INFO] --- blastradius:0.3.3:select (default) @ your-project ---
+[INFO] --- blastradius:0.4.0:select (default) @ your-project ---
 [INFO] [blastradius] FALLBACK — no persisted index found (MISSING)
 [INFO] [blastradius] 2 / 2 tests selected (0.0% skipped)
 ```
@@ -323,6 +323,13 @@ module's project directory.
   only when every skipped test has a timing sample; otherwise it is `null` and `timingCoverage`
   states how much of the skipped set is known. The selected/skipped counts describe the set the
   goal passes to Surefire/Failsafe, not a claim about the test engines' final outcome.
+- **`last-build-report.html`** — a self-contained view of the same selection, changed files,
+  reasons, and timing estimate. Open it in a browser without a web server.
+- **`metrics.jsonl`** — append-only, versioned JSON Lines samples for charting builds over time.
+  Each line has `recordedAt` (UTC), `mode`, selected/skipped/total counts,
+  `estimatedTimeSavedMillis`, and `timingCoverage`. A null estimate means timing history is
+  incomplete; `auditMisses` is null because audit results are not currently available. Persist
+  this file in CI, or collect it as an artifact, to retain samples across runners.
 - **`test-timings.json`** — version 1 local cache of the most recently observed duration for
   each test. The goal observes completed Surefire/Failsafe executions and updates this cache
   after their standard XML reports are written. Persist `.blastradius/` in CI when you want

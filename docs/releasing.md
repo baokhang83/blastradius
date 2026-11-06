@@ -3,10 +3,10 @@
 This repository publishes only:
 
 ```text
-io.github.baokhang83.blastradius:blastradius-maven-plugin:0.3.3
+io.github.baokhang83.blastradius:blastradius-maven-plugin:0.4.0
 ```
 
-`blastradius-core` and `blastradius-validator` are internal reactor modules. The plugin
+`blastradius-core`, `blastradius-s3-index-store`, and `blastradius-validator` are internal reactor modules. The plugin
 contains the core and its tracking agent in the published, shaded artifact.
 
 ## One-time Maven Central setup
@@ -61,16 +61,16 @@ unset MAVEN_GPG_PASSPHRASE
    mvn -B --no-transfer-progress -Prelease -Dgpg.skip=true clean verify
    ```
 
-2. Ensure the release commit is on `main`, its version is `0.3.3`, and the changelog is
+2. Ensure the release commit is on `main`, its version is `0.4.0`, and the changelog is
    final.
-3. Create and push the annotated `v0.3.3` tag. The tag workflow verifies that its commit
+3. Create and push the annotated `v0.4.0` tag. The tag workflow verifies that its commit
    is reachable from `main`, then runs `mvn -Prelease clean deploy`.
 4. Wait for Central Portal to report the deployment as published, then verify from a clean
    directory:
 
    ```bash
    mvn -B --no-transfer-progress \
-     io.github.baokhang83.blastradius:blastradius-maven-plugin:0.3.3:help
+     io.github.baokhang83.blastradius:blastradius-maven-plugin:0.4.0:help
    ```
 
 5. Copy the plugin configuration in the root [README](../README.md) into a small Git

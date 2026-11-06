@@ -1,10 +1,11 @@
 {
-  "feature": "225-prototype-direct-invocation-reference-fallback-for-cache",
-  "branch": "feature/225-prototype-direct-invocation-reference-fallback-for-cache",
+  "schema_version": "1",
+  "feature": "34-export-build-savings-metrics-as-a-time-series",
+  "branch": "feature/34-export-build-savings-metrics-as-a-time-series",
   "stage": "build",
-  "last_session": "docs/fluencyloop/features/225-prototype-direct-invocation-reference-fallback-for-cache/sessions/001-track-and-select-bounded-direct-invocation-references.md",
-  "base_ref": "main",
-  "feature_dir": "docs/fluencyloop/features/225-prototype-direct-invocation-reference-fallback-for-cache",
+  "last_session": "001-append-timestamped-metrics-for-each-selection-report",
+  "base_ref": "feature/32-add-self-contained-html-selection-reports-for-issue-32",
+  "feature_dir": "",
   "plan": "",
-  "updated": "2026-08-05"
+  "updated": "2026-11-06"
 }
