@@ -1,10 +1,10 @@
 {
   "schema_version": "1",
-  "feature": "32-add-self-contained-html-selection-reports-for-issue-32",
-  "branch": "feature/32-add-self-contained-html-selection-reports-for-issue-32",
+  "feature": "34-export-build-savings-metrics-as-a-time-series",
+  "branch": "feature/34-export-build-savings-metrics-as-a-time-series",
   "stage": "build",
-  "last_session": "001-render-the-shared-selection-report-as-self-contained-htm",
-  "base_ref": "origin/main",
+  "last_session": "001-append-timestamped-metrics-for-each-selection-report",
+  "base_ref": "feature/32-add-self-contained-html-selection-reports-for-issue-32",
   "feature_dir": "",
   "plan": "",
   "updated": "2026-11-06"
