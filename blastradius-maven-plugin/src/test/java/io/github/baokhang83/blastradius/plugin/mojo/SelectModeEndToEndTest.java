@@ -237,6 +237,11 @@ class SelectModeEndToEndTest {
         assertTrue(reportJson.contains("\"changedFiles\":"), "expected changed files in:\n" + reportJson);
         assertTrue(reportJson.contains("\"reasonCounts\":"), "expected reason counts in:\n" + reportJson);
 
+        String reportHtml = Files.readString(projectDir.resolve(".blastradius/last-build-report.html"), StandardCharsets.UTF_8);
+        assertTrue(reportHtml.contains("Selected: 2"));
+        assertTrue(reportHtml.contains("Skipped: 1"));
+        assertTrue(reportHtml.contains("NEW_OR_MODIFIED_TEST"));
+
         Path timingHistory = projectDir.resolve(".blastradius/test-timings.json");
         assertTrue(Files.exists(timingHistory), "expected completed Surefire timings at " + timingHistory);
         assertTrue(Files.readString(timingHistory, StandardCharsets.UTF_8).contains("checksFoo"),
