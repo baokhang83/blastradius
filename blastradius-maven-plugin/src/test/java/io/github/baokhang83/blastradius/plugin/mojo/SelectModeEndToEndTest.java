@@ -242,6 +242,10 @@ class SelectModeEndToEndTest {
         assertTrue(reportHtml.contains("Skipped: 1"));
         assertTrue(reportHtml.contains("NEW_OR_MODIFIED_TEST"));
 
+        String metrics = Files.readString(projectDir.resolve(".blastradius/metrics.jsonl"), StandardCharsets.UTF_8);
+        assertTrue(metrics.contains("\"mode\":\"SELECT\""));
+        assertTrue(metrics.contains("\"skippedCount\":1"));
+
         Path timingHistory = projectDir.resolve(".blastradius/test-timings.json");
         assertTrue(Files.exists(timingHistory), "expected completed Surefire timings at " + timingHistory);
         assertTrue(Files.readString(timingHistory, StandardCharsets.UTF_8).contains("checksFoo"),

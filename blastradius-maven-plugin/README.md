@@ -325,6 +325,11 @@ module's project directory.
   goal passes to Surefire/Failsafe, not a claim about the test engines' final outcome.
 - **`last-build-report.html`** — a self-contained view of the same selection, changed files,
   reasons, and timing estimate. Open it in a browser without a web server.
+- **`metrics.jsonl`** — append-only, versioned JSON Lines samples for charting builds over time.
+  Each line has `recordedAt` (UTC), `mode`, selected/skipped/total counts,
+  `estimatedTimeSavedMillis`, and `timingCoverage`. A null estimate means timing history is
+  incomplete; `auditMisses` is null because audit results are not currently available. Persist
+  this file in CI, or collect it as an artifact, to retain samples across runners.
 - **`test-timings.json`** — version 1 local cache of the most recently observed duration for
   each test. The goal observes completed Surefire/Failsafe executions and updates this cache
   after their standard XML reports are written. Persist `.blastradius/` in CI when you want
