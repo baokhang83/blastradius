@@ -2,7 +2,7 @@
 
 # Blastradius
 
-<a href="https://baokhang83.github.io/blastradius/"><img src="https://img.shields.io/badge/document-English-blue.svg" alt="EN docs" /></a>
+<a href="docs/test-impact-analysis.md"><img src="https://img.shields.io/badge/documentation-English-blue.svg" alt="Documentation" /></a>
 <a target="_blank" href="https://central.sonatype.com/search?q=g:io.github.baokhang83.blastradius%20%20a:blastradius-maven-plugin"><img src="https://img.shields.io/maven-central/v/io.github.baokhang83.blastradius/blastradius-maven-plugin.svg?label=maven%20central" /></a>
 <a target="_blank" href="https://www.oracle.com/technetwork/java/javase/downloads/index.html"><img src="https://img.shields.io/badge/JDK-21+-green.svg" /></a>
 <a target="_blank" href="https://github.com/baokhang83/blastradius/actions/workflows/build.yml"><img src="https://github.com/baokhang83/blastradius/actions/workflows/build.yml/badge.svg" /></a>
@@ -10,13 +10,27 @@
 <a target="_blank" href="https://github.com/baokhang83/blastradius"><img src="https://raw.githubusercontent.com/baokhang83/blastradius/refs/heads/gh-pages/badges/jacoco.svg" /></a>
 
 
-Most "test impact analysis" tools guess from a static, per-module dependency graph, or
-train something probabilistic on historical flakiness. Blastradius does neither: a
-`-javaagent` observes every class *actually loaded* while each test runs, records it, and
-uses that real, per-test dependency map to decide what to run next time. No training data,
-no heuristics, no opaque score.
+Blastradius is an Apache-2.0 test impact analysis tool for JVM projects. It selects JUnit 5
+tests potentially affected by Java and conventional Kotlin source changes, so CI can run a
+smaller test suite. The Maven plugin is published on Maven Central; the Gradle plugin is
+available in this repository but is not currently published on the Gradle Plugin Portal.
+
+A Java agent records class dependencies observed during a base-branch test run. On a change
+branch, Blastradius compares the Git merge base with `HEAD` and selects matching, new, or
+modified tests, with additional conservative selection and fallback rules. Missing or unusable
+baseline data triggers a full run. Selection has known limits; keep regular full-suite runs.
+
+**Get started:** [Maven and JUnit 5](docs/maven-junit5-test-impact-analysis.md) ·
+[Gradle and pull requests](docs/gradle-test-impact-analysis.md) ·
+[How test impact analysis works and compares](docs/test-impact-analysis.md) ·
+[Validation and limitations](HISTORICAL_REPLAY_ANALYSIS.md)
 
 ## Historical replay
+
+In the four historical replay windows below, the aggregate selected test executions were
+61.4% fewer than full-suite executions. These are replay counts, not measured CI wall-clock
+savings. The bounded mutation experiment also found partial skips in commons-io; see the
+mutation table and footnotes before using these results to assess your own project.
 
 200-pair replays against apache/shenyu, apache/httpcomponents-client, jhy/jsoup and apache/commons-io,
 each replaying 200 consecutive commits as the change each one introduced over the commit before it —
@@ -70,7 +84,8 @@ analysis behind these numbers.
 | Module | What it is | Status |
 |---|---|---|
 | **[`blastradius-core`](blastradius-core)** | The shared engine — the dependency-tracking agent and the selection rules (dependency match, conservative fallback, always-select-new/modified). Built and proven first; reused unmodified by both modules below. | Complete, 118 tests |
-| **[`blastradius-maven-plugin`](blastradius-maven-plugin)** | **The product.** A real, installable `blastradius:select` Maven goal that gates CI by actually skipping tests during a live build. See its own [README](blastradius-maven-plugin/README.md) for adoption, configuration, and console output reference. | Complete, 79 tests |
+| **[`blastradius-maven-plugin`](blastradius-maven-plugin)** | Maven plugin providing the `blastradius:select` goal. See its [README](blastradius-maven-plugin/README.md) for configuration and CI setup. | Published on Maven Central |
+| **[`blastradius-gradle-plugin`](blastradius-gradle-plugin)** | Gradle integration for Java test tasks. | Source available; publication pending |
 | **[`blastradius-validator`](blastradius-validator)** | The shadow-mode harness that produced the real-project numbers above — replays a project's own commit history, compares what would have been skipped against ground truth, and reports would-miss cases. Still here if you want to validate the mechanism against a project of your own before adopting the plugin. | Complete, 170 tests |
 
 ## Quick start
@@ -106,15 +121,9 @@ store is a better fit for your runners:
 
 ### Gradle
 
-```groovy
-plugins {
-  id 'io.github.baokhang83.blastradius' version '0.3.3'
-}
-
-blastradius {
-  baseRef = 'main'
-}
-```
+The Gradle plugin is in this repository but is not currently published to the Gradle Plugin
+Portal. The plugin ID is `io.github.baokhang83.blastradius`; consuming it requires arranging
+a source or artifact build. See the [Gradle guide](docs/gradle-test-impact-analysis.md).
 
 There is no separate Gradle `select` task. Applying the plugin configures every Java `Test`
 task, so run the normal `./gradlew test`: it tracks on `main` and selects the relevant tests on

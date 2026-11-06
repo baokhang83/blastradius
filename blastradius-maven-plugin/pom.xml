@@ -14,8 +14,7 @@
     <packaging>maven-plugin</packaging>
 
     <name>blastradius-maven-plugin</name>
-    <description>Real Maven plugin gating CI by actually skipping tests, using the
-        dependency-tracking engine proven safe by the shadow-mode validator (T061).</description>
+    <description>Test impact analysis for Maven and JUnit 5 using observed class dependencies to select tests affected by Java and Kotlin changes.</description>
     <url>https://github.com/baokhang83/blastradius</url>
 
     <scm>
