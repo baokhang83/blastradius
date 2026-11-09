@@ -79,6 +79,17 @@ jobs:
         with:
           jacoco-csv-file: coverage/target/site/jacoco-aggregate/jacoco.csv
           badges-directory: coverage/target/site/jacoco-aggregate/badges
+      - name: Include llms.txt at the site root
+        if: matrix.java == '21' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          site=coverage/target/site/jacoco-aggregate
+          cp llms.txt "$site/llms.txt"
+          # Link it from the landing page (the JaCoCo report) so crawlers that do not
+          # guess root paths still find it. Fail loudly if JaCoCo's markup ever changes.
+          grep -q '<div class="footer">' "$site/index.html"
+          sed -i 's|<div class="footer">|<div class="footer"><span class="left"><a href="llms.txt">llms.txt</a></span>|' "$site/index.html"
+          sed -i 's|</head>|<link rel="alternate" type="text/plain" href="llms.txt" title="llms.txt"/></head>|' "$site/index.html"
+          grep -q 'href="llms.txt">llms.txt</a>' "$site/index.html"
       - name: Publish coverage report to GitHub Pages
         if: matrix.java == '21' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: JamesIves/github-pages-deploy-action@v4
