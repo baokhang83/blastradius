@@ -19,7 +19,7 @@
 
 - [Maven Plugin Guide](https://raw.githubusercontent.com/baokhang83/blastradius/main/docs/maven-junit5-test-impact-analysis.md): Full configuration reference (`baseRef`, `indexStore`, S3 settings, `directInvocationFallback`) and `TRACK` / `SELECT` / `FALLBACK` build modes.
 - [Gradle Plugin Guide](https://raw.githubusercontent.com/baokhang83/blastradius/main/docs/gradle-test-impact-analysis.md): Setup and configuration for Gradle Java `Test` tasks.
-- [Validator Harness](https://raw.githubusercontent.com/baokhang83/blastradius/main/blastradius-validator/README.md): Shadow-mode replay harness for measuring potential test savings and would-miss safety on your own Git history.
+- [Validator Harness](https://github.com/baokhang83/blastradius/tree/main/blastradius-validator): Shadow-mode replay harness for measuring potential test savings and would-miss safety on your own Git history.
 
 ## Optional
 
