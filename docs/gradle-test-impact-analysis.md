@@ -7,10 +7,10 @@ index recorded on the base branch. Its source is in
 
 ## Availability
 
-The plugin ID is `io.github.baokhang83.blastradius`. The plugin marker for version `0.3.3`
-was not available from the Gradle Plugin Portal when checked on 2026-11-06. The project does
+The plugin ID is `io.github.baokhang83.blastradius`. The plugin marker for version `0.4.0`
+was not available from the Gradle Plugin Portal when checked on 2026-11-09. The project does
 not currently document a published Gradle distribution. Build and integrate the plugin from
-source if evaluating it; do not assume the standard `plugins { ... version '0.3.3' }` block
+source if evaluating it; do not assume the standard `plugins { ... version '0.4.0' }` block
 will resolve from the public portal. The Gradle build uses JDK 21 or later.
 
 ## Pull request workflow
