@@ -278,7 +278,7 @@ SESSION.md                  narrative log of how T061's real-project validation 
 
 ## Press
 
-- [How We Cut Maven & JUnit 5 Test Runs by 61% Across Apache Repos Without Missing Regressions](https://baokhang.hashnode.dev/ow-we-cut-maven-junit5-test-runs-61-percent-apache-repos) —
+- [How We Cut Maven & JUnit 5 Test Runs by 61% Across Apache Repos Without Missing Regressions](https://baokhang.hashnode.dev/how-we-cut-maven-junit5-test-runs-61-percent-apache-repos) —
   Hashnode article walking through the historical replay on shenyu, httpcomponents-client, jsoup and
   commons-io, including what was excluded and where selection fell short.
 
