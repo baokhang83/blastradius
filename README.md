@@ -285,6 +285,13 @@ SESSION.md                  narrative log of how T061's real-project validation 
 - [How We Cut Maven & JUnit 5 Test Runs by 61% Across Apache Repos Without Missing Regressions](https://baokhang.hashnode.dev/how-we-cut-maven-junit5-test-runs-61-percent-apache-repos) —
   Hashnode article walking through the historical replay on shenyu, httpcomponents-client, jsoup and
   commons-io, including what was excluded and where selection fell short.
+- [Why Maven Build Cache Still Re-Runs Your Entire Test Suite on One-Line Edits](https://baokhang.hashnode.dev/why-maven-build-cache-reruns-entire-test-suite) —
+  Why the Maven Build Cache Extension re-runs a whole module's JUnit 5 tests after a one-line change,
+  and how class-level selection narrows it.
+- [How to Run Test Impact Analysis in Maven Without Breaking JaCoCo Code Coverage](https://baokhang.hashnode.dev/maven-test-impact-analysis-without-breaking-jacoco) —
+  How tracking and selection coexist with JaCoCo, including the `argLine` setup that disables tracking and its fix.
+- [Predictive Test Selection Without SaaS Lock-In: Storing TIA Indexes in GitHub Actions Cache or S3](https://baokhang.hashnode.dev/predictive-test-selection-without-saas-lock-in-storing-tia-indexes-in-github-actions-cache-or-s3) —
+  A self-hosted CI setup that keeps the index in the GitHub Actions cache or your own S3 bucket.
 
 ## License
 
