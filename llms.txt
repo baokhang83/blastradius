@@ -1,0 +1,26 @@
+# blastradius
+
+> Dependency-based Test Impact Analysis (TIA) for JVM projects (Maven, Gradle, JUnit 5): tracks actual class loads via a Java agent on the base branch and runs only affected tests on pull requests.
+
+`blastradius` cuts CI test execution time without sacrificing safety. On base-branch builds (`TRACK`), a `java.lang.instrument` agent records ground-truth class dependencies per test. On change branches (`SELECT`), it diffs against the Git merge base and filters Maven Surefire/Failsafe via `-Dtest=`—staying compatible with JaCoCo and custom `argLine` setups.
+
+- **Maven Central.** `io.github.baokhang83.blastradius:blastradius-maven-plugin:0.4.0` (goal `blastradius:select`).
+- **Gradle Plugin.** `io.github.baokhang83.blastradius` (available in repository; Gradle Plugin Portal publication pending).
+- **Historical Replay Benchmarks.** Replayed across 800 consecutive commits on `apache/shenyu` (71.0% skipped), `apache/httpcomponents-client` (59.4% skipped), `jhy/jsoup` (45.0% skipped), and `apache/commons-io` (62.7% skipped)—averaging 61.4% test reduction with 0 missed regressions.
+- **Language Support.** Java and conventional Kotlin (`src/main/kotlin`, `src/test/kotlin`), with automatic full-suite fallback for Kotlin inline functions and non-source changes.
+
+## Core Documentation
+
+- [README](https://raw.githubusercontent.com/baokhang83/blastradius/main/README.md): Overview, historical replay benchmarks, how tracking/selection works, Maven/Gradle quick start, and GitHub Actions cache setup.
+- [Historical Replay Analysis](https://raw.githubusercontent.com/baokhang83/blastradius/main/HISTORICAL_REPLAY_ANALYSIS.md): Full methodology, per-project metrics, and bounded mutation validation across Apache and jsoup repositories.
+- [Maturity & Trust Model](https://raw.githubusercontent.com/baokhang83/blastradius/main/MATURITY.md): Project status, conservative fallback rules, and recommended daily full-suite cadence.
+
+## Module Guides & References
+
+- [Maven Plugin Guide](https://raw.githubusercontent.com/baokhang83/blastradius/main/docs/maven-junit5-test-impact-analysis.md): Full configuration reference (`baseRef`, `indexStore`, S3 settings, `directInvocationFallback`) and `TRACK` / `SELECT` / `FALLBACK` build modes.
+- [Gradle Plugin Guide](https://raw.githubusercontent.com/baokhang83/blastradius/main/docs/gradle-test-impact-analysis.md): Setup and configuration for Gradle Java `Test` tasks.
+- [Validator Harness](https://raw.githubusercontent.com/baokhang83/blastradius/main/blastradius-validator/README.md): Shadow-mode replay harness for measuring potential test savings and would-miss safety on your own Git history.
+
+## Optional
+
+- [Changelog](https://raw.githubusercontent.com/baokhang83/blastradius/main/CHANGELOG.md): Release history and version notes.
