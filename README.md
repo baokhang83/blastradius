@@ -1,13 +1,17 @@
-<img width="1774" height="887" alt="image" src="https://github.com/user-attachments/assets/7a208e91-aaa0-45cc-a0a5-6a5effb352ec" />
+<div align="center">
+  <img width="300" height="300" alt="image" src="https://github.com/user-attachments/assets/af0da235-af14-47a9-a08d-2b973732369b" />
+  <h1>blastradius</h1>
+   <p>
+   <a href="docs/test-impact-analysis.md"><img src="https://img.shields.io/badge/documentation-English-blue.svg" alt="Documentation" /></a>
+   <a target="_blank" href="https://central.sonatype.com/search?q=g:io.github.baokhang83.blastradius%20%20a:blastradius-maven-plugin"><img src="https://img.shields.io/maven-central/v/io.github.baokhang83.blastradius/blastradius-maven-plugin.svg?label=maven%20central" /></a>
+   <a target="_blank" href="https://www.oracle.com/technetwork/java/javase/downloads/index.html"><img src="https://img.shields.io/badge/JDK-21+-green.svg" /></a>
+   <a target="_blank" href="https://github.com/baokhang83/blastradius/actions/workflows/build.yml"><img src="https://github.com/baokhang83/blastradius/actions/workflows/build.yml/badge.svg" /></a>
+   <a target="_blank" href="https://github.com/baokhang83/blastradius"><img src="https://img.shields.io/github/languages/top/baokhang83/blastradius?cacheSeconds=86400" /></a>
+   <a target="_blank" href="https://github.com/baokhang83/blastradius"><img src="https://raw.githubusercontent.com/baokhang83/blastradius/refs/heads/gh-pages/badges/jacoco.svg" /></a>
+   </p>
+</div>
 
-# Blastradius
 
-<a href="docs/test-impact-analysis.md"><img src="https://img.shields.io/badge/documentation-English-blue.svg" alt="Documentation" /></a>
-<a target="_blank" href="https://central.sonatype.com/search?q=g:io.github.baokhang83.blastradius%20%20a:blastradius-maven-plugin"><img src="https://img.shields.io/maven-central/v/io.github.baokhang83.blastradius/blastradius-maven-plugin.svg?label=maven%20central" /></a>
-<a target="_blank" href="https://www.oracle.com/technetwork/java/javase/downloads/index.html"><img src="https://img.shields.io/badge/JDK-21+-green.svg" /></a>
-<a target="_blank" href="https://github.com/baokhang83/blastradius/actions/workflows/build.yml"><img src="https://github.com/baokhang83/blastradius/actions/workflows/build.yml/badge.svg" /></a>
-<a target="_blank" href="https://github.com/baokhang83/blastradius"><img src="https://img.shields.io/github/languages/top/baokhang83/blastradius?cacheSeconds=86400" /></a>
-<a target="_blank" href="https://github.com/baokhang83/blastradius"><img src="https://raw.githubusercontent.com/baokhang83/blastradius/refs/heads/gh-pages/badges/jacoco.svg" /></a>
 
 
 Blastradius is an Apache-2.0 test impact analysis tool for JVM projects. It selects JUnit 5
