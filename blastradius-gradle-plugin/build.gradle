@@ -1,6 +1,10 @@
 plugins {
     id 'java-gradle-plugin'
+    id 'com.gradle.plugin-publish' version '2.2.1'
+    id 'com.gradleup.shadow' version '9.6.1'
 }
+
+description = 'Selects JVM tests affected by Java and Kotlin changes using observed per-test dependencies.'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -12,12 +16,46 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 gradlePlugin {
+    website = 'https://github.com/baokhang83/blastradius'
+    vcsUrl = 'https://github.com/baokhang83/blastradius.git'
     plugins {
         blastradius {
             id = 'io.github.baokhang83.blastradius'
             implementationClass = 'io.github.baokhang83.blastradius.gradle.BlastradiusPlugin'
+            displayName = 'Blastradius test impact analysis'
+            description = project.description
+            tags.set(['test-impact-analysis', 'test-selection', 'junit5', 'maven', 'jvm'])
         }
     }
+}
+
+tasks.named('shadowJar') {
+    archiveClassifier = ''
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    mergeServiceFiles()
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+    manifest {
+        attributes(
+                'Premain-Class': 'io.github.baokhang83.blastradius.core.tracking.DependencyTrackingAgent',
+                'Can-Redefine-Classes': 'true',
+                'Can-Retransform-Classes': 'true')
+    }
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
+tasks.named('jar') {
+    archiveClassifier = 'thin'
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('shadowJar')
+}
+
+tasks.named('test') {
+    dependsOn tasks.named('shadowJar')
 }
 
 dependencies {
