@@ -1,9 +1,10 @@
 # Releasing Blastradius
 
-This repository publishes only:
+This repository publishes these artifacts:
 
 ```text
 io.github.baokhang83.blastradius:blastradius-maven-plugin:0.4.0
+io.github.baokhang83.blastradius Gradle plugin: 0.4.0 (Plugin Portal)
 ```
 
 `blastradius-core`, `blastradius-s3-index-store`, and `blastradius-validator` are internal reactor modules. The plugin
@@ -76,6 +77,12 @@ unset MAVEN_GPG_PASSPHRASE
 5. Copy the plugin configuration in the root [README](../README.md) into a small Git
    project and run `mvn test` once on its base reference. Confirm a `TRACK` report is
    written and the plugin resolves only from Central, not a local reactor install.
+
+6. For a release that includes the Gradle plugin, configure the `GRADLE_PUBLISH_KEY` and
+   `GRADLE_PUBLISH_SECRET` GitHub Actions secrets from the Plugin Portal account, then run
+   `./gradlew :blastradius-gradle-plugin:publishPlugins` from the release tag. Verify the
+   plugin marker and implementation artifact resolve from a clean consumer build. The
+   implementation JAR bundles the tracking agent, S3 index store, and runtime dependencies.
 
 For a manual release outside GitHub Actions, configure the same `central` server in
 `~/.m2/settings.xml`, export `MAVEN_GPG_PASSPHRASE`, and run `mvn -Prelease clean deploy`.
