@@ -16,8 +16,8 @@
 
 Blastradius is an Apache-2.0 test impact analysis tool for JVM projects. It selects JUnit 5
 tests potentially affected by Java and conventional Kotlin source changes, so CI can run a
-smaller test suite. The Maven plugin is published on Maven Central; the Gradle plugin is
-available in this repository but is not currently published on the Gradle Plugin Portal.
+smaller test suite. The Maven plugin is published on Maven Central and the Gradle plugin on
+the Gradle Plugin Portal.
 
 A Java agent records class dependencies observed during a base-branch test run. On a change
 branch, Blastradius compares the Git merge base with `HEAD` and selects matching, new, or
@@ -89,7 +89,7 @@ analysis behind these numbers.
 |---|---|---|
 | **[`blastradius-core`](blastradius-core)** | The shared engine — the dependency-tracking agent and the selection rules (dependency match, conservative fallback, always-select-new/modified). Built and proven first; reused unmodified by both modules below. | Complete, 118 tests |
 | **[`blastradius-maven-plugin`](blastradius-maven-plugin)** | Maven plugin providing the `blastradius:select` goal. See its [README](blastradius-maven-plugin/README.md) for configuration and CI setup. | Published on Maven Central |
-| **[`blastradius-gradle-plugin`](blastradius-gradle-plugin)** | Gradle integration for Java test tasks. | Source available; publication pending |
+| **[`blastradius-gradle-plugin`](blastradius-gradle-plugin)** | Gradle integration for Java test tasks. | Published on the [Gradle Plugin Portal](https://plugins.gradle.org/plugin/io.github.baokhang83.blastradius) (0.4.0) |
 | **[`blastradius-validator`](blastradius-validator)** | The shadow-mode harness that produced the real-project numbers above — replays a project's own commit history, compares what would have been skipped against ground truth, and reports would-miss cases. Still here if you want to validate the mechanism against a project of your own before adopting the plugin. | Complete, 170 tests |
 
 ## Quick start
@@ -125,9 +125,20 @@ store is a better fit for your runners:
 
 ### Gradle
 
-The Gradle plugin is in this repository but is not currently published to the Gradle Plugin
-Portal. The plugin ID is `io.github.baokhang83.blastradius`; consuming it requires arranging
-a source or artifact build. See the [Gradle guide](docs/gradle-test-impact-analysis.md).
+The plugin is published on the
+[Gradle Plugin Portal](https://plugins.gradle.org/plugin/io.github.baokhang83.blastradius):
+
+```groovy
+plugins {
+  id 'io.github.baokhang83.blastradius' version '0.4.0'
+}
+
+blastradius {
+  baseRef = 'main'
+}
+```
+
+See the [Gradle guide](docs/gradle-test-impact-analysis.md).
 
 There is no separate Gradle `select` task. Applying the plugin configures every Java `Test`
 task, so run the normal `./gradlew test`: it tracks on `main` and selects the relevant tests on
