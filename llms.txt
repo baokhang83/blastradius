@@ -5,7 +5,7 @@
 `blastradius` cuts CI test execution time without sacrificing safety. On base-branch builds (`TRACK`), a `java.lang.instrument` agent records ground-truth class dependencies per test. On change branches (`SELECT`), it diffs against the Git merge base and filters Maven Surefire/Failsafe via `-Dtest=`—staying compatible with JaCoCo and custom `argLine` setups.
 
 - **Maven Central.** `io.github.baokhang83.blastradius:blastradius-maven-plugin:0.4.0` (goal `blastradius:select`).
-- **Gradle Plugin.** `io.github.baokhang83.blastradius` (available in repository; Gradle Plugin Portal publication pending).
+- **Gradle Plugin.** `io.github.baokhang83.blastradius` (published on the Gradle Plugin Portal, version 0.4.0).
 - **Historical Replay Benchmarks.** Replayed across 800 consecutive commits on `apache/shenyu` (71.0% skipped), `apache/httpcomponents-client` (59.4% skipped), `jhy/jsoup` (45.0% skipped), and `apache/commons-io` (62.7% skipped)—averaging 61.4% test reduction with 0 missed regressions.
 - **Language Support.** Java and conventional Kotlin (`src/main/kotlin`, `src/test/kotlin`), with automatic full-suite fallback for Kotlin inline functions and non-source changes.
 
