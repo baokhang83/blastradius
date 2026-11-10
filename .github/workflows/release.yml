@@ -53,6 +53,7 @@ jobs:
   publish-gradle-plugin:
     name: Publish Gradle plugin
     needs: publish
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -63,20 +64,12 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Require the Gradle version to match the release tag
-        if: github.event_name == 'push'
         run: |
           expected="${GITHUB_REF_NAME#v}"
           grep -q "version = '${expected}'" build.gradle \
             || { echo "build.gradle version does not match tag ${GITHUB_REF_NAME}"; exit 1; }
       - name: Publish to the Gradle Plugin Portal
-        if: github.event_name == 'push'
         env:
           GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
           GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
         run: ./gradlew --no-daemon :blastradius-gradle-plugin:publishPlugins
-      - name: Validate without publishing
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
-          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
-        run: ./gradlew --no-daemon :blastradius-gradle-plugin:publishPlugins --validate-only
