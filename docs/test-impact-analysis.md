@@ -4,7 +4,7 @@ Test impact analysis, also called regression test selection, identifies tests to
 change using dependency or coverage information. Blastradius records observed class loads per
 test on a base branch, compares changed Java and conventional Kotlin source files against a
 Git merge base, and applies selection and conservative fallback rules. It supports Maven and
-has a Gradle plugin in its source tree. See the [Maven guide](maven-junit5-test-impact-analysis.md)
+has a Gradle plugin on the Gradle Plugin Portal. See the [Maven guide](maven-junit5-test-impact-analysis.md)
 and [Gradle guide](gradle-test-impact-analysis.md) for availability and setup.
 
 ## Compare approaches
@@ -15,7 +15,7 @@ validate the exact build and test framework combination you use.
 
 | Project | Selection data | Build and test integrations | State and setup |
 | --- | --- | --- | --- |
-| [Blastradius](../README.md) | Observed per-test class dependencies, plus conservative static-invocation fallback. | Published Maven plugin for JUnit 5; Gradle plugin source is available, but the plugin marker was not found on the public portal. | Saves a commit-keyed index locally; CI can cache it or use S3-compatible storage. |
+| [Blastradius](../README.md) | Observed per-test class dependencies, plus conservative static-invocation fallback. | Published Maven plugin for JUnit 5, and a Gradle plugin on the Gradle Plugin Portal. | Saves a commit-keyed index locally; CI can cache it or use S3-compatible storage. |
 | [Tia](https://github.com/mtgleeson/tiatesting) | JaCoCo coverage mapped to source changes. | Documents Maven and Gradle integrations for JUnit 5/6; Gradle also supports Spock. | Uses a database for mappings and documents JaCoCo TCP collection, including for separately running code. |
 | [SAP Smart Test Picker](https://github.com/SAP/smart-test-picker) | Per-test JaCoCo coverage matched to changed methods, with class-level fallback. | Documents Gradle and Maven plugins and JUnit 5 collection, plus a CLI. | Uses a coverage map; documents full-suite fallback for missing or stale maps. |
 

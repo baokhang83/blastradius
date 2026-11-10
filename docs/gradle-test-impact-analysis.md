@@ -7,11 +7,17 @@ index recorded on the base branch. Its source is in
 
 ## Availability
 
-The plugin ID is `io.github.baokhang83.blastradius`. The plugin marker for version `0.4.0`
-was not available from the Gradle Plugin Portal when checked on 2026-11-09. The project does
-not currently document a published Gradle distribution. Build and integrate the plugin from
-source if evaluating it; do not assume the standard `plugins { ... version '0.4.0' }` block
-will resolve from the public portal. The Gradle build uses JDK 21 or later.
+The plugin is published on the
+[Gradle Plugin Portal](https://plugins.gradle.org/plugin/io.github.baokhang83.blastradius)
+as `io.github.baokhang83.blastradius`, version `0.4.0`:
+
+```groovy
+plugins {
+  id 'io.github.baokhang83.blastradius' version '0.4.0'
+}
+```
+
+The Gradle build uses JDK 21 or later.
 
 ## Pull request workflow
 
@@ -29,4 +35,4 @@ a full test run. Run the full suite regularly: see the
 [known limitations](../README.md#known-limitations) and
 [historical validation](../HISTORICAL_REPLAY_ANALYSIS.md).
 
-The [Maven plugin](maven-junit5-test-impact-analysis.md) is available on Maven Central today.
+The [Maven plugin](maven-junit5-test-impact-analysis.md) is available on Maven Central.
