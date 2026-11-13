@@ -1,6 +1,6 @@
 <div align="center">
   <img width="300" height="300" alt="image" src="https://github.com/user-attachments/assets/176c0952-7c2d-4c1d-8a71-6052b8d0b513" />
-  <h1>Blastradius Test Selection</h1>
+  <h1>Blastradius (Test Selection)</h1>
    <p>
    <a href="docs/test-impact-analysis.md"><img src="https://img.shields.io/badge/documentation-English-blue.svg" alt="Documentation" /></a>
    <a target="_blank" href="https://central.sonatype.com/search?q=g:io.github.baokhang83.blastradius%20%20a:blastradius-maven-plugin"><img src="https://img.shields.io/maven-central/v/io.github.baokhang83.blastradius/blastradius-maven-plugin.svg?label=maven%20central" /></a>
