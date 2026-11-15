@@ -89,6 +89,9 @@ jobs:
           grep -q '<div class="footer">' "$site/index.html"
           sed -i 's|<div class="footer">|<div class="footer"><span class="left"><a href="llms.txt">llms.txt</a></span>|' "$site/index.html"
           sed -i 's|</head>|<link rel="alternate" type="text/plain" href="llms.txt" title="llms.txt"/></head>|' "$site/index.html"
+          # Bing Webmaster Tools site verification.
+          sed -i 's|</head>|<meta name="msvalidate.01" content="F8E60EFE3EC283577A2A0DADE4A5D82E" /></head>|' "$site/index.html"
+          grep -q 'name="msvalidate.01"' "$site/index.html"
           grep -q 'href="llms.txt">llms.txt</a>' "$site/index.html"
       - name: Publish coverage report to GitHub Pages
         if: matrix.java == '21' && github.event_name == 'push' && github.ref == 'refs/heads/main'
