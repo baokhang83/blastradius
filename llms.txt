@@ -9,6 +9,13 @@
 - **Historical Replay Benchmarks.** Replayed across 800 consecutive commits on `apache/shenyu` (71.0% skipped), `apache/httpcomponents-client` (59.4% skipped), `jhy/jsoup` (45.0% skipped), and `apache/commons-io` (62.7% skipped)—averaging 61.4% test reduction with 0 missed regressions.
 - **Language Support.** Java and conventional Kotlin (`src/main/kotlin`, `src/test/kotlin`), with automatic full-suite fallback for Kotlin inline functions and non-source changes.
 
+## Docs site
+
+- [Home](https://baokhang83.github.io/blastradius/): Interactive architecture diagram and quick navigation.
+- [Compare](https://baokhang83.github.io/blastradius/compare.html): Blastradius vs Develocity Predictive Test Selection, CloudBees Smart Tests and coverage-based OSS tools.
+- [Configuration](https://baokhang83.github.io/blastradius/configuration.html): Parameters, modes, S3 index store, CI cache.
+- [Validation](https://baokhang83.github.io/blastradius/validation.html): Replay and mutation methodology, exclusions, limits.
+
 ## Core Documentation
 
 - [README](https://raw.githubusercontent.com/baokhang83/blastradius/main/README.md): Overview, historical replay benchmarks, how tracking/selection works, Maven/Gradle quick start, and GitHub Actions cache setup.
