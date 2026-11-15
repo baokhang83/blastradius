@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blastradius configuration reference — Maven, Gradle, S3 index store, CI cache</title>
+<meta name="description" content="Configuration reference for the Blastradius Maven plugin and Gradle extension: baseRef, indexStore, S3 settings, TRACK/SELECT/FALLBACK modes, output files and a GitHub Actions cache example.">
+<link rel="canonical" href="https://baokhang83.github.io/blastradius/configuration.html">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="./">Blastradius</a>
+  <nav aria-label="Primary"><a href="./">Home</a><a href="compare.html">Compare</a><a href="configuration.html" aria-current="page">Configuration</a><a href="validation.html">Validation</a><a href="coverage/">Coverage</a></nav>
+</div></header>
+<main class="wrap">
+  <h1>Configuration reference</h1>
+  <p class="lede">Everything you can set on the Maven plugin (<code>blastradius:select</code>, version 0.4.0) and the matching Gradle extension, plus how to wire it into CI.</p>
+
+  <nav class="toc" aria-label="On this page"><ul>
+    <li><a href="#modes">Build modes</a></li>
+    <li><a href="#parameters">Parameters</a></li>
+    <li><a href="#ci">CI: cache the index</a></li>
+    <li><a href="#s3">Shared S3 index store</a></li>
+    <li><a href="#gradle">Gradle</a></li>
+    <li><a href="#output">Files and console output</a></li>
+  </ul></nav>
+
+  <h2 id="modes">Build modes</h2>
+  <p>Decided fresh on every invocation; never configured by hand.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Mode</th><th>When</th><th>What happens</th></tr></thead>
+    <tbody>
+      <tr><td><code>TRACK</code></td><td>Current commit is <code>baseRef</code> (or <code>-Dblastradius.mode=track</code>)</td><td>Full suite runs untouched; a subprocess rebuilds the index for next time.</td></tr>
+      <tr><td><code>SELECT</code></td><td>Not <code>baseRef</code>, and a usable index exists for the merge base</td><td>Surefire is narrowed to the affected tests.</td></tr>
+      <tr><td><code>FALLBACK</code></td><td>Not <code>baseRef</code>, and no usable index</td><td>Full suite runs. Reason printed: <code>MISSING</code>, <code>UNREADABLE</code>, <code>FORMAT_VERSION_MISMATCH</code>, <code>ANCHOR_UNREACHABLE</code>, <code>ANCHOR_MISMATCH</code>, <code>MERGE_BASE_UNAVAILABLE</code>, <code>INTERNAL_ERROR</code>.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="parameters">Parameters</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Parameter</th><th>CLI property</th><th>Default</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>baseRef</code></td><td><code>-DbaseRef</code></td><td><strong>required</strong></td><td>Target Git reference (<code>main</code>, <code>origin/main</code>, a tag). Non-target builds compare from its merge base with <code>HEAD</code>.</td></tr>
+      <tr><td><code>indexPath</code></td><td><code>-DindexPath</code></td><td><code>.blastradius/index.json</code></td><td>Index file template; the merge-base SHA is inserted before the filename. Rejected if it resolves outside the project.</td></tr>
+      <tr><td><code>indexStore</code></td><td><code>-DindexStore</code></td><td><code>file</code></td><td><code>file</code> keeps indexes in the workspace; <code>s3</code> shares them between runners.</td></tr>
+      <tr><td><code>s3Bucket</code></td><td><code>-Ds3Bucket</code></td><td>—</td><td>Required when <code>indexStore=s3</code>.</td></tr>
+      <tr><td><code>s3Prefix</code></td><td><code>-Ds3Prefix</code></td><td>empty</td><td>Optional key prefix.</td></tr>
+      <tr><td><code>s3Region</code></td><td><code>-Ds3Region</code></td><td>—</td><td>Required when <code>indexStore=s3</code>; used to sign requests.</td></tr>
+      <tr><td><code>s3Endpoint</code></td><td><code>-Ds3Endpoint</code></td><td>—</td><td>Optional S3-compatible endpoint, e.g. MinIO (path-style access).</td></tr>
+      <tr><td>—</td><td><code>-Dblastradius.mode=track</code></td><td>—</td><td>Force TRACK, e.g. to pre-warm the index.</td></tr>
+      <tr><td>—</td><td><code>-Dblastradius.explain=true</code></td><td><code>false</code></td><td>Print the per-test decision listing.</td></tr>
+      <tr><td>—</td><td><code>-Dblastradius.directInvocationFallback=false</code></td><td><code>true</code></td><td>Disable the one-hop fallback for a project class a test executed that directly invokes a changed class. It can conservatively select an extra test.</td></tr>
+    </tbody>
+  </table></div>
+  <p><code>indexPath</code> is one shared namespace for the whole reactor: configure it once at the root.</p>
+
+  <h2 id="ci">CI: cache the index</h2>
+  <p>The trunk job writes <code>.blastradius/</code>; the pull-request job restores it. Cache it like <code>~/.m2</code>. S3 is not required. If a PR cannot restore an index, Blastradius runs the full suite.</p>
+<pre><code>steps:
+  - uses: actions/checkout@v7
+
+  - name: Restore Blastradius index
+    id: blastradius-index
+    uses: actions/cache/restore@v4
+    with:
+      path: .blastradius
+      key: blastradius-index-${{ runner.os }}-${{ github.sha }}
+      restore-keys: |
+        blastradius-index-${{ runner.os }}-
+
+  - run: mvn -B --no-transfer-progress verify
+
+  - name: Save Blastradius index from main
+    if: ${{ github.ref == 'refs/heads/main' &amp;&amp; success() &amp;&amp; steps.blastradius-index.outputs.cache-hit != 'true' }}
+    uses: actions/cache/save@v4
+    with:
+      path: .blastradius
+      key: blastradius-index-${{ runner.os }}-${{ github.sha }}</code></pre>
+  <p>Fetch enough Git history to find the merge base. Never put credentials under <code>.blastradius/</code>: Actions caches are readable by pull-request workflows.</p>
+
+  <h2 id="s3">Shared S3 index store</h2>
+  <p>Use it when trunk and PR jobs cannot share a workspace cache.</p>
+<pre><code>&lt;configuration&gt;
+  &lt;baseRef&gt;main&lt;/baseRef&gt;
+  &lt;indexStore&gt;s3&lt;/indexStore&gt;
+  &lt;s3Bucket&gt;ci-dependency-indexes&lt;/s3Bucket&gt;
+  &lt;s3Prefix&gt;blastradius&lt;/s3Prefix&gt;
+  &lt;s3Region&gt;eu-central-1&lt;/s3Region&gt;
+&lt;/configuration&gt;</code></pre>
+  <p>Credentials come from the AWS SDK default chain (environment, OIDC, profile, instance role). Prefer GitHub OIDC with a short-lived role over long-lived keys. The writer role needs <code>s3:GetObject</code> and <code>s3:PutObject</code> on the prefix; a PR needs only <code>s3:GetObject</code>. Do not grant either to untrusted fork PRs: those fall back to the full suite.</p>
+
+  <h2 id="gradle">Gradle</h2>
+  <p>The plugin ID is <code>io.github.baokhang83.blastradius</code>. Applying it configures every Java <code>Test</code> task; run the normal <code>./gradlew test</code>. Publication to the Gradle Plugin Portal is pending, so it must currently be built from source.</p>
+<pre><code>blastradius {
+  baseRef = 'main'
+  indexStore = 's3'            // optional
+  s3Bucket = 'ci-dependency-indexes'
+  s3Prefix = 'blastradius'
+  s3Region = 'eu-central-1'
+  // s3Endpoint = 'https://minio.example.com'
+  // directInvocationFallback = false
+}</code></pre>
+
+  <h2 id="output">Files and console output</h2>
+  <p>Add <code>.blastradius/</code> to <code>.gitignore</code>.</p>
+  <ul>
+    <li><code>&lt;full-sha&gt;/index.json</code> — the dependency map a TRACK build writes and a SELECT build reads.</li>
+    <li><code>last-build-report.json</code> — machine-readable selection report: mode, changed files, per-test decisions, counts, reason counts, estimated time saved.</li>
+    <li><code>last-build-report.html</code> — self-contained view of the same report.</li>
+    <li><code>metrics.jsonl</code> — append-only samples for charting builds over time.</li>
+    <li><code>test-timings.json</code> — last observed duration per test, used for the time-saved estimate.</li>
+  </ul>
+<pre><code>[blastradius] SELECT — index built from 4e02156 (2026-07-10T03:03:04Z)
+[blastradius] 1 / 2 tests selected (50.0% skipped)
+[blastradius]   dependency-matched: 1, new-or-modified: 0, fallback: 0</code></pre>
+  <p>Full prose reference, including the GitHub Actions feedback action: <a href="https://github.com/baokhang83/blastradius/blob/main/blastradius-maven-plugin/README.md">plugin README</a>.</p>
+</main>
+<footer class="site"><div class="wrap"><a href="./">Home</a> · <a href="https://github.com/baokhang83/blastradius">GitHub</a> · <a href="llms.txt">llms.txt</a></div></footer>
+</body>
+</html>

@@ -24,6 +24,11 @@ branch, Blastradius compares the Git merge base with `HEAD` and selects matching
 modified tests, with additional conservative selection and fallback rules. Missing or unusable
 baseline data triggers a full run. Selection has known limits; keep regular full-suite runs.
 
+**Docs site:** [interactive architecture](https://baokhang83.github.io/blastradius/) ·
+[comparison with Develocity and Smart Tests](https://baokhang83.github.io/blastradius/compare.html) ·
+[configuration reference](https://baokhang83.github.io/blastradius/configuration.html) ·
+[validation methodology](https://baokhang83.github.io/blastradius/validation.html)
+
 **Get started:** [Maven and JUnit 5](docs/maven-junit5-test-impact-analysis.md) ·
 [Gradle and pull requests](docs/gradle-test-impact-analysis.md) ·
 [How test impact analysis works and compares](docs/test-impact-analysis.md) ·

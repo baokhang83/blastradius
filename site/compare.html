@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blastradius vs Develocity Predictive Test Selection vs Smart Tests</title>
+<meta name="description" content="Comparison of Blastradius with Develocity Predictive Test Selection, CloudBees Smart Tests (formerly Launchable) and coverage-based open-source tools, including where each is the better fit.">
+<link rel="canonical" href="https://baokhang83.github.io/blastradius/compare.html">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="./">Blastradius</a>
+  <nav aria-label="Primary"><a href="./">Home</a><a href="compare.html" aria-current="page">Compare</a><a href="configuration.html">Configuration</a><a href="validation.html">Validation</a><a href="coverage/">Coverage</a></nav>
+</div></header>
+<main class="wrap">
+  <h1>Blastradius vs Develocity PTS vs Smart Tests</h1>
+  <p class="lede">Three different ideas of “which tests should this change run?” Observed dependencies,
+  a trained model, and an LLM plus history. Here is how they differ, and when each one wins.</p>
+  <p class="note">Summarised from each vendor’s public documentation on 2026-11-15; linked below. This is not a
+  benchmark and not a compatibility guarantee. Products change: check current docs and validate on your own suite.</p>
+
+  <h2>Matrix</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th></th><th>Blastradius</th><th><a href="https://docs.gradle.com/develocity/current/using-develocity/predictive-test-selection/">Develocity Predictive Test Selection</a></th><th><a href="https://docs.cloudbees.com/docs/cloudbees-smart-tests/latest/features/predictive-test-selection">CloudBees Smart Tests</a> (formerly Launchable)</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">How tests are chosen</th><td>Per-test class loads observed by a Java agent on the base branch, matched against the Git diff, plus fixed conservative rules.</td><td>Machine-learning model trained on your Build Scan change and test-outcome history; always selects new, changed, failed or flaky tests.</td><td>LLM analysis of source and test files plus commit information, and test history from earlier sessions.</td></tr>
+      <tr><th scope="row">Cold start</th><td>First base-branch run builds the index; without one the full suite runs (<code>FALLBACK</code>).</td><td>Selects all impacted tests until there is enough history to predict.</td><td>Vendor says semantic selection works without a long training period.</td></tr>
+      <tr><th scope="row">Explainability</th><td>Every decision has a reason (<code>DEPENDENCY_MATCH</code>, <code>NO_MATCH</code>, …); <code>-Dblastradius.explain=true</code> lists them.</td><td>Probabilistic; Conservative / Standard / Fast profiles tune the trade-off.</td><td>Model-driven ranking; vendor says it never hides tests automatically.</td></tr>
+      <tr><th scope="row">Where it runs</th><td>In your build. Index lives in your CI cache or your S3-compatible bucket.</td><td>Needs a Develocity installation with the PTS extension enabled; predictions stay local to it.</td><td>Hosted service driven by a CLI, GitHub App or Action.</td></tr>
+      <tr><th scope="row">Build tools</th><td>Maven (Central) with JUnit 5. Gradle plugin in the repository, Plugin Portal publication pending.</td><td>Gradle 5.4+ and Maven (Surefire/Failsafe 2.22.2+).</td><td>CI- and framework-agnostic via the CLI.</td></tr>
+      <tr><th scope="row">License / cost</th><td>Apache-2.0, free.</td><td>Commercial Develocity license.</td><td>Commercial; a free plan is listed on GitHub Marketplace, other pricing is not public.</td></tr>
+      <tr><th scope="row">Extras</th><td>Validator harness to replay your own history in shadow mode.</td><td>PTS Simulator; <code>@MustRun</code> annotations; Build Scans.</td><td>Failure clustering, flaky-test deprioritisation.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>When to pick something else</h2>
+  <ul>
+    <li><strong>You already run Develocity.</strong> PTS reuses the Build Scan data you already collect, supports both build tools today, and has a simulator to estimate savings first.</li>
+    <li><strong>You need many languages or test frameworks.</strong> Smart Tests is not tied to the JVM or JUnit 5; Blastradius is.</li>
+    <li><strong>You want dashboards, flaky-test analytics or a managed service.</strong> Blastradius intentionally has none of these.</li>
+    <li><strong>You need a Gradle plugin from the Plugin Portal today.</strong> Not yet available for Blastradius.</li>
+  </ul>
+
+  <h2>When Blastradius fits</h2>
+  <ul>
+    <li>You want an open-source tool with no server and no data leaving your CI.</li>
+    <li>You want each skip to be traceable to a rule, not a score.</li>
+    <li>You can run a trunk build that writes an index and cache it for pull requests.</li>
+    <li>You accept the known limits: string-dispatched APIs, reflection and generated calls can escape attribution, so keep a daily full run. See <a href="validation.html">validation</a>.</li>
+  </ul>
+
+  <h2>Open-source, coverage-based alternatives</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Project</th><th>Selection data</th><th>Integrations</th></tr></thead>
+    <tbody>
+      <tr><td><a href="https://github.com/mtgleeson/tiatesting">Tia</a></td><td>JaCoCo coverage mapped to source changes</td><td>Maven and Gradle; JUnit 5/6; Gradle also Spock</td></tr>
+      <tr><td><a href="https://github.com/SAP/smart-test-picker">SAP Smart Test Picker</a></td><td>Per-test JaCoCo coverage matched to changed methods, class-level fallback</td><td>Gradle and Maven plugins, JUnit 5, CLI</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Sources</h2>
+  <ul>
+    <li><a href="https://docs.gradle.com/develocity/current/using-develocity/predictive-test-selection/">Develocity: Predictive Test Selection</a></li>
+    <li><a href="https://docs.cloudbees.com/docs/cloudbees-smart-tests/latest/features/predictive-test-selection">CloudBees Smart Tests: Predictive Test Selection</a></li>
+    <li><a href="https://www.cloudbees.com/blog/how-cloudbees-smart-tests-works">CloudBees: how Smart Tests selects tests</a></li>
+    <li><a href="https://github.com/mtgleeson/tiatesting">Tia</a> · <a href="https://github.com/SAP/smart-test-picker">SAP Smart Test Picker</a></li>
+  </ul>
+</main>
+<footer class="site"><div class="wrap"><a href="./">Home</a> · <a href="https://github.com/baokhang83/blastradius">GitHub</a> · <a href="llms.txt">llms.txt</a></div></footer>
+</body>
+</html>

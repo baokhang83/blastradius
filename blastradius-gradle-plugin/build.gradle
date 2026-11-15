@@ -16,7 +16,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 gradlePlugin {
-    website = 'https://github.com/baokhang83/blastradius'
+    website = 'https://baokhang83.github.io/blastradius/'
     vcsUrl = 'https://github.com/baokhang83/blastradius.git'
     plugins {
         blastradius {
