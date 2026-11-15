@@ -15,7 +15,7 @@
 
     <name>blastradius-maven-plugin</name>
     <description>Test impact analysis for Maven and JUnit 5 using observed class dependencies to select tests affected by Java and Kotlin changes.</description>
-    <url>https://github.com/baokhang83/blastradius</url>
+    <url>https://baokhang83.github.io/blastradius/</url>
 
     <scm>
         <connection>scm:git:https://github.com/baokhang83/blastradius.git</connection>

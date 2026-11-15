@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blastradius — open-source test impact analysis for Maven and Gradle</title>
+<meta name="description" content="Open-source JVM test impact analysis. Observes which production classes each test loads, then runs only the JUnit 5 tests a pull request can affect. Architecture, comparison with Develocity and Smart Tests, configuration and validation.">
+<meta name="msvalidate.01" content="F8E60EFE3EC283577A2A0DADE4A5D82E" />
+<link rel="canonical" href="https://baokhang83.github.io/blastradius/">
+<link rel="alternate" type="text/plain" href="llms.txt" title="llms.txt">
+<link rel="stylesheet" href="assets/site.css">
+<meta property="og:title" content="Blastradius — open-source test impact analysis for the JVM">
+<meta property="og:description" content="Run only the tests a change can affect. Observed class dependencies, deterministic rules, Apache-2.0.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://baokhang83.github.io/blastradius/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Blastradius",
+ "applicationCategory":"DeveloperApplication","operatingSystem":"JVM 21+",
+ "license":"https://www.apache.org/licenses/LICENSE-2.0.txt",
+ "url":"https://baokhang83.github.io/blastradius/",
+ "codeRepository":"https://github.com/baokhang83/blastradius",
+ "description":"Open-source test impact analysis for Maven and JUnit 5 that selects tests using observed per-test class dependencies."}
+</script>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="./">Blastradius</a>
+  <nav aria-label="Primary">
+    <a href="#architecture">Architecture</a>
+    <a href="compare.html">Compare</a>
+    <a href="configuration.html">Configuration</a>
+    <a href="validation.html">Validation</a>
+    <a href="coverage/">Coverage</a>
+    <a href="https://github.com/baokhang83/blastradius">GitHub</a>
+  </nav>
+</div></header>
+
+<main class="wrap">
+  <section class="hero">
+    <span class="pill">Apache-2.0 · JDK 21+ · Maven Central</span>
+    <h1>Run the tests a change can reach. Skip the rest.</h1>
+    <p class="lede">Blastradius learns which production classes each test really loads, then narrows a pull
+    request’s test run to the tests that could be affected. No server, no model to train: a saved map and
+    explicit rules you can read in the build log.</p>
+  </section>
+
+  <h2 id="architecture">How it works — click through it</h2>
+  <p>One engine, three build modes decided fresh on every run. Pick a mode, then click any stage.</p>
+
+  <div class="diagram" id="arch">
+    <div class="tabs" role="group" aria-label="Build mode">
+      <button type="button" data-mode="select" aria-pressed="true">SELECT — pull request</button>
+      <button type="button" data-mode="track" aria-pressed="false">TRACK — base branch</button>
+      <button type="button" data-mode="fallback" aria-pressed="false">FALLBACK — no index</button>
+    </div>
+    <svg viewBox="0 0 760 250" role="img" aria-label="Pipeline: base-branch tracking writes an index; a pull request diffs from the merge base, selects tests with the index, and hands the filter to the test runner. Without an index it falls back to the full suite.">
+      <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z"/></marker></defs>
+
+      <g class="node" data-step="track"><rect x="10" y="20" width="150" height="56" rx="10"/><text x="85" y="45" text-anchor="middle">Track</text><text class="sub" x="85" y="62" text-anchor="middle">agent records class loads</text></g>
+      <g class="node" data-step="index"><rect x="230" y="20" width="150" height="56" rx="10"/><text x="305" y="45" text-anchor="middle">Index</text><text class="sub" x="305" y="62" text-anchor="middle">.blastradius/&lt;sha&gt;</text></g>
+      <g class="node" data-step="diff"><rect x="10" y="168" width="150" height="56" rx="10"/><text x="85" y="193" text-anchor="middle">Diff</text><text class="sub" x="85" y="210" text-anchor="middle">merge base → HEAD</text></g>
+      <g class="node" data-step="select"><rect x="320" y="94" width="150" height="56" rx="10"/><text x="395" y="119" text-anchor="middle">Select</text><text class="sub" x="395" y="136" text-anchor="middle">dependency match + rules</text></g>
+      <g class="node" data-step="fallback"><rect x="230" y="190" width="150" height="48" rx="10"/><text x="305" y="211" text-anchor="middle">Fallback</text><text class="sub" x="305" y="227" text-anchor="middle">run full suite</text></g>
+      <g class="node" data-step="gate"><rect x="570" y="94" width="170" height="56" rx="10"/><text x="655" y="119" text-anchor="middle">Gate</text><text class="sub" x="655" y="136" text-anchor="middle">-Dtest= / Test filter</text></g>
+
+      <path id="e-track-index" class="edge" d="M160 48 H228"/>
+      <path id="e-index-select" class="edge" d="M330 76 L370 92"/>
+      <path id="e-diff-select" class="edge" d="M160 190 C 250 150, 270 125, 318 122"/>
+      <path id="e-diff-fallback" class="edge" d="M160 205 H228"/>
+      <path id="e-select-gate" class="edge" d="M470 122 H568"/>
+      <path id="e-fallback-gate" class="edge" d="M380 214 C 500 214, 560 160, 620 152"/>
+    </svg>
+    <div class="detail" aria-live="polite"></div>
+  </div>
+
+  <h2>What it measured</h2>
+  <p>200 consecutive commit pairs on each of four open-source projects, with injected-fault (mutation)
+  validation on the same run. These are selected test executions, not CI wall-clock time.</p>
+  <div class="stats">
+    <div class="stat"><b>61.4%</b><span>fewer selected test executions, aggregate</span></div>
+    <div class="stat"><b>0</b><span>would-miss after documented exclusions</span></div>
+    <div class="stat"><b>800</b><span>commit pairs across 4 Apache/jsoup repos</span></div>
+    <div class="stat"><b>3.2%</b><span>commons-io killing executions skipped (partial)</span></div>
+  </div>
+  <p><a href="validation.html">Read the methodology, exclusions and the commons-io caveat →</a></p>
+
+  <h2>Where it sits</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th></th><th>Blastradius</th><th>Develocity PTS</th><th>CloudBees Smart Tests</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Selection basis</th><td>Observed per-test class loads + fixed rules</td><td>ML model over Build Scan history</td><td>LLM semantic analysis + test history</td></tr>
+      <tr><th scope="row">Infrastructure</th><td>None; CI cache or your S3 bucket</td><td>Develocity server</td><td>Hosted service + CLI</td></tr>
+      <tr><th scope="row">License</th><td>Apache-2.0</td><td>Commercial</td><td>Commercial</td></tr>
+    </tbody>
+  </table></div>
+  <p><a href="compare.html">Full comparison matrix, with sources and the trade-offs that favour the others →</a></p>
+
+  <h2>Go to…</h2>
+  <div class="cards">
+    <a class="card" href="configuration.html"><strong>Configuration reference</strong><span>baseRef, indexStore, S3, modes, output files, CI cache.</span></a>
+    <a class="card" href="validation.html"><strong>Validation methodology</strong><span>Replay design, mutation testing, exclusions, limits.</span></a>
+    <a class="card" href="compare.html"><strong>Compare approaches</strong><span>Develocity, Smart Tests, coverage-based OSS tools.</span></a>
+    <a class="card" href="coverage/"><strong>Coverage report</strong><span>JaCoCo aggregate report for every module.</span></a>
+    <a class="card" href="https://central.sonatype.com/artifact/io.github.baokhang83.blastradius/blastradius-maven-plugin"><strong>Maven Central</strong><span>blastradius-maven-plugin 0.4.0.</span></a>
+    <a class="card" href="https://github.com/baokhang83/blastradius"><strong>Source on GitHub</strong><span>Issues, changelog, maturity assessment.</span></a>
+  </div>
+
+  <h2>Start in a minute</h2>
+  <pre><code>&lt;plugin&gt;
+  &lt;groupId&gt;io.github.baokhang83.blastradius&lt;/groupId&gt;
+  &lt;artifactId&gt;blastradius-maven-plugin&lt;/artifactId&gt;
+  &lt;version&gt;0.4.0&lt;/version&gt;
+  &lt;executions&gt;&lt;execution&gt;
+    &lt;phase&gt;process-test-classes&lt;/phase&gt;
+    &lt;goals&gt;&lt;goal&gt;select&lt;/goal&gt;&lt;/goals&gt;
+  &lt;/execution&gt;&lt;/executions&gt;
+  &lt;configuration&gt;&lt;baseRef&gt;main&lt;/baseRef&gt;&lt;/configuration&gt;
+&lt;/plugin&gt;</code></pre>
+  <p class="note">Selection is sound by default, not by guarantee. Keep a regular (recommended: daily) full-suite run as the backstop. The Gradle plugin is in the repository; Plugin Portal publication is pending.</p>
+</main>
+
+<footer class="site"><div class="wrap">
+  Apache-2.0 · <a href="https://github.com/baokhang83/blastradius">GitHub</a> · <a href="llms.txt">llms.txt</a> · <a href="coverage/">Coverage report</a>
+</div></footer>
+<script src="assets/site.js"></script>
+</body>
+</html>

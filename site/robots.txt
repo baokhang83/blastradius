@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://baokhang83.github.io/blastradius/sitemap.xml

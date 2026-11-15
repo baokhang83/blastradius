@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blastradius validation methodology — historical replay and mutation testing</title>
+<meta name="description" content="How Blastradius test selection was validated: 200-pair historical replays on shenyu, httpcomponents-client, jsoup and commons-io, bounded mutation testing, exclusions, and known limitations.">
+<link rel="canonical" href="https://baokhang83.github.io/blastradius/validation.html">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="./">Blastradius</a>
+  <nav aria-label="Primary"><a href="./">Home</a><a href="compare.html">Compare</a><a href="configuration.html">Configuration</a><a href="validation.html" aria-current="page">Validation</a><a href="coverage/">Coverage</a></nav>
+</div></header>
+<main class="wrap">
+  <h1>Validation methodology</h1>
+  <p class="lede">How the savings and safety numbers were produced, what was excluded, and where selection fell short.</p>
+
+  <h2>Design</h2>
+  <ol>
+    <li><strong>Replay.</strong> For each project, 200 consecutive commits are each treated as the change introduced over the commit before it.</li>
+    <li><strong>Select.</strong> Blastradius selects tests for that change using an index built on the earlier commit.</li>
+    <li><strong>Compare with ground truth.</strong> A <em>would-miss</em> is a test that caught a real regression or an injected mutant but that selection chose not to run.</li>
+    <li><strong>Mutate.</strong> On the same run, bounded mutation validation injects synthetic faults into the head commit and checks whether selected tests catch them. A <em>killing test</em> passed on head, failed on the mutant, and stayed failed on confirmation. Counts are per mutant.</li>
+  </ol>
+  <p class="note">“Skipped” is a share of test <em>executions</em> in the replay, not measured CI wall-clock savings.</p>
+
+  <h2>Historical replay</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Project</th><th class="num">Pairs (excluded)</th><th class="num">Would-miss</th><th class="num">Executions selected</th><th class="num">Skipped</th></tr></thead>
+    <tbody>
+      <tr><td><a href="https://github.com/apache/shenyu">apache/shenyu</a></td><td class="num">200 (0)</td><td class="num">0</td><td class="num">153,142 / 527,508</td><td class="num">71.0%</td></tr>
+      <tr><td><a href="https://github.com/apache/httpcomponents-client">apache/httpcomponents-client</a></td><td class="num">200 (12)</td><td class="num">0</td><td class="num">180,198 / 443,593</td><td class="num">59.4%</td></tr>
+      <tr><td><a href="https://github.com/jhy/jsoup">jhy/jsoup</a></td><td class="num">200 (10)</td><td class="num">0</td><td class="num">193,635 / 351,882</td><td class="num">45.0%</td></tr>
+      <tr><td><a href="https://github.com/apache/commons-io">apache/commons-io</a></td><td class="num">200 (12)</td><td class="num">0</td><td class="num">439,393 / 1,178,122</td><td class="num">62.7%</td></tr>
+      <tr class="us"><th scope="row">Aggregate</th><td></td><td></td><td></td><td class="num"><strong>61.4%</strong></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Exclusions, stated plainly</h3>
+  <ul>
+    <li>Excluded pairs are ones the harness could not measure; they count neither for nor against selection.</li>
+    <li>httpcomponents-client: 11 pairs hit the build timeout and 1 hit a Surefire report with an XML-illegal character (since fixed). <code>TestTlsHandshakeTimeout#testTimeout</code> was excluded as flaky under parallel load, which is what brings its would-miss to 0.</li>
+    <li>jsoup: all 10 exclusions exceeded the 40-minute mutation-build timeout.</li>
+    <li>shenyu: <code>HttpClientPluginConfigurationTest</code> was excluded as flaky.</li>
+    <li>commons-io: an initially recorded would-miss on <code>URIOriginTest</code> (a live-network fixture) did not reproduce in a plain build; the pair now fails under the validator harness for a cause not yet identified and is excluded, alongside 11 timeout pairs. The would-miss of 0 is therefore not a confirmed miss, but it is not a clean zero either.</li>
+  </ul>
+
+  <h2>Bounded mutation validation</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Project</th><th class="num">Mutants (compilable)</th><th class="num">Caught</th><th class="num">Killing tests selected</th></tr></thead>
+    <tbody>
+      <tr><td>shenyu</td><td class="num">872 (778)</td><td class="num">339</td><td class="num">943 / 943</td></tr>
+      <tr><td>httpcomponents-client</td><td class="num">916 (916)</td><td class="num">551</td><td class="num">75,380 / 75,380</td></tr>
+      <tr><td>jsoup</td><td class="num">940 (931)</td><td class="num">606</td><td class="num">53,300 / 53,300</td></tr>
+      <tr><td>commons-io</td><td class="num">901 (901)</td><td class="num">850</td><td class="num">30,637 / 31,648</td></tr>
+    </tbody>
+  </table></div>
+  <h3>What fell short</h3>
+  <ul>
+    <li><strong>commons-io:</strong> 1,011 of 31,648 killing executions (3.2%) were skipped across 42 commit pairs, on the diff-targeted or whole-tree-fallback path. Every one of the 850 caught mutants still had at least one killing test selected, so this is partial under-selection, not a blind spot. It has not been re-verified at lower concurrency; treat it as provisional.</li>
+    <li><strong>jsoup:</strong> the recorded run first skipped 5,808 killing executions, 5,682 from 12 <code>QueryParser</code> mutations and 126 from two <code>Normalizer</code> mutations. After the bounded two-hop static-invocation rule was added, targeted replays of all 14 mutation identities selected all 16,642 killing executions. This is a string-dispatched-API case, the class of gap that remains hardest.</li>
+  </ul>
+
+  <h2>Known limits</h2>
+  <ul>
+    <li>Reflection, generated calls, incomplete instrumentation, and static-invocation paths deeper than two edges are outside the evidence. Projects built around a string DSL (selector engines, expression languages, query parsers) should weigh this.</li>
+    <li>Kotlin inline functions force a full run; custom <code>@file:JvmName</code> facades are not mapped.</li>
+    <li>Results are specific to these four projects and windows. They do not prove universal safety.</li>
+    <li>Keep a regular (recommended: daily) full-suite run as the backstop.</li>
+  </ul>
+
+  <h2>Validate on your own history</h2>
+  <p>The <a href="https://github.com/baokhang83/blastradius/blob/main/blastradius-validator/README.md">validator harness</a> replays a project’s own commits in shadow mode and reports would-miss cases before you adopt the plugin.</p>
+  <p>Full per-project analysis and footnotes: <a href="https://github.com/baokhang83/blastradius/blob/main/HISTORICAL_REPLAY_ANALYSIS.md">HISTORICAL_REPLAY_ANALYSIS.md</a> · <a href="https://github.com/baokhang83/blastradius/blob/main/MATURITY.md">maturity assessment</a>.</p>
+</main>
+<footer class="site"><div class="wrap"><a href="./">Home</a> · <a href="https://github.com/baokhang83/blastradius">GitHub</a> · <a href="llms.txt">llms.txt</a></div></footer>
+</body>
+</html>

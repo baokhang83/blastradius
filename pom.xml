@@ -11,7 +11,7 @@
 
     <name>Blastradius parent</name>
     <description>Dependency-based test selection for Maven and JUnit 5</description>
-    <url>https://github.com/baokhang83/blastradius</url>
+    <url>https://baokhang83.github.io/blastradius/</url>
 
     <licenses>
         <license>
