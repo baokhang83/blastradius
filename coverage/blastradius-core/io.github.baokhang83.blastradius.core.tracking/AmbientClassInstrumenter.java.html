@@ -142,10 +142,10 @@ import org.objectweb.asm.Type;
             }
             try {
 <span class="pc bpc" id="L144" title="2 of 4 branches missed.">                if (first.equals(second) || isAssignableFrom(first, second)) {</span>
-<span class="nc" id="L145">                    return first;</span>
+<span class="fc" id="L145">                    return first;</span>
                 }
-<span class="pc bpc" id="L147" title="1 of 2 branches missed.">                if (isAssignableFrom(second, first)) {</span>
-<span class="fc" id="L148">                    return second;</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                if (isAssignableFrom(second, first)) {</span>
+<span class="nc" id="L148">                    return second;</span>
                 }
 <span class="nc bnc" id="L150" title="All 4 branches missed.">                if (classInfo(first).isInterface || classInfo(second).isInterface) {</span>
 <span class="nc" id="L151">                    return &quot;java/lang/Object&quot;;</span>
@@ -167,7 +167,7 @@ import org.objectweb.asm.Type;
 <span class="fc" id="L167">            ArrayDeque&lt;String&gt; pending = new ArrayDeque&lt;&gt;();</span>
 <span class="fc" id="L168">            Set&lt;String&gt; seen = new HashSet&lt;&gt;();</span>
 <span class="fc" id="L169">            pending.add(candidate);</span>
-<span class="fc bfc" id="L170" title="All 2 branches covered.">            while (!pending.isEmpty()) {</span>
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">            while (!pending.isEmpty()) {</span>
 <span class="fc" id="L171">                String current = pending.removeFirst();</span>
 <span class="fc bfc" id="L172" title="All 2 branches covered.">                if (!seen.add(current)) {</span>
 <span class="fc" id="L173">                    continue;</span>
@@ -183,7 +183,7 @@ import org.objectweb.asm.Type;
 <span class="fc" id="L183">                    pending.addLast(implementedInterface);</span>
                 }
 <span class="fc" id="L185">            }</span>
-<span class="fc" id="L186">            return false;</span>
+<span class="nc" id="L186">            return false;</span>
         }
 
         private ClassInfo classInfo(String internalName) throws IOException {
