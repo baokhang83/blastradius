@@ -97,6 +97,7 @@ jobs:
           test -f "$out/badges/jacoco.svg"
           test -f "$out/index.html" && test -f "$out/coverage/index.html"
           grep -q 'name="msvalidate.01"' "$out/index.html"
+          grep -q 'name="google-site-verification"' "$out/index.html"
       - name: Publish coverage report to GitHub Pages
         if: matrix.java == '21' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: JamesIves/github-pages-deploy-action@v4
