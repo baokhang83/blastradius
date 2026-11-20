@@ -297,6 +297,11 @@ specs/                      spec, plan, research (ADR-style), contracts, tasks �
 SESSION.md                  narrative log of how T061's real-project validation went
 ```
 
+## Related projects
+
+- [pytest-tia](https://github.com/breadMSA/pytest-tia) — test impact analysis for Python
+  projects using pytest, with function-level selection and shareable CI coverage maps.
+
 ## Press
 
 - [How We Cut Maven & JUnit 5 Test Runs by 61% Across Apache Repos Without Missing Regressions](https://baokhang.hashnode.dev/how-we-cut-maven-junit5-test-runs-61-percent-apache-repos) —
