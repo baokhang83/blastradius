@@ -1,5 +1,6 @@
 <div align="center">
-  <img width="300" height="300" alt="image" src="https://github.com/user-attachments/assets/176c0952-7c2d-4c1d-8a71-6052b8d0b513" />
+  <img width="300" height="300" alt="br-logo copy" src="https://github.com/user-attachments/assets/9ed0cd8f-ad88-41a9-b07e-9f39ea3d0fd7" />
+
   <h1>Blastradius (Test Selection)</h1>
    <p>
    <a href="docs/test-impact-analysis.md"><img src="https://img.shields.io/badge/documentation-English-blue.svg" alt="Documentation" /></a>
