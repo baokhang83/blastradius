@@ -1,6 +1,6 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
-coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestBoundaryListener.ContainerFrame,0,14,0,0,0,5,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.MetadataClassWriter,65,211,17,23,17,48,13,11,0,4
+coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestBoundaryListener.ContainerFrame,0,14,0,0,0,5,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,AmbientClassInstrumenter.2.new MethodVisitor() {...},0,25,0,0,0,4,0,2,0,2
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,DirectInvocationRecord,0,9,0,0,0,1,0,1,0,1
 coverage/blastradius-core,io.github.baokhang83.blastradius.core.tracking,TestBoundaryListener,8,197,3,11,1,64,4,17,1,13
